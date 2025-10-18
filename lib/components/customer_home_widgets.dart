@@ -1,38 +1,140 @@
 import 'package:flutter/material.dart';
-// Note: multivemdor_shop/models/category.dart is not used since we use Map<String, dynamic>
-// import 'package:multivendor_shop/models/category.dart'; 
-import 'package:multivendor_shop/constants/colors.dart'; 
-import 'package:multivendor_shop/components/loading.dart'; 
+import 'package:multivendor_shop/constants/colors.dart';
+import 'package:multivendor_shop/components/loading.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http; 
+import 'dart:convert'; 
 
 // ASSUMED: These imports point to your other files
 import 'package:multivendor_shop/components/nav_bar_container.dart';
 import 'package:multivendor_shop/providers/category_filter_data.dart'; // The CategoryFilterData class
 
+// --- NEW ---
+// Import the new screen you just created.
+// (You may need to adjust the path)
+import 'package:multivendor_shop/views/main/customer/product_screen.dart';
 
-// --- Top Bar Widgets (Omitted for brevity, assumed correct) ---
+
+// ... (ProfileButton, HomeTopBar remain unchanged) ...
 
 class ProfileButton extends StatelessWidget {
   const ProfileButton({super.key});
-  // ... build implementation ...
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 50,
-      height: 50,
-      decoration: const BoxDecoration(
-        color: Colors.orange,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 5,
-            offset: Offset(0, 2),
+    // We wrap the original Container in a PopupMenuButton
+    return PopupMenuButton<String>(
+      // This offset pushes the popup down, away from the button
+      offset: const Offset(0, 60), 
+      // This styles the popup card to have rounded corners
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15.0),
+      ),
+      elevation: 5,
+      color: Colors.white,
+      
+      // This builder creates the list of items
+      itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+        _buildPopupMenuItem(
+          icon: Icons.home_outlined,
+          text: 'Orders',
+          value: 'orders',
+          badgeCount: 5,
+        ),
+        _buildPopupMenuItem(
+          icon: Icons.home_outlined,
+          text: 'Cart',
+          value: 'cart',
+          badgeCount: 2,
+        ),
+        _buildPopupMenuItem(
+          icon: Icons.home_outlined,
+          text: 'Profile',
+          value: 'profile',
+        ),
+        _buildPopupMenuItem(
+          icon: Icons.home_outlined,
+          text: 'Log Out',
+          value: 'logout',
+        ),
+      ],
+
+      // This is called when a user taps an item
+      onSelected: (String value) {
+        // --- ADD YOUR NAVIGATION LOGIC HERE ---
+        if (value == 'orders') {
+          // Example: Navigator.push(context, MaterialPageRoute(builder: (_) => OrdersScreen()));
+          if (kDebugMode) {
+            print('Navigate to Orders');
+          }
+        } else if (value == 'cart') {
+          if (kDebugMode) {
+            print('Navigate to Cart');
+          }
+        } else if (value == 'profile') {
+          if (kDebugMode) {
+            print('Navigate to Profile');
+          }
+        } else if (value == 'logout') {
+          if (kDebugMode) {
+            print('Perform Log Out');
+          }
+        }
+      },
+
+      // This is your original button UI. It now acts as the
+      // 'child' that triggers the popup menu.
+      child: Container(
+        width: 50,
+        height: 50,
+        decoration: const BoxDecoration(
+          color: Colors.orange,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 5,
+              offset: Offset(0, 2),
+            ),
+          ],
+        ),
+        child: const Icon(Icons.person, color: Colors.white),
+      ),
+    );
+  }
+
+  // Helper method to build the custom menu items from your screenshot
+  PopupMenuItem<String> _buildPopupMenuItem({
+    required IconData icon,
+    required String text,
+    required String value,
+    int? badgeCount,
+  }) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          // Icon from your screenshot
+          Icon(icon, color: Colors.green.shade400),
+          const SizedBox(width: 15),
+          
+          // Text
+          Expanded(
+            child: Text(text, style: const TextStyle(color: Colors.black87)),
           ),
+          
+          // Badge (only shows if badgeCount is not null)
+          if (badgeCount != null)
+            Text(
+              badgeCount.toString(),
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
         ],
       ),
-      child: const Icon(Icons.person, color: Colors.white),
     );
   }
 }
@@ -47,7 +149,6 @@ class HomeTopBar extends StatelessWidget {
     required this.onSearchSubmitted,
   });
 
-  // ... build implementation (omitted) ...
   @override
   Widget build(BuildContext context) {
     return NavBarContainer(
@@ -101,20 +202,27 @@ class HomeTopBar extends StatelessWidget {
                 ),
               ),
             ),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 5,
-                    offset: Offset(0, 2),
-                  ),
-                ],
+            
+            GestureDetector(
+              onTap: () {
+                // This command finds the nearest Scaffold and opens its endDrawer
+                Scaffold.of(context).openEndDrawer();
+              },
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 5,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.tune, size: 20, color: Colors.black54),
               ),
-              child: const Icon(Icons.tune, size: 20, color: Colors.black54),
             ),
           ],
         ),
@@ -123,75 +231,90 @@ class HomeTopBar extends StatelessWidget {
   }
 }
 
-class ButtonsGrid extends StatelessWidget {
-  const ButtonsGrid({super.key});
-  // ... build implementation ...
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            GridButton(Icons.store, 'Shop', isSelected: true),
-            const SizedBox(width: 15),
-            GridButton(Icons.local_shipping, 'Products'),
-            const SizedBox(width: 15),
-            GridButton(Icons.map, 'Vendor'),
-          ],
-        ),
-      ],
-    );
-  }
-}
+// --- MODIFIED ---
+// Added GestureDetector to the "Products" button
+// class ButtonsGrid extends StatelessWidget {
+//   const ButtonsGrid({super.key});
+  
+//   @override
+//   Widget build(BuildContext context) {
+//     return Column(
+//       children: [
+//         Row(
+//           mainAxisAlignment: MainAxisAlignment.center,
+//           children: [
+//             GridButton(Icons.store, 'Shop', isSelected: true),
+//             const SizedBox(width: 15),
+            
+//             // --- THIS IS THE CHANGE ---
+//             // Wrap the button in a GestureDetector to make it tappable
+//             GestureDetector(
+//               onTap: () => Navigator.of(context).push(
+//                 MaterialPageRoute(builder: (context) => const ProductScreen())
+//               ),
+//               child: GridButton(Icons.local_shipping, 'Products')
+//             ),
+//             // --- END OF CHANGE ---
+            
+//             const SizedBox(width: 15),
+//             GridButton(Icons.map, 'Vendor'),
+//           ],
+//         ),
+//       ],
+//     );
+//   }
+// }
 
-class GridButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isSelected;
-  // ... build implementation ...
-  const GridButton(this.icon, this.label, {super.key, this.isSelected = false});
+// class GridButton extends StatelessWidget {
+//   // ... (No changes here) ...
+//   final IconData icon;
+//   final String label;
+//   final bool isSelected;
+//   // ... build implementation ...
+//   const GridButton(this.icon, this.label, {super.key, this.isSelected = false});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 100,
-      height: 70,
-      decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF6A5ACD) : Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 2,
-            blurRadius: 5,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? Colors.white : const Color(0xFF6A5ACD), 
-          ),
-          const SizedBox(height: 5),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.black,
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
+//   @override
+//   Widget build(BuildContext context) {
+//     return Container(
+//       width: 100,
+//       height: 70,
+//       decoration: BoxDecoration(
+//         color: isSelected ? const Color(0xFF6A5ACD) : Colors.white,
+//         borderRadius: BorderRadius.circular(15),
+//         boxShadow: [
+//           BoxShadow(
+//             color: Colors.grey.withOpacity(0.2),
+//             spreadRadius: 2,
+//             blurRadius: 5,
+//             offset: const Offset(0, 3),
+//           ),
+//         ],
+//       ),
+//       child: Column(
+//         mainAxisAlignment: MainAxisAlignment.center,
+//         children: [
+//           Icon(
+//             icon,
+//             color: isSelected ? Colors.white : const Color(0xFF6A5ACD), 
+//           ),
+//           const SizedBox(height: 5),
+//           Text(
+//             label,
+//             style: TextStyle(
+//               color: isSelected ? Colors.white : Colors.black,
+//               fontSize: 12,
+//               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+//             ),
+//           ),
+//         ],
+//       ),
+//     );
+//   }
+// }
+
 
 class CategoryTab extends StatelessWidget {
+  // ... (No changes here) ...
   final Map<String, dynamic> category;
 
   const CategoryTab({
@@ -201,17 +324,17 @@ class CategoryTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Selector rebuilds only when selectedCategoryId changes
-    return Selector<CategoryFilterData, int?>(
-      selector: (_, data) => data.selectedCategoryId,
-      builder: (context, selectedFilterId, child) {
+    return Selector<CategoryFilterData, Set<int>>(
+      selector: (_, data) => data.selectedCategoryIds ?? <int>{},
+      builder: (context, selectedFilterIds, child) {
         final categoryId = category['id'] as int?;
-        final isSelected = selectedFilterId == categoryId;
+        
+        final isSelected = selectedFilterIds.contains(categoryId); 
+        
         final text = category['name'] as String? ?? 'N/A';
 
         return GestureDetector(
           onTap: () {
-            // Use Provider.of with listen: false to dispatch the event
             Provider.of<CategoryFilterData>(context, listen: false).setCategory(categoryId);
           },
           child: AnimatedContainer(
@@ -244,9 +367,8 @@ class CategoryTab extends StatelessWidget {
 
 
 class CategoriesWidget extends StatelessWidget {
-  // FIX: Change type back to List<dynamic> for simpler consumption in the common widget
-  // The home.dart file is responsible for correctly returning the data.
-  final Future<List<dynamic>> categoriesFuture; 
+  // ... (No changes here) ...
+  final Future<List<dynamic>> categoriesFuture;
 
   const CategoriesWidget({
     super.key,
@@ -255,26 +377,21 @@ class CategoriesWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // FIX: Match the FutureBuilder type parameter to the expected future type.
-    return FutureBuilder<List<dynamic>>( // Changed to List<dynamic>
+    return FutureBuilder<List<dynamic>>(
       future: categoriesFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: Loading(kSize: 30, color: Color(0xFF6A5ACD))); 
+          return const Center(child: Loading(kSize: 30, color: Color(0xFF6A5ACD)));
         } else if (snapshot.hasError) {
-          // This will show the error message.
           return Center(child: Text('Error: ${snapshot.error}'));
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(child: Text('No categories available.'));
         }
 
-        // Data is now List<dynamic>, where each element is Map<String, dynamic>
         List<dynamic> apiCategories = snapshot.data!;
 
-        // Prepend the "All" category at the list start
-        // FIX: Ensure 'categories' is List<dynamic> for successful spread operation.
         List<dynamic> categories = [
-          {'id': null, 'name': 'All'}, 
+          {'id': null, 'name': 'All'},
           ...apiCategories
         ];
 
@@ -286,13 +403,408 @@ class CategoriesWidget extends StatelessWidget {
               scrollDirection: Axis.horizontal,
               itemCount: categories.length,
               itemBuilder: (context, index) {
-                // Now we cast the individual element before passing it to CategoryTab
-                final category = categories[index] as Map<String, dynamic>; 
+                final category = categories[index] as Map<String, dynamic>;
                 return CategoryTab(
                   category: category,
                 );
               },
             ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+
+class HomeFilterDrawer extends StatelessWidget {
+  // ... (No changes here) ...
+  const HomeFilterDrawer({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    const Color drawerBackgroundColor = Color(0xFFF2F0FF); 
+
+    return Consumer<CategoryFilterData>(
+      builder: (context, filterData, child) {
+        
+        final selectedPaymentMode = filterData.selectedPaymentMode;
+        
+        final selectedCategoryIds = filterData.selectedCategoryIds ?? <int>{};
+        final isHospitalActive = selectedCategoryIds.contains(20);
+        final isHotelActive = selectedCategoryIds.contains(21);
+        
+        return Drawer(
+          backgroundColor: drawerBackgroundColor,
+          child: Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Image.asset(
+                          'assets/logo.png', 
+                          height: 40,
+                          errorBuilder: (context, error, stackTrace) => 
+                            const Text(
+                              'Nickname Infotech', 
+                              style: TextStyle(
+                                fontSize: 16, 
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black54
+                              ),
+                            ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.black54),
+                          onPressed: () {
+                            Navigator.of(context).pop(); 
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+        
+                    _buildDrawerButton(
+                      text: 'For Me',
+                      onTap: () {},
+                      comingSoon: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDrawerButton(
+                      text: 'Other For You',
+                      onTap: () {},
+                      comingSoon: true,
+                    ),
+                    const SizedBox(height: 10),
+                    _buildDrawerButton(
+                      text: 'Within 5Km',
+                      onTap: () {},
+                      comingSoon: true,
+                    ),
+                    const SizedBox(height: 20),
+        
+                    const CategoriesExpansionFilter(),
+    
+                    const SizedBox(height: 10),
+        
+                    _buildFilterOption(
+                      text: 'Pre Booking', 
+                      onTap: () {
+                        filterData.setPaymentMode(selectedPaymentMode == 1 ? null : 1);
+                      },
+                      isActive: selectedPaymentMode == 1,
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    _buildFilterOption(
+                      text: 'Online Payment', 
+                      onTap: () {
+                        filterData.setPaymentMode(selectedPaymentMode == 2 ? null : 2);
+                      },
+                      isActive: selectedPaymentMode == 2,
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    _buildFilterOption(
+                      text: 'Cash on Delivery', 
+                      onTap: () {
+                        filterData.setPaymentMode(selectedPaymentMode == 3 ? null : 3);
+                      },
+                      isActive: selectedPaymentMode == 3,
+                    ),
+                    const SizedBox(height: 10),
+                    
+                    _buildFilterOption(text: 'Open Shop', onTap: () {}),
+                    const SizedBox(height: 10),
+                    
+                    _buildFilterOption(
+                      text: 'Hospitals', 
+                      onTap: () {
+                        filterData.setCategory(isHospitalActive ? null : 20);
+                      },
+                      isActive: isHospitalActive,
+                    ),
+                    const SizedBox(height: 10),
+
+                    _buildFilterOption(
+                      text: 'Hotels', 
+                      onTap: () {
+                        filterData.setCategory(isHotelActive ? null : 21);
+                      },
+                      isActive: isHotelActive,
+                    ),
+                    const SizedBox(height: 20), 
+                  ],
+                ),
+              ),
+              
+              _buildFooter(),
+            ],
+          ),
+        );
+      }
+    );
+  }
+
+  Widget _buildDrawerButton({
+    required String text,
+    required VoidCallback onTap,
+    bool comingSoon = false,
+    bool isActive = false,
+    Widget? trailing,
+  }) {
+    // ... (No changes here) ...
+    final Color bgColor = isActive 
+      ? const Color(0xFF5C6BC0) // Active blue/purple
+      : const Color(0xFFE6E6E6); // Disabled grey
+      
+    final Color fgColor = isActive 
+      ? Colors.white 
+      : Colors.black54;
+
+    return Material(
+      color: bgColor,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: comingSoon ? null : onTap, // Disable tap if coming soon
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                text, 
+                style: TextStyle(
+                  color: fgColor, 
+                  fontSize: 16, 
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.w500
+                )
+              ),
+              if (comingSoon)
+                const Text(
+                  'coming soon', 
+                  style: TextStyle(color: Colors.grey, fontSize: 12)
+                )
+              else if (trailing != null)
+                trailing,
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildFilterOption({
+    required String text,
+    required VoidCallback onTap,
+    bool isActive = false,
+  }) {
+    // ... (No changes here) ...
+    return Material(
+      color: isActive ? const Color(0xFF5C6BC0) : Colors.white, 
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Text(
+            text, 
+            style: TextStyle(
+              color: isActive ? Colors.white : Colors.black87, 
+              fontSize: 16, 
+              fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
+            )
+          ),
+        ),
+      ),
+    );
+  }
+  
+  Widget _buildFooter() {
+    // ... (No changes here) ...
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), // Add bottom padding for safety area
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: const BoxDecoration(
+              color: Colors.black54,
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Text(
+                'nic', 
+                style: TextStyle(
+                  color: Colors.white, 
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16
+                )
+              )
+            ),
+          ),
+          const SizedBox(width: 12),
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'nicknameportal', 
+                style: TextStyle(
+                  fontWeight: FontWeight.bold, 
+                  fontSize: 16
+                )
+              ),
+              Text(
+                'Your Details', 
+                style: TextStyle(color: Colors.black54, fontSize: 14)
+              ),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+}
+
+
+class CategoriesExpansionFilter extends StatefulWidget {
+  // ... (No changes here) ...
+  const CategoriesExpansionFilter({super.key});
+
+  @override
+  State<CategoriesExpansionFilter> createState() => _CategoriesExpansionFilterState();
+}
+
+class _CategoriesExpansionFilterState extends State<CategoriesExpansionFilter> {
+  
+  late Future<List<dynamic>> _categoriesFuture;
+  bool _isExpanded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _categoriesFuture = _fetchCategoriesFromApi();
+  }
+
+  Future<List<dynamic>> _fetchCategoriesFromApi() async {
+    try {
+      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return List.from(data['data'] ?? []);
+        } else {
+          throw Exception('Failed to load categories: API error');
+        }
+      } else {
+        throw Exception('Failed to load categories: HTTP error ${response.statusCode}');
+      }
+    } catch (e) {
+      throw Exception('Failed to connect to the server: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<CategoryFilterData>(
+      builder: (context, filterData, child) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: ExpansionTile(
+            backgroundColor: const Color(0xFF5C6BC0), 
+            collapsedBackgroundColor: const Color(0xFF5C6BC0), 
+            iconColor: Colors.white,
+            collapsedIconColor: Colors.white,
+            
+            trailing: Icon(
+              _isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+              color: Colors.white,
+            ),
+            onExpansionChanged: (bool expanded) {
+              setState(() {
+                _isExpanded = expanded;
+              });
+            },
+            
+            title: const Text(
+              'Categories',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold
+              ),
+            ),
+            
+            children: [
+              FutureBuilder<List<dynamic>>(
+                future: _categoriesFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: CircularProgressIndicator(color: Colors.white),
+                    ));
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)),
+                    ));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Padding(
+                      padding: EdgeInsets.all(16.0),
+                      child: Text('No categories found', style: const TextStyle(color: Colors.white)),
+                    ));
+                  }
+
+                  final categories = snapshot.data!;
+                  
+                  return Container(
+                    color: const Color(0xFF5C6BC0), 
+                    constraints: BoxConstraints(
+                      maxHeight: MediaQuery.of(context).size.height * 0.3,
+                    ),
+                    child: ListView.builder(
+                      padding: EdgeInsets.zero,
+                      shrinkWrap: true,
+                      itemCount: categories.length,
+                      itemBuilder: (context, index) {
+                        final category = categories[index] as Map<String, dynamic>;
+                        final int categoryId = category['id'];
+                        final String categoryName = category['name'] ?? 'N/A';
+                        
+                        final bool isSelected = 
+                            (filterData.selectedCategoryIds ?? <int>{})
+                                .contains(categoryId);
+
+                        return CheckboxListTile(
+                          title: Text(categoryName, style: const TextStyle(color: Colors.white)),
+                          value: isSelected,
+                          onChanged: (bool? value) {
+                            filterData.toggleCategory(categoryId);
+                          },
+                          activeColor: Colors.white, 
+                          checkColor: const Color(0xFF5C6BC0),
+                          
+                          secondary: const Icon(Icons.circle, color: Color(0xFFFBC02D), size: 10), 
+                          
+                          controlAffinity: ListTileControlAffinity.trailing, 
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         );
       },

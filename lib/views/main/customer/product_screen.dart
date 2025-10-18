@@ -10,7 +10,6 @@ import 'product_details_screen.dart';
 import 'package:multivendor_shop/components/gradient_background.dart';
 import 'package:multivendor_shop/providers/category_filter_data.dart'; 
 
-// --- NEW ---
 // Import the customer widgets file to get the HomeTopBar, CategoriesWidget,
 // and HomeFilterDrawer
 import 'package:multivendor_shop/components/customer_home_widgets.dart';
@@ -26,33 +25,41 @@ class ProductScreen extends StatefulWidget {
 class _ProductScreenState extends State<ProductScreen> {
   late Future<List<dynamic>> _productsFuture;
   
-  // --- NEW ---
-  // Add state variables from HomeScreen to manage the new filter widgets
+  // State variables to manage the filter widgets
   late Future<List<dynamic>> _categoriesFuture;
   final TextEditingController _searchController = TextEditingController();
-  Set<int> _currentFilterIds = {};
   
-  // We don't need _currentSearchQuery or _currentPaymentMode
-  // because the product API only filters by category.
+  // State variables to track the *current* filters
+  Set<int> _currentFilterIds = {};
+  String? _currentSearchQuery;
+  int? _currentPaymentMode; // <-- NEW
 
   @override
   void initState() {
     super.initState();
     
-    // --- NEW ---
-    // Fetch categories for the CategoriesWidget
     _categoriesFuture = _fetchCategories(); 
     
-    // Get the *initial* category filter state
-    final initialFilters = Provider.of<CategoryFilterData>(context, listen: false).selectedCategoryIds ?? <int>{};
-    _currentFilterIds = initialFilters;
+    // Get initial state from provider
+    final provider = Provider.of<CategoryFilterData>(context, listen: false);
+    _currentFilterIds = provider.selectedCategoryIds ?? <int>{};
+    _currentSearchQuery = provider.searchQuery;
+    _currentPaymentMode = provider.selectedPaymentMode; // <-- NEW
+    
+    // Set initial text for the search controller if it exists
+    if (_currentSearchQuery != null) {
+      _searchController.text = _currentSearchQuery!;
+    }
     
     // Start the first product fetch
-    _productsFuture = _fetchProductsFromApi(categoryIds: _currentFilterIds);
+    _productsFuture = _fetchProductsFromApi(
+      categoryIds: _currentFilterIds,
+      searchQuery: _currentSearchQuery,
+      paymentMode: _currentPaymentMode, // <-- NEW
+    );
   }
 
-  // --- NEW ---
-  // Listen for changes in the provider
+  // Listen for changes in *all* relevant filters
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -60,40 +67,64 @@ class _ProductScreenState extends State<ProductScreen> {
     // Listen for provider changes
     final filterData = Provider.of<CategoryFilterData>(context);
     final newFilterIds = filterData.selectedCategoryIds ?? <int>{};
+    final newSearchQuery = filterData.searchQuery;
+    final newPaymentMode = filterData.selectedPaymentMode; // <-- NEW
 
-    // Compare with the *last* filters we fetched for
-    if (!setEquals(_currentFilterIds, newFilterIds)) {
+    // Check for changes in all filters
+    bool categoryChanged = !setEquals(_currentFilterIds, newFilterIds);
+    bool searchChanged = newSearchQuery != _currentSearchQuery;
+    bool paymentModeChanged = newPaymentMode != _currentPaymentMode; // <-- NEW
+
+    if (categoryChanged || searchChanged || paymentModeChanged) { // <-- MODIFIED
       
-      // Filters have changed! Update our state and re-fetch
+      // Update our internal state
       _currentFilterIds = newFilterIds;
-      _productsFuture = _fetchProductsFromApi(categoryIds: _currentFilterIds);
+      _currentSearchQuery = newSearchQuery;
+      _currentPaymentMode = newPaymentMode; // <-- NEW
       
-      // Tell the FutureBuilder to rebuild with the new future
+      // Re-fetch products with the new filters
+      _productsFuture = _fetchProductsFromApi(
+        categoryIds: _currentFilterIds,
+        searchQuery: _currentSearchQuery,
+        paymentMode: _currentPaymentMode, // <-- NEW
+      );
+      
+      // Sync the search bar text with the provider state
+      if ((categoryChanged && newFilterIds.isNotEmpty) || (paymentModeChanged && newPaymentMode != null)) {
+        // If a category or payment mode was selected, clear the search bar
+        _searchController.clear();
+      } else if (searchChanged && newSearchQuery != _searchController.text) {
+         // If search changed (incl. being cleared), update the text field
+         _searchController.text = newSearchQuery ?? '';
+      }
+      
       setState(() {}); 
     }
   }
 
-  // --- MODIFIED ---
-  // Refresh using the *current* category filters
+  // Refresh using the *current* filters
   void _refreshProducts() {
     setState(() {
-      _productsFuture = _fetchProductsFromApi(categoryIds: _currentFilterIds);
+      _productsFuture = _fetchProductsFromApi(
+        categoryIds: _currentFilterIds,
+        searchQuery: _currentSearchQuery,
+        paymentMode: _currentPaymentMode, // <-- NEW
+      );
     });
   }
   
-  // --- NEW ---
-  // This function is for the HomeTopBar's search field
+  // This now triggers the provider, which updates the state
   void _onSearchSubmitted(String value) {
     final trimmedValue = value.trim();
-    // This will clear category filters and trigger a re-fetch
+    // This will trigger didChangeDependencies
     Provider.of<CategoryFilterData>(context, listen: false).setSearchQuery(
       trimmedValue.isNotEmpty ? trimmedValue : null
     );
   }
 
-  // --- NEW ---
   // This function is for the CategoriesWidget
   Future<List<dynamic>> _fetchCategories() async {
+    // ... (This function is unchanged) ...
     try {
       final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
       if (response.statusCode == 200) {
@@ -112,15 +143,30 @@ class _ProductScreenState extends State<ProductScreen> {
   }
 
   // --- MODIFIED ---
-  // Renamed from _getAllProducts and updated to accept filters
-  Future<List<dynamic>> _fetchProductsFromApi({Set<int>? categoryIds}) async {
+  // Updated to handle search, payment mode, category, or default states
+  Future<List<dynamic>> _fetchProductsFromApi({
+    Set<int>? categoryIds, 
+    String? searchQuery,
+    int? paymentMode, // <-- NEW
+  }) async {
     String url;
 
-    // Build the URL based on whether filters are active or not
-    if (categoryIds != null && categoryIds.isNotEmpty) {
+    // --- MODIFIED ---
+    // Priority 1: Search
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      url = 'https://nicknameinfo.net/api/product/gcatalogsearch/result?search=${Uri.encodeQueryComponent(searchQuery)}';
+    }
+    // Priority 2: Payment Mode
+    else if (paymentMode != null) {
+      url = 'https://nicknameinfo.net/api/product/gcatalogsearch/result?paymentModes=$paymentMode';
+    }
+    // Priority 3: Category
+    else if (categoryIds != null && categoryIds.isNotEmpty) {
       final idString = categoryIds.join(',');
       url = 'https://nicknameinfo.net/api/product/getAllByCategory?categoryIds=$idString';
-    } else {
+    } 
+    // Priority 4: Default (All)
+    else {
       url = 'https://nicknameinfo.net/api/product/getAllproductList';
     }
     
@@ -129,7 +175,27 @@ class _ProductScreenState extends State<ProductScreen> {
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       if (data['success'] == true) {
-        return data['data'];
+        
+        List<dynamic> responseData = data['data'] ?? [];
+        if (responseData.isEmpty) {
+          return []; // Return empty list if data is empty
+        }
+
+        // Check if the first item has a 'products' key (nested format)
+        if (responseData[0] is Map && responseData[0].containsKey('products')) {
+          // This is the nested format: List of sub-categories, each with a 'products' list
+          List<dynamic> allProducts = [];
+          for (var subCategory in responseData) {
+            if (subCategory is Map && subCategory['products'] is List) {
+              allProducts.addAll(subCategory['products'] as List<dynamic>);
+            }
+          }
+          return allProducts;
+        } else {
+          // This is the old format: A flat list of products
+          return responseData;
+        }
+
       } else {
         throw Exception('API returned an error');
       }
@@ -143,24 +209,17 @@ class _ProductScreenState extends State<ProductScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent, 
       
-      // --- MODIFIED ---
       // Add the drawer to the Scaffold
       endDrawer: const HomeFilterDrawer(),
       
-      // --- REMOVED ---
-      // The old AppBar is gone
-      // appBar: AppBar(...),
-      
       body: Container(
         decoration: gradientBackgroundDecoration,
-        // --- NEW ---
         // Add SafeArea to avoid the status bar
         child: SafeArea( 
           child: Column(
             children: [
               
-              // --- NEW ---
-              // Add the filter widgets from your home screen
+              // Filter widgets
               HomeTopBar(
                 searchController: _searchController,
                 onSearchSubmitted: _onSearchSubmitted,
@@ -170,12 +229,9 @@ class _ProductScreenState extends State<ProductScreen> {
                 categoriesFuture: _categoriesFuture,
               ),
               const SizedBox(height: 15),
-              // --- END OF NEW WIDGETS ---
               
               Expanded(
                 child: FutureBuilder<List<dynamic>>(
-                  // --- MODIFIED ---
-                  // Use the renamed state variable
                   future: _productsFuture, 
                   builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -214,7 +270,7 @@ class _ProductScreenState extends State<ProductScreen> {
                       );
                     }
 
-                    // --- (Rest of the GridView is unchanged) ---
+                    // --- (GridView builder is unchanged) ---
                     return GridView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       itemCount: snapshot.data!.length,
@@ -282,7 +338,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                               decoration: TextDecoration.lineThrough,
                                               color: Colors.grey,
                                               fontSize: 14,
-                                            ),
+                                          ),
                                           ),
                                           Text(
                                             '${product['total']}',

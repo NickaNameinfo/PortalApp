@@ -1,28 +1,70 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 
 class CategoryFilterData with ChangeNotifier {
-  int? _selectedCategoryId;
+  Set<int> _selectedCategoryIds = {};
   String? _searchQuery;
+  
+  // --- NEW ---
+  // Add state for payment mode
+  int? _selectedPaymentMode; 
 
-  int? get selectedCategoryId => _selectedCategoryId;
+  Set<int> get selectedCategoryIds => _selectedCategoryIds;
   String? get searchQuery => _searchQuery;
+  
+  // --- NEW ---
+  // Getter for payment mode
+  int? get selectedPaymentMode => _selectedPaymentMode; 
 
-  void setCategory(int? id) {
-    // Toggle functionality: if the same ID is selected, set it to null (All)
-    final newId = (_selectedCategoryId == id) ? null : id;
-    if (_selectedCategoryId != newId) {
-      _selectedCategoryId = newId;
-      _searchQuery = null; // Clear search when category changes
-      notifyListeners();
+  // --- MODIFIED ---
+  void setCategory(int? categoryId) {
+    if (categoryId == null) {
+      _selectedCategoryIds = <int>{}; 
+    } else {
+      _selectedCategoryIds = {categoryId}; 
     }
+    
+    _searchQuery = null;
+    _selectedPaymentMode = null; // Clear payment mode
+    notifyListeners();
   }
 
-  void setSearchQuery(String? query) {
-    if (_searchQuery != query) {
-      _searchQuery = query;
-      _selectedCategoryId = null; // Clear category filter on search
-      notifyListeners();
+  // --- MODIFIED ---
+  void toggleCategory(int categoryId) {
+    final newSet = Set<int>.from(_selectedCategoryIds);
+    
+    if (newSet.contains(categoryId)) {
+      newSet.remove(categoryId);
+    } else {
+      newSet.add(categoryId);
     }
+    
+    _selectedCategoryIds = newSet;
+
+    _searchQuery = null;
+    _selectedPaymentMode = null; // Clear payment mode
+    notifyListeners();
+  }
+
+  // --- MODIFIED ---
+  void setSearchQuery(String? query) {
+    _searchQuery = query;
+    if (query != null && query.isNotEmpty) {
+      _selectedCategoryIds = <int>{};
+    }
+    
+    _selectedPaymentMode = null; // Clear payment mode
+    notifyListeners();
+  }
+  
+  // --- NEW ---
+  // Setter for payment mode
+  void setPaymentMode(int? paymentMode) {
+    _selectedPaymentMode = paymentMode;
+    
+    // Clear other filters
+    _searchQuery = null;
+    _selectedCategoryIds = <int>{};
+    
+    notifyListeners();
   }
 }

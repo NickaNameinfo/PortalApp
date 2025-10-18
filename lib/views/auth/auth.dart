@@ -167,7 +167,7 @@ class _AuthState extends State<Auth> {
     setState(() {
       isLoading = true;
     });
-    Timer(const Duration(seconds: 5), () {
+    // Timer(const Duration(seconds: 5), () {
       if (widget.isSellerReg) {
         // seller account
         Navigator.of(context).pushNamed(SellerBottomNav.routeName);
@@ -175,7 +175,7 @@ class _AuthState extends State<Auth> {
         // customer account
         Navigator.of(context).pushNamed(CustomerBottomNav.routeName);
       }
-    });
+    // });
   }
 
   // handle sign in and  sign up

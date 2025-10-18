@@ -10,8 +10,9 @@ import 'favorites.dart';
 import 'order.dart';
 import 'home.dart';
 import 'profile.dart';
-import 'category.dart';
+// import 'category.dart';
 import '../store/store.dart';
+import 'product_screen.dart';
 
 class CustomerBottomNav extends StatefulWidget {
   static const routeName = '/customer-home';
@@ -26,8 +27,8 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
   var currentPageIndex = 0;
   final _pages = const [
     HomeScreen(),
-    StoreScreen(),
     ProductScreen(),
+    StoreScreen(),
     CartScreen(),
     CustomerOrderScreen(),
     ProfileScreen(),
@@ -59,13 +60,13 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
         style: TabStyle.reactCircle,
         items: [
           const TabItem(
-            icon: Icons.house_siding,
+            icon: Icons.store,
           ),
           const TabItem(
-            icon: Icons.storefront,
+            icon: Icons.local_shipping,
           ),
           const TabItem(
-            icon: Icons.category_outlined,
+            icon: Icons.map,
           ),
           TabItem(
             icon: Consumer<CartData>(
@@ -80,7 +81,7 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
                showBadge: cartData.cartItems.isNotEmpty ? true:false,
                 child: Icon(
                   Icons.shopping_bag_outlined,
-                  size: currentPageIndex == 3 ? 50 : 25,
+                  size: currentPageIndex == 3 ? 40 : 25,
                   color: currentPageIndex == 3 ? primaryColor : Colors.white70,
                 ),
               ),
