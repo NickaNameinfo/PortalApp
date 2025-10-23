@@ -4,13 +4,17 @@ import 'dart:convert';
 import 'package:badges/badges.dart' as badges_lib;
 import 'dart:ui';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../../../constants/colors.dart';
-import '../../../components/loading.dart';
+import 'package:multivendor_shop/constants/colors.dart';
+import 'package:multivendor_shop/components/loading.dart';
 import 'package:multivendor_shop/components/gradient_background.dart';
+import 'package:multivendor_shop/helpers/cart_api_helper.dart';
+import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
 
 // Assuming you have these files and constants defined:
 // components/loading.dart
 // constants/colors.dart
+// helpers/cart_api_helper.dart
+// views/main/customer/new_product_details_screen.dart
 
 enum Operation { checkoutCart, clearCart }
 
@@ -23,7 +27,70 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   late Future<List<dynamic>> _cartItemsFuture;
-  final String userId = '48';
+  final String userId = '48'; // This should ideally come from authentication
+
+  Future<void> _updateCartItemQuantity(int productId, int newQuantity, Map<String, dynamic> productData) async {
+    try {
+      final responseData = await updateCart(
+        productId: productId,
+        newQuantity: newQuantity,
+        productData: productData,
+        isAdd: false, // Always update for existing items
+        userId: userId,
+        storeId: productData['storeId']?.toString() ?? '', // Assuming storeId is available in productData
+      );
+
+      if (responseData['success'] == true) {
+        _refreshCart();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${productData['name'] ?? 'Item'} quantity updated to $newQuantity')),
+        );
+      } else {
+        throw Exception(responseData['message'] ?? 'Failed to update cart item.');
+      }
+    } catch (e) {
+      debugPrint("Error updating cart item: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not update cart item: ${e.toString()}')));
+    }
+  }
+
+  Future<void> _removeFromCart(int productId, String productName) async {
+    try {
+      final response = await http.delete(Uri.parse('https://nicknameinfo.net/api/cart/delete/$userId/$productId'));
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['success'] == true) {
+          _refreshCart();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$productName removed from cart.')),
+          );
+        } else {
+          throw Exception(responseData['message'] ?? 'Failed to remove item from cart.');
+        }
+      } else {
+        throw Exception('Failed to remove item from cart: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint("Error removing from cart: $e");
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not remove item: ${e.toString()}')));
+    }
+  }
+
+  void _increaseQuantity(Map<String, dynamic> item) {
+    final int currentQty = item['qty'] ?? 0;
+    final int newQuantity = currentQty + 1;
+    _updateCartItemQuantity(item['productId'], newQuantity, item);
+  }
+
+  void _reduceQuantity(Map<String, dynamic> item) {
+    final int currentQty = item['qty'] ?? 0;
+    if (currentQty > 1) {
+      final int newQuantity = currentQty - 1;
+      _updateCartItemQuantity(item['productId'], newQuantity, item);
+    } else {
+      _removeFromCart(item['productId'], item['name']);
+    }
+  }
 
   @override
   void initState() {
@@ -143,59 +210,141 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Widget _buildCartItem(Map<String, dynamic> item) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
-      elevation: 2.0,
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8.0),
-              child: Image.network(
-                item['photo'] ?? 'https://via.placeholder.com/100',
-                width: 80,
-                height: 80,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
+    final int productId = item['productId'] ?? 0;
+    final String productName = item['name'] ?? 'N/A';
+    final String productImgUrl = item['photo'] ?? 'https://via.placeholder.com/100';
+    final double productPrice = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
+    final int quantity = item['qty'] ?? 0;
+    final double totalPrice = productPrice * quantity;
+
+    return Dismissible(
+      onDismissed: (direction) => _removeFromCart(productId, productName),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        height: 115,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: Colors.red,
+        ),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(
+          Icons.delete_forever,
+          color: Colors.white,
+          size: 40,
+        ),
+      ),
+      confirmDismiss: (direction) => showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('Remove $productName'),
+          content: Text(
+            'Are you sure you want to remove $productName from cart?',
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Yes',
+                style: TextStyle(
+                  color: Colors.white,
+                ),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['name'] ?? 'N/A',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    'Qty: ${item['qty'] ?? 0}',
-                    style: const TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '\$${item['price'] ?? 0}',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: primaryColor,
-                    ),
-                  ),
-                ],
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-            ),
-            IconButton(
-              onPressed: () {
-                // TODO: Implement API call to remove item
-                print('Removing item with ID: ${item['id']}');
-              },
-              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(
+                  color: Colors.white,
+                ),
+              ),
             ),
           ],
+        ),
+      ),
+      key: ValueKey(productId),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => NewProductDetailsScreen(product: item),
+            ),
+          );
+        },
+        child: Card(
+          elevation: 3,
+          child: ListTile(
+            contentPadding: const EdgeInsets.only(
+              left: 10,
+              right: 10,
+              top: 5,
+            ),
+            leading: CircleAvatar(
+              backgroundColor: primaryColor,
+              backgroundImage: NetworkImage(productImgUrl),
+            ),
+            title: Text(
+              productName,
+              style: const TextStyle(
+                fontSize: 16,
+              ),
+            ),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('\$${totalPrice.toStringAsFixed(2)}'),
+                const SizedBox(height: 5),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _increaseQuantity(item),
+                      child: const Icon(
+                        Icons.add,
+                        color: primaryColor,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      quantity.toString(),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: () => _reduceQuantity(item),
+                      child: const Icon(
+                        Icons.remove,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              onPressed: () => _removeFromCart(productId, productName),
+              icon: const Icon(
+                Icons.delete_forever,
+                color: primaryColor,
+              ),
+            ),
+          ),
         ),
       ),
     );

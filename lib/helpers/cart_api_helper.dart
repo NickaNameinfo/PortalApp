@@ -1,0 +1,42 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+Future<Map<String, dynamic>> updateCart({
+  required int productId,
+  required int newQuantity,
+  required Map<String, dynamic> productData,
+  required bool isAdd,
+  required String userId,
+  required String storeId,
+}) async {
+  final String name = productData['name']?.toString() ?? 'N/A';
+  final double price = (productData['price'] is num)
+      ? (productData['price'] as num).toDouble()
+      : (double.tryParse(productData['price']?.toString() ?? '0.0') ?? 0.0);
+  final double total = price * newQuantity;
+
+  final String url = isAdd
+      ? 'https://nicknameinfo.net/api/cart/create'
+      : 'https://nicknameinfo.net/api/cart/update/$userId/$productId';
+
+  final response = await http.post(
+    Uri.parse(url),
+    headers: {'Content-Type': 'application/json'},
+    body: json.encode({
+      'productId': productId,
+      'name': name,
+      'orderId': userId,
+      'price': price,
+      'total': total,
+      'qty': newQuantity,
+      'photo': productData['photo']?.toString() ?? '',
+      'storeId': productData['createdId']?.toString() ?? storeId,
+    }),
+  );
+
+  if (response.statusCode == 200 || response.statusCode == 201) {
+    return json.decode(response.body);
+  } else {
+    throw Exception('Cart API Error: ${response.statusCode} ${response.reasonPhrase}');
+  }
+}
