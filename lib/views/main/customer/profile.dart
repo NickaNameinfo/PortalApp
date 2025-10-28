@@ -129,11 +129,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _editProfile() {
     Navigator.of(context)
-        .push(
-          MaterialPageRoute(
-            builder: (context) => const EditProfile(),
-          ),
-        )
+        .pushNamed(EditProfile.routeName)
         .then(
           (value) => setState(
             () {
@@ -148,12 +144,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _changePassword() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const EditProfile(
-          editPasswordOnly: true,
-        ),
-      ),
+    Navigator.of(context).pushNamed(
+      EditProfile.routeName,
+      arguments: true,
     );
   }
 
@@ -187,172 +180,172 @@ class _ProfileScreenState extends State<ProfileScreen> {
           )
         : CustomScrollView(
             slivers: [
-              SliverAppBar(
-                elevation: 0,
-                automaticallyImplyLeading: false,
-                expandedHeight: 130,
-                backgroundColor: primaryColor,
-                flexibleSpace: LayoutBuilder(
-                  builder: (context, constraints) {
-                    return FlexibleSpaceBar(
-                      titlePadding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 10,
-                      ),
-                      title: AnimatedOpacity(
-                        opacity: constraints.biggest.height <= 120 ? 1 : 0,
-                        duration: const Duration(
-                          milliseconds: 300,
-                        ),
-                        child: Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            children: [
-                              const CircleAvatar(
-                                radius: 20,
-                                backgroundColor: primaryColor,
-                                backgroundImage: NetworkImage(
-                                  // Placeholder image as the API response doesn't contain a user image
-                                  'https://via.placeholder.com/150',
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                credential?['firstName'] ?? 'N/A',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ]),
-                      ),
-                      background: Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              primaryColor,
-                              Colors.black26,
-                            ],
-                            stops: [0.1, 1],
-                            end: Alignment.topRight,
-                          ),
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const CircleAvatar(
-                              radius: 65,
-                              backgroundColor: primaryColor,
-                              backgroundImage: NetworkImage(
-                                // Placeholder image as the API response doesn't contain a user image
-                                'https://via.placeholder.com/150',
-                              ),
-                            ),
-                            Text(
-                              credential?['firstName'] ?? 'N/A',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
+              // SliverAppBar(
+              //   elevation: 0,
+              //   automaticallyImplyLeading: false,
+              //   expandedHeight: 130,
+              //   backgroundColor: primaryColor,
+              //   flexibleSpace: LayoutBuilder(
+              //     builder: (context, constraints) {
+              //       return FlexibleSpaceBar(
+              //         titlePadding: const EdgeInsets.symmetric(
+              //           horizontal: 18,
+              //           vertical: 10,
+              //         ),
+              //         title: AnimatedOpacity(
+              //           opacity: constraints.biggest.height <= 120 ? 1 : 0,
+              //           duration: const Duration(
+              //             milliseconds: 300,
+              //           ),
+              //           child: Wrap(
+              //               crossAxisAlignment: WrapCrossAlignment.center,
+              //               children: [
+              //                 const CircleAvatar(
+              //                   radius: 20,
+              //                   backgroundColor: primaryColor,
+              //                   backgroundImage: NetworkImage(
+              //                     // Placeholder image as the API response doesn't contain a user image
+              //                     'https://via.placeholder.com/150',
+              //                   ),
+              //                 ),
+              //                 const SizedBox(width: 10),
+              //                 Text(
+              //                   credential?['firstName'] ?? 'N/A',
+              //                   style: const TextStyle(
+              //                     fontSize: 12,
+              //                     color: Colors.white,
+              //                     fontWeight: FontWeight.w600,
+              //                   ),
+              //                 ),
+              //               ]),
+              //         ),
+              //         background: Container(
+              //           decoration: const BoxDecoration(
+              //             gradient: LinearGradient(
+              //               colors: [
+              //                 primaryColor,
+              //                 Colors.black26,
+              //               ],
+              //               stops: [0.1, 1],
+              //               end: Alignment.topRight,
+              //             ),
+              //           ),
+              //           child: Column(
+              //             mainAxisAlignment: MainAxisAlignment.center,
+              //             children: [
+              //               const CircleAvatar(
+              //                 radius: 65,
+              //                 backgroundColor: primaryColor,
+              //                 backgroundImage: NetworkImage(
+              //                   // Placeholder image as the API response doesn't contain a user image
+              //                   'https://via.placeholder.com/150',
+              //                 ),
+              //               ),
+              //               Text(
+              //                 credential?['firstName'] ?? 'N/A',
+              //                 style: const TextStyle(
+              //                   fontSize: 18,
+              //                   color: Colors.white,
+              //                   fontWeight: FontWeight.w600,
+              //                 ),
+              //               ),
+              //             ],
+              //           ),
+              //         ),
+              //       );
+              //     },
+              //   ),
+              // ),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10.0),
                   child: Column(
                     children: [
-                      Container(
-                        height: 60,
-                        width: size.width / 0.9,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  backgroundColor: bWhite,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(30),
-                                      bottomLeft: Radius.circular(30),
-                                    ),
-                                  ),
-                                ),
-                                onPressed: () {},
-                                child: const Text(
-                                  'Orders',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: primaryColor,
-                                  ),
-                                ),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  backgroundColor: primaryColor,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                ),
-                                onPressed: () {},
-                                child: const Text(
-                                  'Wishlist',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  backgroundColor: bWhite,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.only(
-                                      topRight: Radius.circular(30),
-                                      bottomRight: Radius.circular(30),
-                                    ),
-                                  ),
-                                ),
-                                onPressed: () {},
-                                child: const Text(
-                                  'Cart',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: primaryColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // Container(
+                      //   height: 60,
+                      //   width: size.width / 0.9,
+                      //   decoration: BoxDecoration(
+                      //     color: Colors.white,
+                      //     borderRadius: BorderRadius.circular(30),
+                      //   ),
+                      //   child: Padding(
+                      //     padding: const EdgeInsets.all(8.0),
+                      //     child: Row(
+                      //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      //       children: [
+                      //         ElevatedButton(
+                      //           style: ElevatedButton.styleFrom(
+                      //             padding: const EdgeInsets.symmetric(
+                      //               horizontal: 20,
+                      //               vertical: 10,
+                      //             ),
+                      //             backgroundColor: bWhite,
+                      //             shape: const RoundedRectangleBorder(
+                      //               borderRadius: BorderRadius.only(
+                      //                 topLeft: Radius.circular(30),
+                      //                 bottomLeft: Radius.circular(30),
+                      //               ),
+                      //             ),
+                      //           ),
+                      //           onPressed: () {},
+                      //           child: const Text(
+                      //             'Orders',
+                      //             style: TextStyle(
+                      //               fontWeight: FontWeight.bold,
+                      //               fontSize: 22,
+                      //               color: primaryColor,
+                      //             ),
+                      //           ),
+                      //         ),
+                      //         ElevatedButton(
+                      //           style: ElevatedButton.styleFrom(
+                      //             padding: const EdgeInsets.symmetric(
+                      //               horizontal: 20,
+                      //               vertical: 10,
+                      //             ),
+                      //             backgroundColor: primaryColor,
+                      //             shape: RoundedRectangleBorder(
+                      //               borderRadius: BorderRadius.circular(5),
+                      //             ),
+                      //           ),
+                      //           onPressed: () {},
+                      //           child: const Text(
+                      //             'Wishlist',
+                      //             style: TextStyle(
+                      //               fontWeight: FontWeight.bold,
+                      //               fontSize: 22,
+                      //               color: Colors.white,
+                      //             ),
+                      //           ),
+                      //         ),
+                      //         ElevatedButton(
+                      //           style: ElevatedButton.styleFrom(
+                      //             padding: const EdgeInsets.symmetric(
+                      //               horizontal: 20,
+                      //               vertical: 10,
+                      //             ),
+                      //             backgroundColor: bWhite,
+                      //             shape: const RoundedRectangleBorder(
+                      //               borderRadius: BorderRadius.only(
+                      //                 topRight: Radius.circular(30),
+                      //                 bottomRight: Radius.circular(30),
+                      //               ),
+                      //             ),
+                      //           ),
+                      //           onPressed: () {},
+                      //           child: const Text(
+                      //             'Cart',
+                      //             style: TextStyle(
+                      //               fontWeight: FontWeight.bold,
+                      //               fontSize: 22,
+                      //               color: primaryColor,
+                      //             ),
+                      //           ),
+                      //         ),
+                      //       ],
+                      //     ),
+                      //   ),
+                      // ),
                       const SizedBox(height: 20),
                       Container(
                         height: size.height / 2.8,

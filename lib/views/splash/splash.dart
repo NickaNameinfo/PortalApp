@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
     ItemData(
       primaryColor,
       'assets/images/sp5.png',
-      'Multivendz',
+      'Nickname Portal',
       'A place to find the best',
       contentStyle2,
       titleStyle2,

@@ -9,6 +9,7 @@ import 'package:multivendor_shop/components/loading.dart';
 import 'package:multivendor_shop/components/gradient_background.dart';
 import 'package:multivendor_shop/helpers/cart_api_helper.dart';
 import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
+import 'package:multivendor_shop/views/main/customer/checkout_screen.dart';
 
 // Assuming you have these files and constants defined:
 // components/loading.dart
@@ -119,13 +120,11 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _checkoutCart() async {
-    // Implement API call to checkout cart
-    final response = await http.post(Uri.parse('https://nicknameinfo.net/api/cart/checkout/$userId'));
-    if (response.statusCode == 200) {
-      _refreshCart();
-    } else {
-      print('Checkout failed');
-    }
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => CheckoutScreen(),
+      ),
+      );
   }
 
   Future<void> _clearCart() async {

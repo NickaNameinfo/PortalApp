@@ -272,6 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   storeaddress: storeaddress,
                   storeId: store['id'],
                   location: store['location'] ?? 'N/A',
+                  distance: store['distance'] ?? 'N/A',
                 ),
               );
             }).toList(),
@@ -292,6 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required String? storeaddress,
     required int storeId,
     required String location,
+    required String distance,
   }) {
     // ... (No changes in this function) ...
     return Card(
@@ -424,14 +426,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   'Products : $products',
                   style: const TextStyle(fontSize: 14, color: Colors.black),
                 ),
-                const Row(
+                Row(
                   children: [
                     Text(
                       'Near By : ',
                       style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      'Coming soon',
+                        '${distance} km',
                       style: TextStyle(fontSize: 14, color: Colors.grey),
                     ),
                   ],

@@ -10,8 +10,9 @@ import 'package:multivendor_shop/views/main/seller/seller_bottom_nav.dart';
 import '../views/auth/account_type_selector.dart';
 import '../views/main/customer/customer_bottom_nav.dart';
 import '../views/main/customer/order.dart';
-import '../views/main/seller/dashboard_screens/edit_product.dart';
-import '../views/main/seller/dashboard_screens/upload_product.dart';
+import 'package:multivendor_shop/views/main/customer/map_view_page.dart';
+import 'package:multivendor_shop/views/main/seller/dashboard_screens/edit_product.dart';
+import 'package:multivendor_shop/views/main/seller/dashboard_screens/upload_product.dart';
 import '../views/splash/entry.dart';
 import '../views/splash/splash.dart';
 
@@ -29,6 +30,5 @@ var routes = {
   StoreSetupScreen.routeName: (context) => const StoreSetupScreen(),
   StatisticsScreen.routeName: (context) => const StatisticsScreen(),
   AccountBalanceScreen.routeName: (context) => const AccountBalanceScreen(),
-  CustomerOrderScreen.routeName: (context)=>const CustomerOrderScreen(),
-  EditProduct.routeName: (context)=> const EditProfile(),
+  MapViewPage.routeName: (context) => const MapViewPage(),
 };

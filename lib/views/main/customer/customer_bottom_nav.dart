@@ -7,9 +7,11 @@ import 'package:provider/provider.dart';
 import '../../../providers/cart.dart';
 import 'cart.dart';
 import 'favorites.dart';
-import 'order.dart';
+import 'package:multivendor_shop/views/main/customer/order.dart';
+import 'package:multivendor_shop/views/main/customer/edit_profile.dart';
 import 'home.dart';
 import 'profile.dart';
+import 'map_view_page.dart';
 // import 'category.dart';
 import '../store/store.dart';
 import 'product_screen.dart';
@@ -25,19 +27,42 @@ class CustomerBottomNav extends StatefulWidget {
 
 class _CustomerBottomNavState extends State<CustomerBottomNav> {
   var currentPageIndex = 0;
-  final _pages = const [
-    HomeScreen(),
-    ProductScreen(),
-    StoreScreen(),
-    CartScreen(),
-    CustomerOrderScreen(),
-    ProfileScreen(),
-  ];
+  final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
+  final Map<String, WidgetBuilder> _pages = {
+    '/': (context) => const HomeScreen(),
+    '/products': (context) => const ProductScreen(),
+    '/map-view': (context) => const MapViewPage(),
+    '/cart': (context) => const CartScreen(),
+    '/orders': (context) => const CustomerOrderScreen(),
+    '/profile': (context) => const ProfileScreen(),
+    EditProfile.routeName: (context) => const EditProfile(),
+  };
 
-  void selectPage(var index) {
+  void selectPage(int index) {
     setState(() {
       currentPageIndex = index;
     });
+    // Navigate to the corresponding route name
+    switch (index) {
+      case 0:
+        _navigatorKey.currentState?.pushReplacementNamed('/');
+        break;
+      case 1:
+        _navigatorKey.currentState?.pushReplacementNamed('/products');
+        break;
+      case 2:
+        _navigatorKey.currentState?.pushReplacementNamed('/map-view');
+        break;
+      case 3:
+        _navigatorKey.currentState?.pushReplacementNamed('/cart');
+        break;
+      case 4:
+        _navigatorKey.currentState?.pushReplacementNamed('/orders');
+        break;
+      case 5:
+        _navigatorKey.currentState?.pushReplacementNamed('/profile');
+        break;
+    }
   }
 
   @override
@@ -59,26 +84,17 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
         initialActiveIndex: currentPageIndex,
         style: TabStyle.reactCircle,
         items: [
-          const TabItem(
-            icon: Icons.store,
-          ),
-          const TabItem(
-            icon: Icons.local_shipping,
-          ),
-          const TabItem(
-            icon: Icons.map,
-          ),
+          const TabItem(icon: Icons.store),
+          const TabItem(icon: Icons.local_shipping),
+          const TabItem(icon: Icons.map),
           TabItem(
             icon: Consumer<CartData>(
               builder: (context, data, child) => badges_lib.Badge(
                 badgeContent: Text(
-                        cartData.cartItemCount.toString(),
-                        style: const TextStyle(
-                          color: primaryColor,
-                        ),
-                      )
-                   ,
-               showBadge: cartData.cartItems.isNotEmpty ? true:false,
+                  cartData.cartItemCount.toString(),
+                  style: const TextStyle(color: primaryColor),
+                ),
+                showBadge: cartData.cartItems.isNotEmpty,
                 child: Icon(
                   Icons.shopping_bag_outlined,
                   size: currentPageIndex == 3 ? 40 : 25,
@@ -87,18 +103,21 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
               ),
             ),
           ),
-
-          const TabItem(
-            icon: Icons.receipt_long,
-          ),
-          const TabItem(
-            icon: Icons.person_outline,
-          )
+          const TabItem(icon: Icons.receipt_long),
+          const TabItem(icon: Icons.person_outline),
         ],
         onTap: selectPage,
       ),
       backgroundColor: Colors.grey.shade200,
-      body: _pages[currentPageIndex],
+      body: Navigator(
+        key: _navigatorKey,
+        initialRoute: '/',
+        onGenerateRoute: (settings) {
+          return MaterialPageRoute(
+            builder: _pages[settings.name!]!,
+          );
+        },
+      ),
     );
   }
 }

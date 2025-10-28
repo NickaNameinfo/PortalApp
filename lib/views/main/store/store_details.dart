@@ -249,71 +249,70 @@ class _StoreDetailsState extends State<StoreDetails> {
      await _updateCart(productId, newQuantity, productData, isAdd: false);
   }
 
+  Widget buildStoreHeader() {
+    final String openTime = store?['openTime'] ?? 'N/A';
+    final String closeTime = store?['closeTime'] ?? 'N/A';
+    final String openCloseTime = (openTime != 'N/A' && closeTime != 'N/A') ? 'Open : $openTime - $closeTime' : 'Timings not available';
+    final String? storePhone = store?['phone'];
+    final String? storeWebsite = store?['website'];
+    final String storeName = store?['storename'] ?? 'This Store';
+    final String? location = store?['location'] ?? store?['storeaddress'];
+    final String shareText = 'Check out $storeName! ${storeWebsite != null ? storeWebsite : ""}';
+    final bool canGoBack = currentIndex > 0;
+    final bool canGoForward = currentIndex != -1 && currentIndex < allStores.length - 1;
 
-Widget buildStoreHeader() {
-  final String openTime = store?['openTime'] ?? 'N/A';
-  final String closeTime = store?['closeTime'] ?? 'N/A';
-  final String openCloseTime = (openTime != 'N/A' && closeTime != 'N/A') ? 'Open : $openTime - $closeTime' : 'Timings not available';
-  final String? storePhone = store?['phone'];
-  final String? storeWebsite = store?['website'];
-  final String storeName = store?['storename'] ?? 'This Store';
-  final String? location = store?['location'] ?? store?['storeaddress'];
-  final String shareText = 'Check out $storeName! ${storeWebsite != null ? storeWebsite : ""}';
-  final bool canGoBack = currentIndex > 0;
-  final bool canGoForward = currentIndex != -1 && currentIndex < allStores.length - 1;
-
-  return NavBarContainer(
-     child: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network( store?['storeImage'] ?? 'https://via.placeholder.com/100x100.png?text=Store', width: 100, height: 100, fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(12)), child: Icon(Icons.storefront, color: Colors.grey[400], size: 40)),
+    return NavBarContainer(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network( store?['storeImage'] ?? 'https://via.placeholder.com/100x100.png?text=Store', width: 100, height: 100, fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(12)), child: Icon(Icons.storefront, color: Colors.grey[400], size: 40)),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column( crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(storeName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black), maxLines: 2, overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 2),
-                    Row(children: [ const Icon(Icons.star, color: Colors.amber, size: 16), const SizedBox(width: 4), Text(store?['rating']?.toString() ?? "4.2", style: const TextStyle(color: Colors.black87, fontSize: 14))]),
-                    const SizedBox(height: 4),
-                    Text(openCloseTime, style: const TextStyle(color: Colors.black87)),
-                    Text("Products : ${products.length}", style: const TextStyle(color: Colors.black87)),
-                  ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column( crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(storeName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: Colors.black), maxLines: 2, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Row(children: [ const Icon(Icons.star, color: Colors.amber, size: 16), const SizedBox(width: 4), Text(store?['rating']?.toString() ?? "4.2", style: const TextStyle(color: Colors.black87, fontSize: 14))]),
+                      const SizedBox(height: 4),
+                      Text(openCloseTime, style: const TextStyle(color: Colors.black87)),
+                      Text("Products : ${products.length}", style: const TextStyle(color: Colors.black87)),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row( mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-              GestureDetector( onTap: () { if (storePhone != null) launchWhatsApp(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp number not available.'))); }, child: _buildCircleIcon(FontAwesomeIcons.whatsapp, Colors.green)),
-              GestureDetector( onTap: () { if (storePhone != null) makePhoneCall(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number not available.'))); }, child: _buildCircleIcon(Icons.phone, Colors.blue)),
-              GestureDetector( onTap: () { if (location != null && location.isNotEmpty) openMap(location); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not available.'))); }, child: _buildCircleIcon(Icons.location_on, Colors.purple)),
-              GestureDetector( onTap: () { if (storeWebsite != null && storeWebsite.isNotEmpty) launchWebsite(storeWebsite); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Website not available.'))); }, child: _buildCircleIcon(Icons.language, Colors.red)),
-              GestureDetector( onTap: () { shareContent(shareText, subject: 'Check out this store!'); }, child: _buildCircleIcon(Icons.share, Colors.teal)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          NavBarContainer(
-             child: Row( mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                _buildBottomButton(Icons.remove),
-                GestureDetector( onTap: canGoBack ? _navigateToPreviousStore : null, child: _buildBottomButton(Icons.arrow_back, color: canGoBack ? Colors.black87 : Colors.grey[400])),
-                GestureDetector( onTap: canGoForward ? _navigateToNextStore : null, child: _buildBottomButton(Icons.arrow_forward, color: canGoForward ? Colors.blue : Colors.grey[400])),
               ],
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+            Row( mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
+                GestureDetector( onTap: () { if (storePhone != null) launchWhatsApp(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp number not available.'))); }, child: _buildCircleIcon(FontAwesomeIcons.whatsapp, Colors.green)),
+                GestureDetector( onTap: () { if (storePhone != null) makePhoneCall(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number not available.'))); }, child: _buildCircleIcon(Icons.phone, Colors.blue)),
+                GestureDetector( onTap: () { if (location != null && location.isNotEmpty) openMap(location); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not available.'))); }, child: _buildCircleIcon(Icons.location_on, Colors.purple)),
+                GestureDetector( onTap: () { if (storeWebsite != null && storeWebsite.isNotEmpty) launchWebsite(storeWebsite); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Website not available.'))); }, child: _buildCircleIcon(Icons.language, Colors.red)),
+                GestureDetector( onTap: () { shareContent(shareText, subject: 'Check out this store!'); }, child: _buildCircleIcon(Icons.share, Colors.teal)),
+              ],
+            ),
+            const SizedBox(height: 16),
+            NavBarContainer(
+              child: Row( mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+                  _buildBottomButton(Icons.remove),
+                  GestureDetector( onTap: canGoBack ? _navigateToPreviousStore : null, child: _buildBottomButton(Icons.arrow_back, color: canGoBack ? Colors.black87 : Colors.grey[400])),
+                  GestureDetector( onTap: canGoForward ? _navigateToNextStore : null, child: _buildBottomButton(Icons.arrow_forward, color: canGoForward ? Colors.blue : Colors.grey[400])),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
 Widget _buildCircleIcon(IconData icon, Color color) {
   return Container(width: 42, height: 42, decoration: BoxDecoration( color: color.withOpacity(0.15), shape: BoxShape.circle, boxShadow: [BoxShadow( color: color.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 3))]), child: Icon(icon, color: color, size: 20));
@@ -429,9 +428,9 @@ Widget buildProductCard(Map<String, dynamic> item) {
                         );
                       },
                      child: Icon(
-    Icons.favorite_border,
-    color: Colors.pink[300] ?? Colors.pink, // <-- Fix applied here
-  ),
+                        Icons.favorite_border,
+                        color: Colors.pink[300] ?? Colors.pink, // <-- Fix applied here
+                      ),
                     ),
                     GestureDetector(
                       onTap: () {

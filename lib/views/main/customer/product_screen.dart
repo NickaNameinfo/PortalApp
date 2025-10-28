@@ -307,11 +307,11 @@ class _ProductScreenState extends State<ProductScreen> {
                                       ),
                                       child: Image.network(
                                         product['photo'] ?? 'https://via.placeholder.com/150',
-                                        height: 120,
+                                        height: 150,
                                         fit: BoxFit.cover,
                                         errorBuilder: (context, error, stackTrace) => 
                                           Container(
-                                            height: 120, 
+                                            height: 150, 
                                             color: Colors.grey[200], 
                                             child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 50)
                                           ),
@@ -333,7 +333,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                           ),
                                           const SizedBox(height: 5),
                                           Text(
-                                            '${product['price']}',
+                                            'RS ${product['discountPer']}',
                                             style: const TextStyle(
                                               decoration: TextDecoration.lineThrough,
                                               color: Colors.grey,
@@ -341,7 +341,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                           ),
                                           ),
                                           Text(
-                                            '${product['total']}',
+                                            'RS ${product['total']}',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
                                               fontSize: 16,
@@ -363,7 +363,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                       borderRadius: BorderRadius.circular(5),
                                     ),
                                     child: Text(
-                                      '${product['discount'] ?? 0} %',
+                                      'RS ${product['discount'] ?? 0} %',
                                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                                     ),
                                   ),

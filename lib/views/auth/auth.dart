@@ -364,9 +364,7 @@ class _AuthState extends State<Auth> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    !isLogin
-                        ? ProfileImagePicker(selectImage: _selectPhoto)
-                        : Center(
+                        Center(
                             child: CircleAvatar(
                               backgroundColor: Colors.white,
                               radius: 60,
@@ -494,35 +492,35 @@ class _AuthState extends State<Auth> {
                                     ),
                                   ),
                                 ),
-                                const SizedBox(height: 10),
-                                ElevatedButton(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(20),
-                                    ),
-                                    padding: const EdgeInsets.all(15),
-                                  ),
-                                  onPressed: () => _googleAuth(),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Image.asset(
-                                        'assets/images/google.png',
-                                        width: 20,
-                                      ),
-                                      const SizedBox(width: 20),
-                                      Text(
-                                        isLogin
-                                            ? 'Signin with google'
-                                            : 'Signup with google',
-                                        style: const TextStyle(
-                                            color: Colors.grey,
-                                            fontWeight: FontWeight.w600),
-                                      ),
-                                    ],
-                                  ),
-                                ),
+                                // const SizedBox(height: 10),
+                                // ElevatedButton(
+                                //   style: ElevatedButton.styleFrom(
+                                //     backgroundColor: Colors.white,
+                                //     shape: RoundedRectangleBorder(
+                                //       borderRadius: BorderRadius.circular(20),
+                                //     ),
+                                //     padding: const EdgeInsets.all(15),
+                                //   ),
+                                //   onPressed: () => _googleAuth(),
+                                //   child: Row(
+                                //     mainAxisAlignment: MainAxisAlignment.center,
+                                //     children: [
+                                //       Image.asset(
+                                //         'assets/images/google.png',
+                                //         width: 20,
+                                //       ),
+                                //       const SizedBox(width: 20),
+                                //       Text(
+                                //         isLogin
+                                //             ? 'Signin with google'
+                                //             : 'Signup with google',
+                                //         style: const TextStyle(
+                                //             color: Colors.grey,
+                                //             fontWeight: FontWeight.w600),
+                                //       ),
+                                //     ],
+                                //   ),
+                                // ),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment
                                       .center, // Centered the row
@@ -537,9 +535,9 @@ class _AuthState extends State<Auth> {
                                     ),
                                     TextButton(
                                       onPressed: () => _switchLog(),
-                                      child: const Text(
+                                      child: Text(
                                         // Changed to const Text
-                                        'Register Now', // Changed text
+                                        isLogin ? 'Register Now' : 'Login Now', // Changed text
                                         style: TextStyle(
                                           color: primaryColor,
                                           fontWeight: FontWeight.w600,

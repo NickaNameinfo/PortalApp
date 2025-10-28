@@ -20,6 +20,7 @@ enum Field {
 }
 
 class EditProfile extends StatefulWidget {
+  static const routeName = '/edit-profile';
   const EditProfile({
     super.key,
     this.editPasswordOnly = false,
@@ -46,6 +47,7 @@ class _EditProfileState extends State<EditProfile> {
   var isLoading = true;
   var isInit = true;
   var changePassword = false;
+  var _editPasswordOnlyFromArgs = false;
 
   // fetch user credentials
   Future<void> _fetchUserDetails() async {
@@ -185,6 +187,10 @@ class _EditProfileState extends State<EditProfile> {
   void didChangeDependencies() {
     // TODO: implement didChangeDependencies
     if (isInit) {
+      final args = ModalRoute.of(context)!.settings.arguments;
+      if (args != null && args is bool) {
+        _editPasswordOnlyFromArgs = args;
+      }
       _fetchUserDetails();
     }
     setState(() {
@@ -221,7 +227,7 @@ class _EditProfileState extends State<EditProfile> {
       return null;
     }
 
-    if (widget.editPasswordOnly || changePassword) {
+    if (widget.editPasswordOnly || changePassword || _editPasswordOnlyFromArgs) {
       // TODO: Implement password change
       _auth.currentUser!.updatePassword(_passwordController.text.trim());
       isLoadingFnc();
@@ -294,13 +300,17 @@ class _EditProfileState extends State<EditProfile> {
         backgroundColor: primaryColor,
         onPressed: () => _saveDetails(),
         label: Text(
-          widget.editPasswordOnly ? 'Change Password' : 'Save Details',
+          (widget.editPasswordOnly || _editPasswordOnlyFromArgs)
+              ? 'Change Password'
+              : 'Save Details',
           style: const TextStyle(
             color: Colors.white,
           ),
         ),
         icon: Icon(
-          widget.editPasswordOnly ? Icons.key : Icons.save,
+          (widget.editPasswordOnly || _editPasswordOnlyFromArgs)
+              ? Icons.key
+              : Icons.save,
           color: Colors.white,
         ),
       ),
@@ -318,7 +328,7 @@ class _EditProfileState extends State<EditProfile> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    widget.editPasswordOnly
+                    (widget.editPasswordOnly || _editPasswordOnlyFromArgs)
                         ? const SizedBox.shrink()
                         : ProfileImagePicker(
                             selectImage: _selectPhoto,
@@ -328,7 +338,8 @@ class _EditProfileState extends State<EditProfile> {
                     const SizedBox(height: 10),
                     Center(
                       child: Text(
-                        widget.editPasswordOnly || changePassword
+                        (widget.editPasswordOnly || _editPasswordOnlyFromArgs) ||
+                                changePassword
                             ? 'Change Password'
                             : 'Edit Profile Details',
                         style: const TextStyle(
@@ -344,7 +355,7 @@ class _EditProfileState extends State<EditProfile> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          widget.editPasswordOnly
+                          (widget.editPasswordOnly || _editPasswordOnlyFromArgs)
                               ? const SizedBox.shrink()
                               : Column(
                                   children: [
@@ -381,7 +392,7 @@ class _EditProfileState extends State<EditProfile> {
                                     ),
                                   ],
                                 ),
-                          widget.editPasswordOnly
+                          (widget.editPasswordOnly || _editPasswordOnlyFromArgs)
                               ? const SizedBox.shrink()
                               : Row(
                                   children: [
@@ -411,7 +422,9 @@ class _EditProfileState extends State<EditProfile> {
                                     ),
                                   ],
                                 ),
-                          changePassword || widget.editPasswordOnly
+                          changePassword ||
+                                  widget.editPasswordOnly ||
+                                  _editPasswordOnlyFromArgs
                               ? kTextField(
                                   _passwordController,
                                   '********',

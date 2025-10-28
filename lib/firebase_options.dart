@@ -50,9 +50,9 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyByjSdGHCYMAT3N9Hd7PXDkTV5nrCa1-qo',
     appId: '1:775065813848:web:fffaa91511b40ff64d5b2d',
     messagingSenderId: '775065813848',
-    projectId: 'multivendz',
-    authDomain: 'multivendz.firebaseapp.com',
-    storageBucket: 'multivendz.appspot.com',
+    projectId: 'NicknamePortal',
+    authDomain: 'NicknamePortal.firebaseapp.com',
+    storageBucket: 'NicknamePortal.appspot.com',
     measurementId: 'G-ND38TEDMXQ',
   );
 
@@ -60,16 +60,16 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyA7rOI3nl4JLGafn4Bqw84jyEeGLiiqD6c',
     appId: '1:775065813848:android:05f53a9af344590b4d5b2d',
     messagingSenderId: '775065813848',
-    projectId: 'multivendz',
-    storageBucket: 'multivendz.appspot.com',
+    projectId: 'NicknamePortal',
+    storageBucket: 'NicknamePortal.appspot.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyC5B4opsgP-djQQFyIQQvtvx1NLMOCk72I',
     appId: '1:775065813848:ios:ce0a2c53339523d44d5b2d',
     messagingSenderId: '775065813848',
-    projectId: 'multivendz',
-    storageBucket: 'multivendz.appspot.com',
+    projectId: 'NicknamePortal',
+    storageBucket: 'NicknamePortal.appspot.com',
     iosClientId: '775065813848-gvjhqiqp8b3eam9fge2dsq6ceilbstue.apps.googleusercontent.com',
     iosBundleId: 'com.atutechs.multivendorShop',
   );

@@ -14,6 +14,8 @@ void showSnackBar(String message, BuildContext context) {
         ),
       ),
       backgroundColor: primaryColor,
+      duration: const Duration(seconds: 1),
+      // position: SnackBarPosition.topRight,
       action: SnackBarAction(
         onPressed: () => Navigator.of(context).pop(),
         label: 'Dismiss',
