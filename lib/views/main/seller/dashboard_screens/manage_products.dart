@@ -1,11 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../components/loading.dart';
-
 import '../../../../constants/colors.dart';
-
+import '../../../../helpers/product_api_service.dart';
 import '../../product/details.dart';
 import 'edit_product.dart';
 
@@ -19,21 +17,35 @@ class ManageProductsScreen extends StatefulWidget {
 }
 
 class _ManageProductsScreenState extends State<ManageProductsScreen> {
+  String? _supplierId;
+  Future<List<dynamic>>? _productsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSupplierIdAndFetchProducts();
+  }
+
+  Future<void> _loadSupplierIdAndFetchProducts() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _supplierId = prefs.getString('storeId'); // Assuming userId is the supplierId
+      if (_supplierId != null) {
+        _productsFuture = ProductApiService.getAllProductsBySupplierId(_supplierId!);
+      }
+    });
+  }
+
+  // remove product (this will need to be updated to use the API later)
+  void removeProduct(String id) {
+    // Implement API call to remove product
+    setState(() {
+      _productsFuture = ProductApiService.getAllProductsBySupplierId(_supplierId!); // Refresh products after deletion
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final firebase = FirebaseFirestore.instance;
-    final userId = FirebaseAuth.instance.currentUser!.uid;
-
-    // remove product
-    void removeProduct(String id) {
-      firebase.collection('products').doc(id).delete();
-    }
-
-    Stream<QuerySnapshot> productStream = firebase
-        .collection('products')
-        .where('seller_id', isEqualTo: userId)
-        .snapshots();
-
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -62,156 +74,173 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           ),
           child: SizedBox(
             height: MediaQuery.of(context).size.height / 1.2,
-            child: StreamBuilder<QuerySnapshot>(
-              stream: productStream,
-              builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
-                if (snapshot.hasError) {
-                  return const Center(
-                    child: Text('An error occurred ): '),
-                  );
-                }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: Loading(
-                      color: primaryColor,
-                      kSize: 30,
-                    ),
-                  );
-                }
-                if (snapshot.data!.docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Image.asset(
-                          'assets/images/sad.png',
-                          width: 150,
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'No data available!',
-                          style: TextStyle(
+            child: _productsFuture == null
+                ? const Center(child: Text('No supplier ID found'))
+                : FutureBuilder<List<dynamic>>(
+                    future: _productsFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: Loading(
                             color: primaryColor,
+                            kSize: 30,
                           ),
-                        )
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  itemCount: snapshot.data!.docs.length,
-                  itemBuilder: (context, index) {
-                    var item = snapshot.data!.docs[index];
-                    return GestureDetector(
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => DetailsScreen(product: item),
-                        ),
-                      ),
-                      child: Dismissible(
-                        onDismissed: (direction) => removeProduct(item.id),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          height: 115,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: Colors.red,
-                          ),
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          child: const Icon(
-                            Icons.delete_forever,
-                            color: Colors.white,
-                            size: 40,
-                          ),
-                        ),
-                        confirmDismiss: (direction) => showDialog(
-                          context: context,
-                          builder: (context) => AlertDialog(
-                            title: Text('Remove ${item['title']}'),
-                            content: Text(
-                              'Are you sure you want to remove ${item['title']} from your products?',
-                            ),
-                            actions: [
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: primaryColor,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
-                                onPressed: () =>
-                                    Navigator.of(context).pop(true),
-                                child: const Text(
-                                  'Yes',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                  ),
-                                ),
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Center(
+                          child: Text('An error occurred: ${snapshot.error}'),
+                        );
+                      }
+                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Image.asset(
+                                'assets/images/sad.png',
+                                width: 150,
                               ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: primaryColor,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
+                              const SizedBox(height: 10),
+                              const Text(
+                                'No data available!',
+                                style: TextStyle(
+                                  color: primaryColor,
                                 ),
-                                onPressed: () =>
-                                    Navigator.of(context).pop(false),
-                                child: const Text(
-                                  'Cancel',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
+                              )
                             ],
                           ),
-                        ),
-                        key: ValueKey(item.id),
-                        child: Card(
-                          child: ListTile(
-                            contentPadding: const EdgeInsets.only(
-                              left: 10,
-                              right: 10,
-                              top: 5,
-                            ),
-                            leading: CircleAvatar(
-                              backgroundColor: primaryColor,
-                              radius: 35,
-                              backgroundImage: NetworkImage(item['images'][0]),
-                            ),
-                            title: Text(
-                              item['title'],
-                              style: const TextStyle(
-                                fontSize: 16,
+                        );
+                      }
+
+                      return ListView.builder(
+                        itemCount: snapshot.data!.length,
+                        itemBuilder: (context, index) {
+                          var item = snapshot.data![index];
+                          return GestureDetector(
+                            onTap: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => DetailsScreen(product: item['product']),
                               ),
                             ),
-                            subtitle: Text('\$${item['price']}'),
-                            trailing: IconButton(
-                              onPressed: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => EditProduct(product: item),
+                            child: Dismissible(
+                              onDismissed: (direction) => removeProduct(item['id'].toString()),
+                              direction: DismissDirection.endToStart,
+                              background: Container(
+                                height: 115,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(10),
+                                  color: Colors.red,
+                                ),
+                                alignment: Alignment.centerRight,
+                                padding: const EdgeInsets.only(right: 20),
+                                child: const Icon(
+                                  Icons.delete_forever,
+                                  color: Colors.white,
+                                  size: 40,
                                 ),
                               ),
-                              icon: const Icon(
-                                Icons.edit_note,
-                                color: primaryColor,
+                              confirmDismiss: (direction) => showDialog(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: Text('Remove ${item['product']['name']}'),
+                                  content: Text(
+                                    'Are you sure you want to remove ${item['product']['name']} from your products?',
+                                  ),
+                                  actions: [
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: primaryColor,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(true),
+                                      child: const Text(
+                                        'Yes',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    ElevatedButton(
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: primaryColor,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                      ),
+                                      onPressed: () =>
+                                          Navigator.of(context).pop(false),
+                                      child: const Text(
+                                        'Cancel',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              key: ValueKey(item['id']),
+                              child: Card(
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.only(
+                                    left: 10,
+                                    right: 10,
+                                    top: 5,
+                                  ),
+                                  leading: CircleAvatar(
+                                    backgroundColor: primaryColor,
+                                    radius: 35,
+                                    backgroundImage: NetworkImage(item['product']['photo']),
+                                  ),
+                                  title: Text(
+                                    item['product']['name'],
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  subtitle: Text('\RS: ${item['product']['price']}'),
+                                  trailing: IconButton(
+                                    onPressed: () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (context) => EditProduct(productData: item['product']),
+                                      ),
+                                    ),
+                                    icon: const Icon(
+                                      Icons.edit_note,
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditProduct(productData: null),
+            ),
+          ).then((value) {
+            if (value == true) {
+              _loadSupplierIdAndFetchProducts(); // Refresh products after adding a new one
+            }
+          });
+        },
+        backgroundColor: primaryColor,
+        child: const Icon(Icons.add, color: Colors.white),
       ),
     );
   }

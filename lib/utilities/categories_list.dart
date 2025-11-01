@@ -4,7 +4,8 @@ final List<String> category = [
   'Women',
   'Children',
   'Sneakers',
-  'Others'
+  'Others',
+  'Mobile'
 ];
 
 final menCategories = [

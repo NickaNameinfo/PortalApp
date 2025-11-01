@@ -11,6 +11,7 @@ import 'package:multivendor_shop/views/main/customer/new_product_details_screen.
 import 'package:multivendor_shop/views/main/customer/cart.dart';
 import 'package:multivendor_shop/views/main/customer/order.dart';
 import 'package:multivendor_shop/views/main/store/store_details.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -29,14 +30,24 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   // State for Cart
   Map<int, int> _cartQuantities = {};
   Set<int> _cartLoadingIds = {};
-  final String _userId = "48"; // Placeholder - Replace with actual user ID logic
+  late String _userId = ''; // Initialize with an empty string
   // The cart API endpoint for listing is 'https://nicknameinfo.net/api/cart/list/$_userId'
 
   @override
   void initState() {
     super.initState();
     _fetchStoreData();
+    _loadUserId();
   }
+
+   Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _fetchCartQuantities(); // Call _fetchCartQuantities after _userId is loaded
+    });
+  }
+  
 // Global/Top-Level Quantity Selector Widget (Defined here for scope)
 Widget buildQuantitySelector({
   required int quantity,

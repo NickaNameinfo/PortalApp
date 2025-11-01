@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:convex_bottom_bar/convex_bottom_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:multivendor_shop/constants/colors.dart';
-
 import 'dashboard.dart';
 import 'home.dart';
 import 'profile.dart';
@@ -21,7 +20,6 @@ class SellerBottomNav extends StatefulWidget {
 class _SellerBottomNavState extends State<SellerBottomNav> {
   var currentPageIndex = 0;
   final _pages =  [
-    const HomeScreen(),
     DashboardScreen(),
     const CategoryScreen(),
     const StoreScreen(),
@@ -52,9 +50,6 @@ class _SellerBottomNavState extends State<SellerBottomNav> {
         initialActiveIndex: currentPageIndex,
         style: TabStyle.reactCircle,
         items: const [
-          TabItem(
-            icon: Icons.house_siding,
-          ),
           TabItem(
             icon: Icons.dashboard_outlined,
           ),

@@ -10,7 +10,7 @@ import 'package:multivendor_shop/components/gradient_background.dart';
 import 'package:multivendor_shop/helpers/cart_api_helper.dart';
 import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
 import 'package:multivendor_shop/views/main/customer/checkout_screen.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 // Assuming you have these files and constants defined:
 // components/loading.dart
 // constants/colors.dart
@@ -28,7 +28,22 @@ class CartScreen extends StatefulWidget {
 
 class _CartScreenState extends State<CartScreen> {
   late Future<List<dynamic>> _cartItemsFuture;
-  final String userId = '48'; // This should ideally come from authentication
+  late String _userId = ''; // Initialize with an empty string
+
+  @override
+  void initState() {
+    super.initState();
+    _cartItemsFuture = Future.value([]); // Initialize with an empty future
+    _loadUserId();
+  }
+  
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _cartItemsFuture = _fetchCartItems(); // Call _fetchCartItems after _userId is loaded
+    });
+  }
 
   Future<void> _updateCartItemQuantity(int productId, int newQuantity, Map<String, dynamic> productData) async {
     try {
@@ -37,7 +52,7 @@ class _CartScreenState extends State<CartScreen> {
         newQuantity: newQuantity,
         productData: productData,
         isAdd: false, // Always update for existing items
-        userId: userId,
+        userId: _userId,
         storeId: productData['storeId']?.toString() ?? '', // Assuming storeId is available in productData
       );
 
@@ -57,7 +72,7 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _removeFromCart(int productId, String productName) async {
     try {
-      final response = await http.delete(Uri.parse('https://nicknameinfo.net/api/cart/delete/$userId/$productId'));
+      final response = await http.delete(Uri.parse('https://nicknameinfo.net/api/cart/delete/$_userId/$productId'));
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         if (responseData['success'] == true) {
@@ -93,14 +108,9 @@ class _CartScreenState extends State<CartScreen> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _cartItemsFuture = _fetchCartItems();
-  }
 
   Future<List<dynamic>> _fetchCartItems() async {
-    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/cart/list/$userId'));
+    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId'));
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       if (data['success'] == true && data['data'] != null) {
@@ -129,7 +139,7 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _clearCart() async {
     // Implement API call to clear cart
-    final response = await http.delete(Uri.parse('https://nicknameinfo.net/api/cart/clear/$userId'));
+    final response = await http.delete(Uri.parse('https://nicknameinfo.net/api/cart/clear/$_userId'));
     if (response.statusCode == 200) {
       _refreshCart();
     } else {

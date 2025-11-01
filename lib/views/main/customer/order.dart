@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:multivendor_shop/components/gradient_background.dart';
+import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
 import '../../../constants/colors.dart';
 import '../product/details.dart';
 
@@ -39,7 +40,7 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
   }
 
   void _navigateToDetails(Map<String, dynamic> product) {
-    Navigator.of(context).push(
+    Navigator.of(context).push( 
       MaterialPageRoute(
         builder: (context) => DetailsScreen(product: product),
       ),
@@ -179,7 +180,11 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
                                   color: primaryColor,
                                 ),
                                 onPressed: () {
-                                  _navigateToDetails(prod);
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => NewProductDetailsScreen(product: prod),
+                                    ),
+                                  );  
                                 },
                               ),
                             );

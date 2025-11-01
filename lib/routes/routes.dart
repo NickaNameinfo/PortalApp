@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:multivendor_shop/views/auth/auth.dart';
 import 'package:multivendor_shop/views/auth/forgot_password.dart';
 import 'package:multivendor_shop/views/main/customer/edit_profile.dart';
@@ -13,6 +14,7 @@ import '../views/main/customer/order.dart';
 import 'package:multivendor_shop/views/main/customer/map_view_page.dart';
 import 'package:multivendor_shop/views/main/seller/dashboard_screens/edit_product.dart';
 import 'package:multivendor_shop/views/main/seller/dashboard_screens/upload_product.dart';
+import 'package:multivendor_shop/views/main/seller/dashboard_screens/subscription_screen.dart';
 import '../views/splash/entry.dart';
 import '../views/splash/splash.dart';
 
@@ -31,4 +33,9 @@ var routes = {
   StatisticsScreen.routeName: (context) => const StatisticsScreen(),
   AccountBalanceScreen.routeName: (context) => const AccountBalanceScreen(),
   MapViewPage.routeName: (context) => const MapViewPage(),
+  '/subscription-screen': (context) {
+    final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>;
+    return SubscriptionScreen(customerId: args['customerId']!, subscriptionType: args['subscriptionType']!);
+  },
+  '/seller-screen': (context) => const SellerBottomNav(),
 };

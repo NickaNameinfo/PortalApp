@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -29,15 +30,23 @@ class _StoreDetailsState extends State<StoreDetails> {
   int currentIndex = -1;
 
   // State for Cart
-  Map<int, int> _cartQuantities = {};
+  Map<int, int> _cartQuantities = {}; 
   Set<int> _cartLoadingIds = {};
-  final String _userId = "48"; // Placeholder - Replace with actual user ID logic
+  late String _userId = ''; // Initialize with an empty string
   // The cart API endpoint for listing is 'https://nicknameinfo.net/api/cart/list/$_userId'
 
   @override
   void initState() {
     super.initState();
-    _fetchStoreData();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _fetchStoreData(); // Call _fetchStoreData after _userId is loaded
+    });
   }
 
   // NEW: Function to fetch existing cart quantities for the user
@@ -356,8 +365,8 @@ Widget buildProductCard(Map<String, dynamic> item) {
     final String priceString = product['price']?.toString() ?? 'N/A';
     final String totalString = product['total']?.toString() ?? 'N/A';
     final String unitSize = product['unitSize']?.toString() ?? '';
-    final String priceDisplay = unitSize.isNotEmpty ? "$totalString ($unitSize)" : totalString;
     final String stockQty = product['qty']?.toString() ?? '0';
+    final String priceDisplay = unitSize.isNotEmpty ? "$totalString ($stockQty)" : totalString;
     final String discount = product['discountPer']?.toString() ?? '0';
     final double discountValue = double.tryParse(discount) ?? 0.0;
 
@@ -398,7 +407,7 @@ Widget buildProductCard(Map<String, dynamic> item) {
                 Row( /* ... Price and Stock ... */ crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text("Rs : $priceDisplay", style: const TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.bold)),
                      const SizedBox(width: 8),
-                    if (priceString != totalString) Text("Rs : $priceString", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough)),
+                    if (priceString != totalString) Text("Rs : $discount", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough)),
                     const Spacer(),
                     Text( int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? "Coming soon" : "$stockQty Stocks", style: TextStyle( color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
                   ],

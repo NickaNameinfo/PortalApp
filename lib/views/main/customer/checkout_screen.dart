@@ -9,7 +9,7 @@ import 'dart:convert'; // Import for json.decode
 import 'package:multivendor_shop/helpers/address_service.dart';
 import 'package:multivendor_shop/helpers/order_service.dart';
 import 'package:multivendor_shop/views/main/customer/home.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 
 // --- MOCK DEFINITIONS FOR UTILITY FUNCTIONS (Kept to resolve previous errors) ---
 // These functions are assumed to be defined in 'package:multivendor_shop/utilities/show_message.dart'
@@ -44,7 +44,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressLine2Controller = TextEditingController();
   final _cityController = TextEditingController();
   final _postalCodeController = TextEditingController();
-
+  late String _userId = '';
   int _selectedPaymentOption = 1;
   DateTime? _selectedDeliveryDate;
   // Now uses the Address class imported from address_service.dart
@@ -54,13 +54,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   List<dynamic> _cartItems = []; // New state variable to store cart items
 
   // Placeholder for userId, replace with actual user ID from authentication
-  final String userId = '48'; 
 
   @override
   void initState() {
     super.initState();
-    _fetchAddresses();
-    _fetchCartItems(); // Fetch cart items when the screen initializes
+    _loadUserId();
   }
 
   @override
@@ -75,10 +73,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     super.dispose();
   }
 
+ 
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _fetchAddresses();
+      _fetchCartItems(); // Fetch cart items when the screen initializes
+    });
+  }
+  
   Future<void> _fetchAddresses() async {
     try {
       // Replace with actual user ID
-      final fetchedAddresses = await _addressService.fetchAddresses('48'); 
+      final fetchedAddresses = await _addressService.fetchAddresses(_userId); 
       print(fetchedAddresses);
       setState(() {
         // *** LINE 94 FIX: Assignment now works because both types are the same imported Address ***
@@ -178,9 +186,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     try {
       // Place order using OrderService
       final orderResponse = await OrderService.placeOrder(
-        customerId: int.parse(userId),
+        customerId: int.parse(_userId),
         paymentMethod: 3, // Update with actual payment method
-        orderId: int.parse(userId), // Update with actual order ID logic
+        orderId: int.parse(_userId), // Update with actual order ID logic
         grandTotal: _cartItems.fold(0.0, (sum, item) => sum + (item['price'] as double) * (item['qty'] as double)),
         productIds: _cartItems.map((item) => item['productId'] as int).toList(),
         quantities: _cartItems.map((item) => item['qty'] as int).toList(),
@@ -189,7 +197,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       // Delete cart items after successful order
       for (var item in _cartItems) {
         await OrderService.deleteCartItem(
-          userId: userId,
+          userId: _userId,
           productId: item['productId'] as int,
         );
       }
@@ -477,9 +485,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        ElevatedButton(
-          onPressed: _placeOrder,
-          child: const Text('Confirm Order'),
+        Tooltip(
+          message: "We are currently collaborating with stores and will enable ordering soon.",
+          child: ElevatedButton(
+            onPressed: null, // Disable the button
+            child: const Text('Confirm Order'),
+          ),
         ),
         OutlinedButton(
           onPressed: () {
@@ -492,7 +503,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _fetchCartItems() async {
-    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/cart/list/$userId'));
+    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId'));
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       if (data['success'] == true && data['data'] != null) {

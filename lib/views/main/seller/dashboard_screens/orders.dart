@@ -6,18 +6,37 @@ import 'package:multivendor_shop/providers/order.dart';
 import 'package:provider/provider.dart';
 import '../../../../constants/colors.dart';
 import 'package:intl/intl.dart' as intl;
+import 'package:shared_preferences/shared_preferences.dart';
 
 class OrdersScreen extends StatefulWidget {
   static const routeName = '/orders';
-
   const OrdersScreen({super.key});
-
   @override
   State<OrdersScreen> createState() => _OrdersScreenState();
 }
 
 class _OrdersScreenState extends State<OrdersScreen> {
-  var userId = FirebaseAuth.instance.currentUser!.uid;
+
+ late String _userId = ''; // Initialize with an empty string
+ @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _fetchOrders(); // Assuming _fetchOrders depends on _userId
+    });
+  }
+
+  Future<void> _fetchOrders() async {
+    // Implement fetching orders using _userId
+    // This is a placeholder, replace with actual implementation
+    print('Fetching orders for user ID: $_userId');
+  }
 
   DataRow buildDataRow(String field, dynamic detail) {
     return DataRow(
@@ -67,7 +86,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
           data,
           child,
         ) {
-          if (data.pullSpecificOrders(userId).isEmpty) {
+          if (data.pullSpecificOrders(_userId).isEmpty) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               mainAxisAlignment: MainAxisAlignment.center,
@@ -86,9 +105,9 @@ class _OrdersScreenState extends State<OrdersScreen> {
           }
 
           return ListView.builder(
-            itemCount: data.pullSpecificOrders(userId).length,
+            itemCount: data.pullSpecificOrders(_userId).length,
             itemBuilder: (context, index) {
-              var item = data.pullSpecificOrders(userId)[index];
+              var item = data.pullSpecificOrders(_userId)[index];
 
               var userDetails = FirebaseFirestore.instance
                   .collection('sellers')

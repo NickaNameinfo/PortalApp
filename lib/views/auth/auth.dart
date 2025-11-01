@@ -14,6 +14,7 @@ import '../../helpers/image_picker.dart';
 import '../main/customer/customer_bottom_nav.dart';
 import '../main/seller/seller_bottom_nav.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // for fields
 enum Field {
@@ -205,8 +206,20 @@ class _AuthState extends State<Auth> {
         );
 
         if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+          final userId = responseData['data']['id'];
+          final storeId = responseData['data']['storeId'];
+          final userRole = responseData['data']['role'];
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('userId', userId.toString());
+          await prefs.setString('storeId', storeId.toString());
+          await prefs.setString('userRole', userRole);
           showSnackBar('Login successful!');
           isLoadingFnc();
+          if (userRole == "3") {
+            // Redirect to seller screen
+            Navigator.of(context).pushReplacementNamed(SellerBottomNav.routeName); // Assuming a route named '/seller-screen'
+          }
         } else {
           final errorResponse = json.decode(response.body);
           if (errorResponse.containsKey('errors') &&

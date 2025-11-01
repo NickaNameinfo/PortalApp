@@ -9,9 +9,8 @@ import 'constants/colors.dart';
 import 'routes/routes.dart';
 import 'firebase_options.dart';
 // Import your provider file
-import 'package:multivendor_shop/providers/category_filter_data.dart'; 
-// Import your Home Screen (Though not directly used in runApp, it's good practice)
-import 'package:multivendor_shop/views/main/customer/home.dart'; 
+import 'package:multivendor_shop/providers/category_filter_data.dart';
+import 'package:marquee/marquee.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +53,45 @@ class _MultiVendorState extends State<MultiVendor> {
         primaryColor: primaryColor,
       ),
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return Column(
+          children: [
+            // --- MARQUEE BANNER ---
+            Container(
+              color: Colors.red,
+              // Use vertical padding for better spacing around text
+              padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0), 
+              child: SizedBox(
+                // Slightly increase height to ensure text is not clipped
+                height: 24.0, 
+                child: Marquee(
+                  // Using the corrected content for clarity
+                  text: '📢 We are currently collaborating with stores and will enable ordering soon.',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14.0, // Ensure font size fits the height
+                    // FIX: Set decoration to none to remove the underline/border.
+                    decoration: TextDecoration.none, 
+                  ),
+                  scrollAxis: Axis.horizontal,
+                  crossAxisAlignment: CrossAxisAlignment.center, // Center the text vertically
+                  blankSpace: 40.0, // Slightly increased blank space
+                  velocity: 40.0, // Slightly slower velocity can improve readability
+                  pauseAfterRound: const Duration(seconds: 2), // Pause slightly longer
+                  startPadding: 10.0,
+                  accelerationDuration: const Duration(milliseconds: 500),
+                  accelerationCurve: Curves.easeIn,
+                  decelerationDuration: const Duration(milliseconds: 500),
+                  decelerationCurve: Curves.easeOut,
+                ),
+              ),
+            ),
+            // --- END MARQUEE BANNER ---
+            Expanded(child: child!),
+          ],
+        );
+      },
       home: const EntryScreen(),
       routes: routes,
     );

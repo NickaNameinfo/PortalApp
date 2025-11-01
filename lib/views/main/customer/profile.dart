@@ -6,7 +6,8 @@ import 'package:multivendor_shop/constants/colors.dart';
 import 'package:multivendor_shop/views/auth/account_type_selector.dart';
 import 'package:multivendor_shop/views/main/customer/edit_profile.dart';
 import 'package:multivendor_shop/components/k_list_tile.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -14,17 +15,32 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+
 class _ProfileScreenState extends State<ProfileScreen> {
   // Use a hardcoded ID for demonstration; in a real app, this would come from a user session
-  var userId = '109'; 
+  late String _userId = ''; // Initialize with an empty string
   Map<String, dynamic>? credential;
   var isLoading = true;
   var isInit = true;
 
+ @override
+  void initState() {
+    super.initState();
+    _loadUserId();
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _fetchUserDetails(); // Call _fetchUserDetails after _userId is loaded
+    });
+  }
+
   // fetch user credentials
   Future<void> _fetchUserDetails() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/auth/user/$userId'));
+      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/auth/user/$_userId'));
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
@@ -148,12 +164,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       EditProfile.routeName,
       arguments: true,
     );
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchUserDetails();
   }
   
   // This method is no longer needed as the fetch is handled in initState()
@@ -348,7 +358,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // ),
                       const SizedBox(height: 20),
                       Container(
-                        height: size.height / 2.8,
+                        height: size.height / 4,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
@@ -370,21 +380,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               subtitle: credential?['phone'] ?? 'Not set yet',
                               icon: Icons.phone,
                             ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Delivery Address',
-                              subtitle: credential?['address'] ?? 'Not set yet',
-                              icon: Icons.location_pin,
-                            ),
+                            // const Padding(
+                            //   padding: EdgeInsets.all(8.0),
+                            //   child: Divider(thickness: 1),
+                            // ),
+                            // KListTile(
+                            //   title: 'Delivery Address',
+                            //   subtitle: credential?['address'] ?? 'Not set yet',
+                            //   icon: Icons.location_pin,
+                            // ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 20),
                       Container(
-                        height: size.height / 3,
+                        height: size.height / 15,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
@@ -392,36 +402,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: ListView(
                           padding: EdgeInsets.zero,
                           children: [
-                            KListTile(
-                              title: 'App Settings',
-                              icon: Icons.settings,
-                              onTapHandler: _settings,
-                              showSubtitle: false,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Edit Profile',
-                              icon: Icons.edit_note,
-                              onTapHandler: _editProfile,
-                              showSubtitle: false,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Change Password',
-                              icon: Icons.key,
-                              onTapHandler: _changePassword,
-                              showSubtitle: false,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
+                            // KListTile(
+                            //   title: 'Edit Profile',
+                            //   icon: Icons.edit_note,
+                            //   onTapHandler: _editProfile,
+                            //   showSubtitle: false,
+                            // ),
+                            // const Padding(
+                            //   padding: EdgeInsets.all(8.0),
+                            //   child: Divider(thickness: 1),
+                            // ),
+                            // KListTile(
+                            //   title: 'Change Password',
+                            //   icon: Icons.key,
+                            //   onTapHandler: _changePassword,
+                            //   showSubtitle: false,
+                            // ),
+                            // const Padding(
+                            //   padding: EdgeInsets.all(8.0),
+                            //   child: Divider(thickness: 1),
+                            // ),
                             KListTile(
                               title: 'Logout',
                               icon: Icons.logout,

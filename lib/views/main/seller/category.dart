@@ -6,152 +6,132 @@ import '../categories/men.dart';
 import '../categories/other.dart';
 import '../categories/sneakers.dart';
 import '../categories/women.dart';
-
+import 'package:multivendor_shop/models/category_model.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class CategoryScreen extends StatefulWidget {
-  const CategoryScreen({Key? key}) : super(key: key);
+  const CategoryScreen({super.key});
 
   @override
   State<CategoryScreen> createState() => _CategoryScreenState();
 }
 
 class _CategoryScreenState extends State<CategoryScreen> {
-  final _pageController = PageController();
+  List<Category> _categories = [];
+  bool _isLoading = true;
 
-  final List<CategoryItem> categories = [
-    CategoryItem(
-      title: 'Men',
-      imgUrl: 'assets/images/category_imgs/men.png',
-      isActive: true,
-    ),
-    CategoryItem(
-      title: 'Women',
-      imgUrl: 'assets/images/category_imgs/women.png',
-    ),
-    CategoryItem(
-      title: 'Children',
-      imgUrl: 'assets/images/category_imgs/children.png',
-    ),
-    CategoryItem(
-      title: 'Sneakers',
-      imgUrl: 'assets/images/category_imgs/sneakers.png',
-    ),
-    CategoryItem(
-      title: 'Others',
-      imgUrl: 'assets/images/category_imgs/other.png',
-    )
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _fetchCategories();
+  }
 
-  final categoriesList = const [
-    MenCategories(),
-    WomenCategories(),
-    ChildrenCategories(),
-    SneakersCategories(),
-    OtherCategories(),
-  ];
-
-  Widget kCategoryContainer(
-    CategoryItem category,
-    int index,
-  ) {
-    return GestureDetector(
-      onTap: () => setState(() {
-        _pageController.jumpToPage(index);
-      }),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 10),
-        padding: const EdgeInsets.all(10),
-        // height: 40,
-        width: 40,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: category.isActive ? Colors.white : Colors.transparent,
-        ),
-        child: Column(
-          children: [
-            Image.asset(
-              category.imgUrl,
-              color: category.isActive ? primaryColor : Colors.black,
-              fit: BoxFit.cover,
-            ),
-            const SizedBox(height: 5),
-            Text(
-              category.title,
-              style: TextStyle(
-                fontWeight:
-                    category.isActive ? FontWeight.w600 : FontWeight.w500,
-                color: category.isActive ? primaryColor : Colors.black,
-              ),
-            )
-          ],
-        ),
-      ),
-    );
+  Future<void> _fetchCategories() async {
+    try {
+      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      if (response.statusCode == 200) {
+        final decodedData = json.decode(response.body);
+        if (decodedData['success'] == true && decodedData['data'] != null) {
+          setState(() {
+            _categories = (decodedData['data'] as List)
+                .map((e) => Category.fromJson(e))
+                .toList();
+            _isLoading = false;
+          });
+        } else {
+          debugPrint('Category API returned success: false or missing data.');
+          setState(() {
+            _isLoading = false;
+          });
+        }
+      } else {
+        debugPrint('Category API failed with status: ${response.statusCode}');
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching categories: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    Size size = MediaQuery.of(context).size;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 48.0),
-      child: Column(
-        children: [
-          Center(
-            child: Wrap(
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: const [
-                Icon(
-                  Icons.category,
-                  color: primaryColor,
-                ),
-                Text(
-                  'Categories',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 28,
-                    color: primaryColor,
-                  ),
-                ),
-              ],
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Categories',
+          style: TextStyle(
+            color: Colors.black,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
           ),
-          Row(
-            children: [
-              SizedBox(
-                width: size.width / 1.25,
-                height: size.height * 0.83,
-                child: PageView(
-                  controller: _pageController,
-                  scrollDirection: Axis.vertical,
-                  onPageChanged: (value) {
-                    setState(() {
-                      for (var catItem in categories) {
-                        catItem.setActive(false);
-                      }
-                      categories[value].setActive(true);
-                    });
-                  },
-                  children: categoriesList,
-                ),
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: _categories.length,
+              itemBuilder: (context, index) {
+                final category = _categories[index];
+                return CategoryItem(
+                  category: category,
+                );
+              },
+            ),
+    );
+  }
+}
+
+class CategoryItem extends StatelessWidget {
+  final Category category;
+
+  const CategoryItem({
+    super.key,
+    required this.category,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Row(
+          children: [
+            // const Icon(Icons.category, size: 40.0),
+            const SizedBox(width: 16.0),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    category.name,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  // if (category.subcategories.isNotEmpty)
+                  //   Text(
+                  //     'Subcategories: ${category.subcategories.length}',
+                  //     style: const TextStyle(
+                  //       fontSize: 14,
+                  //       color: Colors.grey,
+                  //     ),
+                  //   ),
+                ],
               ),
-              Container(
-                width: size.width / 5,
-                height: size.height * 0.83,
-                decoration: BoxDecoration(
-                  color: litePrimary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(5),
-                ),
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 5),
-                  itemCount: categories.length,
-                  itemBuilder: (context, index) =>
-                      kCategoryContainer(categories[index], index),
-                ),
-              ),
-            ],
-          )
-        ],
+            ),
+            // const Icon(Icons.arrow_forward_ios, size: 16.0, color: Colors.grey),
+          ],
+        ),
       ),
     );
   }
