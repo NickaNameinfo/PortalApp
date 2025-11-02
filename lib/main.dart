@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/providers/cart.dart';
-import 'package:multivendor_shop/providers/order.dart';
-import 'package:multivendor_shop/views/splash/entry.dart';
+import 'package:nickname_portal/providers/cart.dart';
+import 'package:nickname_portal/providers/order.dart';
+import 'package:nickname_portal/views/splash/entry.dart';
 import 'package:provider/provider.dart';
 import 'constants/colors.dart';
 import 'routes/routes.dart';
 import 'firebase_options.dart';
 // Import your provider file
-import 'package:multivendor_shop/providers/category_filter_data.dart';
+import 'package:nickname_portal/providers/category_filter_data.dart';
 import 'package:marquee/marquee.dart';
 
 Future<void> main() async {
@@ -56,6 +56,8 @@ class _MultiVendorState extends State<MultiVendor> {
       builder: (context, child) {
         return Column(
           children: [
+            // --- END MARQUEE BANNER ---
+            Expanded(child: child!),
             // --- MARQUEE BANNER ---
             Container(
               color: Colors.red,
@@ -63,7 +65,7 @@ class _MultiVendorState extends State<MultiVendor> {
               padding: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0), 
               child: SizedBox(
                 // Slightly increase height to ensure text is not clipped
-                height: 24.0, 
+                height: 55.0, 
                 child: Marquee(
                   // Using the corrected content for clarity
                   text: '📢 We are currently collaborating with stores and will enable ordering soon.',
@@ -87,8 +89,6 @@ class _MultiVendorState extends State<MultiVendor> {
                 ),
               ),
             ),
-            // --- END MARQUEE BANNER ---
-            Expanded(child: child!),
           ],
         );
       },

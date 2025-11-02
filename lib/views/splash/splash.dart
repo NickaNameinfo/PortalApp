@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:liquid_swipe/liquid_swipe.dart';
-import 'package:multivendor_shop/models/item_data.dart';
+import 'package:nickname_portal/models/item_data.dart';
 import '../../constants/colors.dart';
 import '../auth/account_type_selector.dart';
 

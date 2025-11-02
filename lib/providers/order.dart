@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/models/order.dart';
+import 'package:nickname_portal/models/order.dart';
 
 import '../models/cart.dart';
 

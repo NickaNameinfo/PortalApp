@@ -9,12 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http; // Added for making HTTP requests
-import 'package:multivendor_shop/components/loading.dart';
-import 'package:multivendor_shop/helpers/category_service.dart'; // Added for CategoryService
+import 'package:nickname_portal/components/loading.dart';
+import 'package:nickname_portal/helpers/category_service.dart'; // Added for CategoryService
 import 'package:shared_preferences/shared_preferences.dart'; // Added for SharedPreferences
 import '../../../../utilities/categories_list.dart'; // Still needed for legacy/default values
 import 'package:path/path.dart' as path;
-import 'package:multivendor_shop/constants/colors.dart';
+import 'package:nickname_portal/constants/colors.dart';
 import 'dart:typed_data';
 
 // New: Enum for Product Status

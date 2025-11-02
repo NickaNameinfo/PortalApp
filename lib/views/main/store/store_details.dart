@@ -3,13 +3,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
-import 'package:multivendor_shop/components/gradient_background.dart';
-import 'package:multivendor_shop/components/nav_bar_container.dart';
-import 'package:multivendor_shop/utilities/url_launcher_utils.dart'; // Import the utils file
-import 'package:multivendor_shop/helpers/cart_api_helper.dart';
-import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
-import 'package:multivendor_shop/views/main/customer/cart.dart';
-import 'package:multivendor_shop/views/main/customer/order.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
+import 'package:nickname_portal/components/nav_bar_container.dart';
+import 'package:nickname_portal/utilities/url_launcher_utils.dart'; // Import the utils file
+import 'package:nickname_portal/helpers/cart_api_helper.dart';
+import 'package:nickname_portal/views/main/customer/new_product_details_screen.dart';
+import 'package:nickname_portal/views/main/customer/cart.dart';
+import 'package:nickname_portal/views/main/customer/order.dart';
 
 // Assuming constants/colors.dart defines primaryColor or similar
 // import '../../../constants/colors.dart';

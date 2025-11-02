@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/cart.dart';
-import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
-import 'package:multivendor_shop/views/main/customer/cart.dart';
-import 'package:multivendor_shop/views/main/customer/order.dart';
+import 'package:nickname_portal/views/main/customer/new_product_details_screen.dart';
+import 'package:nickname_portal/views/main/customer/cart.dart';
+import 'package:nickname_portal/views/main/customer/order.dart';
 
 Widget buildCircleIcon(IconData icon, Color color) {
   return Container(

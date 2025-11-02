@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/helpers/category_service.dart';
+import 'package:nickname_portal/helpers/category_service.dart';
 import '../../../utilities/category_gridview.dart';
 
 class ChildrenCategories extends StatefulWidget {

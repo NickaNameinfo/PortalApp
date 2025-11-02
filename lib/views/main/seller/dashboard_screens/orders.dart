@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:multivendor_shop/providers/order.dart';
+import 'package:nickname_portal/providers/order.dart';
 import 'package:provider/provider.dart';
 import '../../../../constants/colors.dart';
 import 'package:intl/intl.dart' as intl;
@@ -27,7 +27,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _userId = (prefs.getString('userId') ?? '0'); // Default to "0" or handle as needed
       _fetchOrders(); // Assuming _fetchOrders depends on _userId
     });
   }

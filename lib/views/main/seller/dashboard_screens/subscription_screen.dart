@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/models/subscription_model.dart';
-import 'package:multivendor_shop/constants/colors.dart'; // Assuming this exists
-import 'package:multivendor_shop/helpers/subscription_service.dart';
+import 'package:nickname_portal/models/subscription_model.dart';
+import 'package:nickname_portal/constants/colors.dart'; // Assuming this exists
+import 'package:nickname_portal/helpers/subscription_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/components/loading.dart';
-import 'package:multivendor_shop/constants/colors.dart';
-import 'package:multivendor_shop/views/main/seller/dashboard_screens/orders.dart';
+import 'package:nickname_portal/components/loading.dart';
+import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/views/main/seller/dashboard_screens/orders.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';

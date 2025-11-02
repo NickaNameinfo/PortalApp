@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:multivendor_shop/models/subscription_model.dart';
+import 'package:nickname_portal/models/subscription_model.dart';
 
 class SubscriptionService {
   static const String _baseUrl = 'https://nicknameinfo.net/api/subscription';

@@ -6,7 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:multivendor_shop/views/auth/forgot_password.dart';
+import 'package:nickname_portal/views/auth/forgot_password.dart';
 import 'package:http/http.dart' as http;
 import '../../components/loading.dart';
 import '../../constants/colors.dart';

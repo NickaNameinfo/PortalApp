@@ -5,14 +5,14 @@ import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart'; // Needed for setEquals
 
 // ASSUMED: Your Utility Functions
-import 'package:multivendor_shop/utilities/url_launcher_utils.dart';
-import 'package:multivendor_shop/views/main/store/store_details.dart';
+import 'package:nickname_portal/utilities/url_launcher_utils.dart';
+import 'package:nickname_portal/views/main/store/store_details.dart';
 
 // ASSUMED: Your Components/Constants
 import '../../../components/loading.dart';
 import '../../../constants/colors.dart';
-import 'package:multivendor_shop/components/nav_bar_container.dart';
-import 'package:multivendor_shop/components/gradient_background.dart';
+import 'package:nickname_portal/components/nav_bar_container.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
 
 // Import the refactored common widgets
 import '../../../components/customer_home_widgets.dart';

@@ -7,12 +7,12 @@ import 'package:flutter/foundation.dart';
 import '../../../constants/colors.dart';
 import '../../../components/loading.dart';
 import 'product_details_screen.dart'; 
-import 'package:multivendor_shop/components/gradient_background.dart';
-import 'package:multivendor_shop/providers/category_filter_data.dart'; 
+import 'package:nickname_portal/components/gradient_background.dart';
+import 'package:nickname_portal/providers/category_filter_data.dart'; 
 
 // Import the customer widgets file to get the HomeTopBar, CategoriesWidget,
 // and HomeFilterDrawer
-import 'package:multivendor_shop/components/customer_home_widgets.dart';
+import 'package:nickname_portal/components/customer_home_widgets.dart';
 
 
 class ProductScreen extends StatefulWidget {

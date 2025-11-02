@@ -1,6 +1,6 @@
 {
-    "name": "appv1",
-    "short_name": "appv1",
+    "name": "NickName",
+    "short_name": "NickName",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

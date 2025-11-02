@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:is_first_run/is_first_run.dart';
-import 'package:multivendor_shop/views/splash/splash.dart';
+import 'package:nickname_portal/views/splash/splash.dart';
 import '../../components/loading.dart';
 import '../../constants/colors.dart';
 import '../auth/account_type_selector.dart';

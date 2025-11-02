@@ -1,4 +1,4 @@
-# appv1
+# NickName
 
 A new Flutter project.
 

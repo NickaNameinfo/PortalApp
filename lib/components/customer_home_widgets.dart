@@ -1,22 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/constants/colors.dart';
-import 'package:multivendor_shop/components/loading.dart';
+import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/components/loading.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http; 
 import 'dart:convert'; 
 
 // ASSUMED: These imports point to your other files
-import 'package:multivendor_shop/components/nav_bar_container.dart';
-import 'package:multivendor_shop/providers/category_filter_data.dart'; // The CategoryFilterData class
+import 'package:nickname_portal/components/nav_bar_container.dart';
+import 'package:nickname_portal/providers/category_filter_data.dart'; // The CategoryFilterData class
 
 // --- NEW ---
 // Import the new screen you just created.
 // (You may need to adjust the path)
-import 'package:multivendor_shop/views/main/customer/product_screen.dart';
-import 'package:multivendor_shop/views/auth/account_type_selector.dart';
-import 'package:multivendor_shop/views/main/seller/dashboard_screens/orders.dart';
-import 'package:multivendor_shop/views/auth/auth.dart';
+import 'package:nickname_portal/views/main/customer/product_screen.dart';
+import 'package:nickname_portal/views/auth/account_type_selector.dart';
+import 'package:nickname_portal/views/main/seller/dashboard_screens/orders.dart';
+import 'package:nickname_portal/views/auth/auth.dart';
 
 
 // ... (ProfileButton, HomeTopBar remain unchanged) ...

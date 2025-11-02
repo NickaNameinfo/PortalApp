@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:multivendor_shop/views/main/store/store_details.dart';
+import 'package:nickname_portal/views/main/store/store_details.dart';
 import '../../../components/loading.dart';
 import '../../../constants/colors.dart';
-import 'package:multivendor_shop/components/gradient_background.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
 
 class StoreScreen extends StatefulWidget {
   const StoreScreen({super.key});

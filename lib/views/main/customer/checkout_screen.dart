@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/providers/cart.dart';
-import 'package:multivendor_shop/utilities/show_message.dart';
+import 'package:nickname_portal/providers/cart.dart';
+import 'package:nickname_portal/utilities/show_message.dart';
 import 'package:provider/provider.dart';
-import 'package:multivendor_shop/routes/routes.dart';
+import 'package:nickname_portal/routes/routes.dart';
 import 'package:http/http.dart' as http; // Import http package
 import 'dart:convert'; // Import for json.decode
 // *** FIX: Import the Address class from its definitive location ***
-import 'package:multivendor_shop/helpers/address_service.dart';
-import 'package:multivendor_shop/helpers/order_service.dart';
-import 'package:multivendor_shop/views/main/customer/home.dart';
+import 'package:nickname_portal/helpers/address_service.dart';
+import 'package:nickname_portal/helpers/order_service.dart';
+import 'package:nickname_portal/views/main/customer/home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // --- MOCK DEFINITIONS FOR UTILITY FUNCTIONS (Kept to resolve previous errors) ---
-// These functions are assumed to be defined in 'package:multivendor_shop/utilities/show_message.dart'
+// These functions are assumed to be defined in 'package:nickname_portal/utilities/show_message.dart'
 void showErrorMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text('ERROR: $message'), backgroundColor: Colors.red),

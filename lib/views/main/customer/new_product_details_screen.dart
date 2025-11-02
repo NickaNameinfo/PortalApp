@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/constants/colors.dart';
+import 'package:nickname_portal/constants/colors.dart';
 import 'package:flutter/services.dart'; 
 
 class NewProductDetailsScreen extends StatelessWidget {

@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:multivendor_shop/components/loading.dart';
+import 'package:nickname_portal/components/loading.dart';
 import '../../../../constants/colors.dart';
 import '../../../../utilities/categories_list.dart';
 import 'package:path/path.dart' as path;

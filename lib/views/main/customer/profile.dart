@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:multivendor_shop/components/loading.dart';
-import 'package:multivendor_shop/constants/colors.dart';
-import 'package:multivendor_shop/views/auth/account_type_selector.dart';
-import 'package:multivendor_shop/views/main/customer/edit_profile.dart';
-import 'package:multivendor_shop/components/k_list_tile.dart';
+import 'package:nickname_portal/components/loading.dart';
+import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/views/auth/account_type_selector.dart';
+import 'package:nickname_portal/views/main/customer/edit_profile.dart';
+import 'package:nickname_portal/components/k_list_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProfileScreen extends StatefulWidget {

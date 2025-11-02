@@ -6,8 +6,8 @@ import '../categories/men.dart';
 import '../categories/other.dart';
 import '../categories/sneakers.dart';
 import '../categories/women.dart';
-import 'package:multivendor_shop/views/main/seller/add_category_screen.dart';
-import 'package:multivendor_shop/models/category_model.dart';
+import 'package:nickname_portal/views/main/seller/add_category_screen.dart';
+import 'package:nickname_portal/models/category_model.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:multivendor_shop/constants/colors.dart';
+import 'package:nickname_portal/constants/colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class AddCategoryScreen extends StatefulWidget {

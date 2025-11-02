@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:convex_bottom_bar/convex_bottom_bar.dart';
 import 'package:flutter/services.dart';
-import 'package:multivendor_shop/constants/colors.dart';
+import 'package:nickname_portal/constants/colors.dart';
 import 'dashboard.dart';
 import 'home.dart';
 import 'profile.dart';

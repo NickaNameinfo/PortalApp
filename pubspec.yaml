@@ -1,5 +1,5 @@
-name: multivendor_shop
-description: A multi vendor shop app designed using cool stuffs :)
+name: nickname_portal
+description: A new Flutter project for Nickname Portal.
 
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -72,17 +72,14 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
-flutter_icons:
+
+
+flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/logo.png"
-  adaptive_icon_background: '#8DC73F'
-  adaptive_icon_foreground: 'assets/images/logo.png'
+  image_path: "assets/images/scaled_new-logo.png"
+  min_sdk_android: 21 # android min sdk min:16, default 21
 
-# For information on the generic Dart part of this file, see the
-# following page: https://dart.dev/tools/pub/pubspec
-
-# The following section is specific to Flutter packages.
 flutter:
 
   # The following line ensures that the Material Icons font is
@@ -105,6 +102,8 @@ flutter:
     - assets/images/sub_categories/children/
     - assets/images/sub_categories/sneakers/
     - assets/images/sub_categories/others/
+    - assets/images/scaled_new-logo.png
+
   #   - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

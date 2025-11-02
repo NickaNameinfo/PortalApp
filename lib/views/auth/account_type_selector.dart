@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:multivendor_shop/views/auth/auth.dart';
+import 'package:nickname_portal/views/auth/auth.dart';
 import '../../constants/colors.dart';
 
 class AccountTypeSelector extends StatefulWidget {

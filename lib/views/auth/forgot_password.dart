@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:multivendor_shop/views/auth/auth.dart';
+import 'package:nickname_portal/views/auth/auth.dart';
 import '../../constants/colors.dart';
 import 'package:http/http.dart' as http;
-import 'package:multivendor_shop/views/auth/auth.dart';
+import 'package:nickname_portal/views/auth/auth.dart';
 
 class ForgotPassword extends StatefulWidget {
   static const routeName = '/forgot-password';

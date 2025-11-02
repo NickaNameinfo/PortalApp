@@ -4,12 +4,12 @@ import 'dart:convert';
 import 'package:badges/badges.dart' as badges_lib;
 import 'dart:ui';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:multivendor_shop/constants/colors.dart';
-import 'package:multivendor_shop/components/loading.dart';
-import 'package:multivendor_shop/components/gradient_background.dart';
-import 'package:multivendor_shop/helpers/cart_api_helper.dart';
-import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
-import 'package:multivendor_shop/views/main/customer/checkout_screen.dart';
+import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/components/loading.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
+import 'package:nickname_portal/helpers/cart_api_helper.dart';
+import 'package:nickname_portal/views/main/customer/new_product_details_screen.dart';
+import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 // Assuming you have these files and constants defined:
 // components/loading.dart
@@ -41,8 +41,10 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
-      _cartItemsFuture = _fetchCartItems(); // Call _fetchCartItems after _userId is loaded
+      _userId = (prefs.getString('userId') ?? '0');
+      if (_userId != '0') { // Only fetch cart items if a valid userId is present
+        _cartItemsFuture = _fetchCartItems();
+      }
     });
   }
 
@@ -111,6 +113,7 @@ class _CartScreenState extends State<CartScreen> {
 
 
   Future<List<dynamic>> _fetchCartItems() async {
+    print('Fetching cart items for userId: $_userId');
     final response = await http.get(Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId'));
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);

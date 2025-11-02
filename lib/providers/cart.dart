@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:multivendor_shop/models/cart.dart';
+import 'package:nickname_portal/models/cart.dart';
 
 class CartData extends ChangeNotifier {
   var totalPrice = 0.0;
