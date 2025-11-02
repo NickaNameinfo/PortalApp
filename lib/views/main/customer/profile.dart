@@ -7,7 +7,7 @@ import 'package:multivendor_shop/views/auth/account_type_selector.dart';
 import 'package:multivendor_shop/views/main/customer/edit_profile.dart';
 import 'package:multivendor_shop/components/k_list_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -32,7 +32,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _userId = (prefs.getString('userId') ?? '0'); // Default to "0" or handle as needed
       _fetchUserDetails(); // Call _fetchUserDetails after _userId is loaded
     });
   }

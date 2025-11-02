@@ -22,7 +22,7 @@ class _SellerBottomNavState extends State<SellerBottomNav> {
   final _pages =  [
     DashboardScreen(),
     const CategoryScreen(),
-    const StoreScreen(),
+    // const StoreScreen(),
     const ProfileScreen(),
   ];
 
@@ -43,30 +43,41 @@ class _SellerBottomNavState extends State<SellerBottomNav> {
         statusBarBrightness: Brightness.dark,
       ),
     );
-    return Scaffold(
-      bottomNavigationBar: ConvexAppBar(
-        backgroundColor: primaryColor,
-        activeColor: Colors.white,
-        initialActiveIndex: currentPageIndex,
-        style: TabStyle.reactCircle,
-        items: const [
-          TabItem(
-            icon: Icons.dashboard_outlined,
-          ),
-          TabItem(
-            icon: Icons.category_outlined,
-          ),
-          TabItem(
-            icon: Icons.storefront,
-          ),
-          TabItem(
-            icon: Icons.person_outline,
-          )
-        ],
-        onTap: selectPage,
+    return WillPopScope(
+      onWillPop: () async {
+        if (currentPageIndex != 0) {
+          setState(() {
+            currentPageIndex = 0; // Navigate to DashboardScreen
+          });
+          return false; // Prevent popping the route
+        }
+        return true; // Allow popping the route (e.g., to login screen)
+      },
+      child: Scaffold(
+        bottomNavigationBar: ConvexAppBar(
+          backgroundColor: primaryColor,
+          activeColor: Colors.white,
+          initialActiveIndex: currentPageIndex,
+          style: TabStyle.reactCircle,
+          items: const [
+            TabItem(
+              icon: Icons.dashboard_outlined,
+            ),
+            TabItem(
+              icon: Icons.category_outlined,
+            ),
+            // TabItem(
+            //   icon: Icons.storefront,
+            // ),
+            TabItem(
+              icon: Icons.person_outline,
+            )
+          ],
+          onTap: selectPage,
+        ),
+        backgroundColor: Colors.grey.shade200,
+        body: _pages[currentPageIndex],
       ),
-      backgroundColor: Colors.grey.shade200,
-      body: _pages[currentPageIndex],
     );
   }
 }

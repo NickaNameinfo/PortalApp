@@ -44,7 +44,7 @@ class _StoreDetailsState extends State<StoreDetails> {
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _userId = prefs.getString('userId') ?? '0'; // Default to "0" or handle as needed
       _fetchStoreData(); // Call _fetchStoreData after _userId is loaded
     });
   }

@@ -43,7 +43,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
    Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _userId = prefs.getString('userId') ?? '0'; // Default to "0" or handle as needed
       _fetchCartQuantities(); // Call _fetchCartQuantities after _userId is loaded
     });
   }

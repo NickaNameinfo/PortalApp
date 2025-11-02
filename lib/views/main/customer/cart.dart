@@ -20,6 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum Operation { checkoutCart, clearCart }
 
 class CartScreen extends StatefulWidget {
+  static const routeName = '/cart_screen';
   const CartScreen({super.key});
 
   @override

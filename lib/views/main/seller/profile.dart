@@ -1,15 +1,16 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:multivendor_shop/components/loading.dart';
 import 'package:multivendor_shop/constants/colors.dart';
 import 'package:multivendor_shop/views/main/seller/dashboard_screens/orders.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../models/store.dart';
 import '../../auth/account_type_selector.dart';
-import 'dashboard_screens/account_balance.dart';
 import 'dashboard_screens/manage_products.dart';
 import 'edit_profile.dart';
 import '../../../components/k_list_tile.dart';
-
+import 'dashboard_screens/account_balance.dart'; 
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -19,20 +20,80 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  var firebase = FirebaseFirestore.instance;
-  var auth = FirebaseAuth.instance;
-  var userId = FirebaseAuth.instance.currentUser!.uid;
-  DocumentSnapshot? credential;
+  // Removed DocumentSnapshot credential as all info now comes from store API
+  // Removed unused Firebase dependencies
+  
+  Store? _store;
   var isLoading = true;
-  var isInit = true;
+  String? _supplierId;
 
-  // fetch user credentials
-  Future<void> _fetchUserDetails() async {
-    credential = await firebase.collection('sellers').doc(userId).get();
-    setState(() {
-      isLoading = false;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadAllData();
     });
   }
+
+  // --- Data Fetching Methods ---
+
+  Future<void> _fetchStoreDetails() async {
+    debugPrint('Attempting to fetch store details for supplier ID: $_supplierId');
+    try {
+      if (_supplierId == null || _supplierId?.isEmpty == true) {
+        debugPrint('Supplier ID is null/empty. Cannot fetch store details.');
+        return;
+      }
+      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/store/list/$_supplierId'));
+      
+      if (response.statusCode == 200) {
+        final decodedData = json.decode(response.body);
+        if (decodedData['success'] == true && decodedData['data'] != null) {
+          if (mounted) {
+            setState(() {
+              _store = Store.fromJson(decodedData['data']);
+            });
+          }
+        } else {
+          debugPrint('Store API returned success: false or missing data.');
+        }
+      } else {
+        debugPrint('Store API failed with status: ${response.statusCode}. Body: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching store details: $e');
+    }
+  }
+
+  Future<void> _loadAllData() async {
+    if (mounted) {
+      setState(() => isLoading = true);
+    }
+    
+    // 1. Load supplier ID from SharedPreferences
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? loadedSupplierId = prefs.getString('storeId');
+
+    if (mounted) {
+      setState(() {
+        _supplierId = loadedSupplierId;
+      });
+    }
+
+    // 2. Fetch Store Details (API) - This now provides the seller's profile details too.
+    if (_supplierId != null && _supplierId?.isNotEmpty == true) {
+      await _fetchStoreDetails();
+    } else {
+      debugPrint('Skipping _fetchStoreDetails because _supplierId is null or empty.');
+    }
+
+    // 3. Set final loading state
+    if (mounted) {
+      setState(() => isLoading = false);
+    }
+  }
+
+  // --- UI Action Handlers ---
 
   void showLogoutOptions() {
     showDialog(
@@ -98,8 +159,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _logout() {
-    auth.signOut();
-    Navigator.of(context).pushNamed(AccountTypeSelector.routeName);
+    // Navigate without Firebase sign-out
+    Navigator.of(context).pushNamedAndRemoveUntil(
+      AccountTypeSelector.routeName,
+      (route) => false,
+    );
   }
 
   void _editProfile() {
@@ -109,15 +173,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             builder: (context) => const EditProfile(),
           ),
         )
-        .then(
-          (value) => setState(
-            () {},
-          ),
-        );
+        .then((_) => _loadAllData()); 
   }
 
   void _settings() {
-    Navigator.of(context).pushNamed('');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('App Settings functionality not implemented.')),
+    );
   }
 
   void _changePassword() {
@@ -130,26 +192,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void didChangeDependencies() {
-    // TODO: implement didChangeDependencies
-    if (isInit) {
-      _fetchUserDetails();
-    }
-    setState(() {
-      isInit = false;
-    });
-    super.didChangeDependencies();
-  }
 
   @override
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
+
+    final dataLoaded = _store != null;
+    
+    // Safely retrieve data from _store (Owner/Seller Details)
+    final fullName = _store?.ownername ?? 'Store Owner';
+    // Use storeImage or a fallback if ownerImage is not provided in the model
+    final imageUrl = _store?.storeImage ?? 'https://placehold.co/100x100/CCCCCC/000000?text=P'; 
+    final storeName = _store?.storename ?? 'N/A';
+
+    // Helper to safely read store owner details
+    String getOwnerDetail(String key) {
+      final value = _store?.toJson()[key];
+      if (value == null || (value is String && value.isEmpty)) {
+        return 'Not set yet';
+      }
+      return value.toString();
+    }
+
 
     return isLoading
         ? const Center(
@@ -184,12 +248,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 radius: 20,
                                 backgroundColor: primaryColor,
                                 backgroundImage: NetworkImage(
-                                  credential!['image'],
+                                  imageUrl,
                                 ),
                               ),
                               const SizedBox(width: 10),
                               Text(
-                                credential!['fullname'],
+                                fullName,
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: Colors.white,
@@ -216,17 +280,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               radius: 65,
                               backgroundColor: primaryColor,
                               backgroundImage: NetworkImage(
-                                credential!['image'],
+                                imageUrl,
                               ),
                             ),
                             Text(
-                              credential!['fullname'],
+                              fullName,
                               style: const TextStyle(
                                 fontSize: 18,
                                 color: Colors.white,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
+                            if (_store != null)
+                              Text(
+                                storeName,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.white70,
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -239,97 +311,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 10.0),
                   child: Column(
                     children: [
-                      Container(
-                        height: 60,
-                        width: size.width / 0.9,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  backgroundColor: bWhite,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(30),
-                                      bottomLeft: Radius.circular(30),
-                                    ),
-                                  ),
-                                ),
-                                onPressed: () => Navigator.of(context)
-                                    .pushNamed(OrdersScreen.routeName),
-                                child: const Text(
-                                  'Order',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: primaryColor,
-                                  ),
-                                ),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  backgroundColor: primaryColor,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(5),
-                                  ),
-                                ),
-                                onPressed: () => Navigator.of(context)
-                                    .pushNamed(AccountBalanceScreen.routeName),
-                                child: const Text(
-                                  'Account',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                              ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 10,
-                                  ),
-                                  backgroundColor: bWhite,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.only(
-                                      topRight: Radius.circular(30),
-                                      bottomRight: Radius.circular(30),
-                                    ),
-                                  ),
-                                ),
-                                onPressed: () => Navigator.of(context)
-                                    .pushNamed(ManageProductsScreen.routeName),
-                                child: const Text(
-                                  'Products',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 22,
-                                    color: primaryColor,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
+                      // Container(
+                      //   height: 60,
+                      //   width: size.width / 0.9,
+                      //   decoration: BoxDecoration(
+                      //     color: Colors.white,
+                      //     borderRadius: BorderRadius.circular(30),
+                      //   ),
+                      //   child: Padding(
+                      //     padding: const EdgeInsets.all(8.0),
+                      //     child: Row(
+                      //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      //       children: [
+                      //         ElevatedButton(
+                      //           style: ElevatedButton.styleFrom(
+                      //             padding: const EdgeInsets.symmetric(
+                      //               horizontal: 20,
+                      //               vertical: 10,
+                      //             ),
+                      //             backgroundColor: bWhite,
+                      //             shape: const RoundedRectangleBorder(
+                      //               borderRadius: BorderRadius.only(
+                      //                 topLeft: Radius.circular(30),
+                      //                 bottomLeft: Radius.circular(30),
+                      //               ),
+                      //             ),
+                      //           ),
+                      //           onPressed: () => Navigator.of(context)
+                      //               .pushNamed(OrdersScreen.routeName),
+                      //           child: const Text(
+                      //             'Order',
+                      //             style: TextStyle(
+                      //               fontWeight: FontWeight.bold,
+                      //               fontSize: 22,
+                      //               color: primaryColor,
+                      //             ),
+                      //           ),
+                      //         ),
+                      //         // ElevatedButton(
+                      //         //   style: ElevatedButton.styleFrom(
+                      //         //     padding: const EdgeInsets.symmetric(
+                      //         //       horizontal: 20,
+                      //         //       vertical: 10,
+                      //         //     ),
+                      //         //     backgroundColor: primaryColor,
+                      //         //     shape: RoundedRectangleBorder(
+                      //         //       borderRadius: BorderRadius.circular(5),
+                      //         //     ),
+                      //         //   ),
+                      //         //   onPressed: () => Navigator.of(context)
+                      //         //       .pushNamed(AccountBalanceScreen.routeName), 
+                      //         //   child: const Text(
+                      //         //     'Account',
+                      //         //     style: TextStyle(
+                      //         //       fontWeight: FontWeight.bold,
+                      //         //       fontSize: 22,
+                      //         //       color: Colors.white,
+                      //         //     ),
+                      //         //   ),
+                      //         // ),
+                      //         ElevatedButton(
+                      //           style: ElevatedButton.styleFrom(
+                      //             padding: const EdgeInsets.symmetric(
+                      //               horizontal: 20,
+                      //               vertical: 10,
+                      //             ),
+                      //             backgroundColor: bWhite,
+                      //             shape: const RoundedRectangleBorder(
+                      //               borderRadius: BorderRadius.only(
+                      //                 topRight: Radius.circular(30),
+                      //                 bottomRight: Radius.circular(30),
+                      //               ),
+                      //             ),
+                      //           ),
+                      //           onPressed: () => Navigator.of(context)
+                      //               .pushNamed(ManageProductsScreen.routeName),
+                      //           child: const Text(
+                      //             'Products',
+                      //             style: TextStyle(
+                      //               fontWeight: FontWeight.bold,
+                      //               fontSize: 22,
+                      //               color: primaryColor,
+                      //             ),
+                      //           ),
+                      //         ),
+                      //       ],
+                      //     ),
+                      //   ),
+                      // ),
                       const SizedBox(height: 20),
                       Container(
-                        height: size.height / 2.8,
+                        height: size.height / 1.8, 
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
@@ -337,40 +409,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: ListView(
                           padding: EdgeInsets.zero,
                           children: [
-                            KListTile(
-                              title: 'Email Address',
-                              subtitle: credential!['email'],
-                              icon: Icons.email,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Phone Number',
-                              subtitle: credential!['phone'] == ""
-                                  ? 'Not set yet'
-                                  : credential!['phone'],
-                              icon: Icons.phone,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Delivery Address',
-                              subtitle: credential!['address'] == ""
-                                  ? 'Not set yet'
-                                  : credential!['address'],
-                              icon: Icons.location_pin,
-                            ),
+                            if (dataLoaded) ...[
+                              // Owner/Seller Details (from Store API response)
+                              KListTile(
+                                title: 'Owner Name',
+                                subtitle: getOwnerDetail('ownername'),
+                                icon: Icons.person,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Email Address',
+                                subtitle: getOwnerDetail('email'),
+                                icon: Icons.email,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Phone Number',
+                                subtitle: getOwnerDetail('phone'),
+                                icon: Icons.phone,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Owner Address',
+                                subtitle: getOwnerDetail('owneraddress'),
+                                icon: Icons.location_pin,
+                              ),
+                              
+                              // Store Details
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Store Name',
+                                subtitle: _store!.storename,
+                                icon: Icons.store,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Store Address',
+                                subtitle: _store!.storeaddress,
+                                icon: Icons.location_city,
+                              ),
+                            ],
+                            // Fallback if no user or store data is available
+                            if (!dataLoaded && !isLoading)
+                              const Padding(
+                                padding: EdgeInsets.all(16.0),
+                                child: Center(child: Text('Profile details not loaded. Check Supplier ID.')),
+                              ),
                           ],
                         ),
                       ),
-                      // const KDividerText(title: 'Account Settings'),
                       const SizedBox(height: 20),
                       Container(
-                        height: size.height / 3,
+                        height: size.height / 17,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
@@ -378,36 +483,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: ListView(
                           padding: EdgeInsets.zero,
                           children: [
-                            KListTile(
-                              title: 'App Settings',
-                              icon: Icons.settings,
-                              onTapHandler: _settings,
-                              showSubtitle: false,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Edit Profile',
-                              icon: Icons.edit_note,
-                              onTapHandler: _editProfile,
-                              showSubtitle: false,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Change Password',
-                              icon: Icons.key,
-                              onTapHandler: _changePassword,
-                              showSubtitle: false,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
                             KListTile(
                               title: 'Logout',
                               icon: Icons.logout,

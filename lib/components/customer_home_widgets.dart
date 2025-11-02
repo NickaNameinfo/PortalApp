@@ -14,6 +14,9 @@ import 'package:multivendor_shop/providers/category_filter_data.dart'; // The Ca
 // Import the new screen you just created.
 // (You may need to adjust the path)
 import 'package:multivendor_shop/views/main/customer/product_screen.dart';
+import 'package:multivendor_shop/views/auth/account_type_selector.dart';
+import 'package:multivendor_shop/views/main/seller/dashboard_screens/orders.dart';
+import 'package:multivendor_shop/views/auth/auth.dart';
 
 
 // ... (ProfileButton, HomeTopBar remain unchanged) ...
@@ -48,11 +51,11 @@ class ProfileButton extends StatelessWidget {
           value: 'cart',
           badgeCount: 2,
         ),
-        _buildPopupMenuItem(
-          icon: Icons.home_outlined,
-          text: 'Profile',
-          value: 'profile',
-        ),
+        // _buildPopupMenuItem(
+        //   icon: Icons.home_outlined,
+        //   text: 'Profile',
+        //   value: 'profile',
+        // ),
         _buildPopupMenuItem(
           icon: Icons.home_outlined,
           text: 'Log Out',
@@ -62,24 +65,22 @@ class ProfileButton extends StatelessWidget {
 
       // This is called when a user taps an item
       onSelected: (String value) {
-        // --- ADD YOUR NAVIGATION LOGIC HERE ---
-        if (value == 'orders') {
-          // Example: Navigator.push(context, MaterialPageRoute(builder: (_) => OrdersScreen()));
-          if (kDebugMode) {
-            print('Navigate to Orders');
-          }
-        } else if (value == 'cart') {
-          if (kDebugMode) {
-            print('Navigate to Cart');
-          }
-        } else if (value == 'profile') {
-          if (kDebugMode) {
-            print('Navigate to Profile');
-          }
-        } else if (value == 'logout') {
-          if (kDebugMode) {
-            print('Perform Log Out');
-          }
+        switch (value) {
+          case 'orders':
+            Navigator.pushNamed(context, OrdersScreen.routeName);
+            break;
+          case 'cart':
+            Navigator.pushNamed(context, '/cart');
+            break;
+          // case 'profile':
+          //   Navigator.pushNamed(context, '/profile');
+          //   break;
+          case 'logout':
+            Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => AccountTypeSelector()),
+      (Route<dynamic> route) => false,
+    );
+            break;
         }
       },
 

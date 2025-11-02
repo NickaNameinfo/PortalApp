@@ -391,20 +391,11 @@ class _CurrentPlanCard extends StatelessWidget {
             'Plan: ${plan.subscriptionPlan ?? 'N/A'}',
             style: TextStyle(fontSize: 16, color: Colors.black87),
           ),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Manage Subscription details...')),
-              );
-            },
-            icon: const Icon(Icons.manage_accounts, color: Colors.white),
-            label: const Text('Manage Plan', style: TextStyle(color: Colors.white)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-          )
+          const SizedBox(height: 12),
+          Text(
+            'Subscription Count: ${plan.subscriptionCount ?? 'N/A'}',
+            style: TextStyle(fontSize: 16, color: Colors.black87),
+          ),
         ],
       ),
     );
@@ -490,8 +481,9 @@ class _NewPlanCardState extends State<_NewPlanCard> {
       "customerId": widget.customerId,
       "subscriptionType": widget.categoryKey,
       "planName": widget.plan.subscriptionType,
-      "quantity": quantity,
+      "subscriptionCount": quantity,
       "totalPrice": calculatedPrice,
+      "subscriptionPrice": calculatedPrice,
       "basePrice": widget.plan.subscriptionPrice,
       "subscriptionPlan": widget.plan.subscriptionPlan,
       "status": 1, 
@@ -654,7 +646,7 @@ class _NewPlanCardState extends State<_NewPlanCard> {
                         style: const TextStyle(
                           color: primaryColor,
                           fontWeight: FontWeight.bold,
-                          fontSize: 16
+                          fontSize: 12
                         ),
                       ),
                     ),
@@ -664,12 +656,12 @@ class _NewPlanCardState extends State<_NewPlanCard> {
 
                 // Order Button
                 ElevatedButton(
-                  onPressed: _isActivePlan ? null : _handleOrder, // Disable order button if active
+                  onPressed: _handleOrder,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _isActivePlan ? Colors.green.shade600 : Colors.grey.shade300,
                     foregroundColor: _isActivePlan ? Colors.white : Colors.black87,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    minimumSize: const Size(60, 50),
+                    minimumSize: const Size(40, 40),
                     elevation: 0,
                   ),
                   child: _isActivePlan

@@ -7,10 +7,10 @@ import 'package:multivendor_shop/components/gradient_background.dart';
 import 'package:multivendor_shop/views/main/customer/new_product_details_screen.dart';
 import '../../../constants/colors.dart';
 import '../product/details.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class CustomerOrderScreen extends StatefulWidget {
   static const routeName = '/customer_orders';
-
   const CustomerOrderScreen({super.key});
 
   @override
@@ -19,15 +19,24 @@ class CustomerOrderScreen extends StatefulWidget {
 
 class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
   Future<List<dynamic>>? _ordersFuture;
+  late String _userId = '';
 
   @override
   void initState() {
     super.initState();
-    _ordersFuture = fetchOrders(); // ✅ Initialize safely
+    _loadUserId(); // Load user ID when the screen initializes
+  }
+
+  Future<void> _loadUserId() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _userId = (prefs.getString('userId') ?? '0'); // Default to "0" or handle as needed
+      _ordersFuture = fetchOrders(); // Call fetchOrders after _userId is loaded
+    });
   }
 
   Future<List<dynamic>> fetchOrders() async {
-    final url = Uri.parse('https://nicknameinfo.net/api/order/list/48');
+    final url = Uri.parse('https://nicknameinfo.net/api/order/list/$_userId');
     final response = await http.get(url);
 
     if (response.statusCode == 200) {

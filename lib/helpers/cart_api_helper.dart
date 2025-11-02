@@ -1,6 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
+Future<http.Response> fetchCartItems(String userId) async {
+  final url = Uri.parse('https://nicknameinfo.net/api/cart/list/$userId');
+  return await http.get(url);
+}
+
 Future<Map<String, dynamic>> updateCart({
   required int productId,
   required int newQuantity,

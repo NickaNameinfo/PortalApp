@@ -77,7 +77,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = (prefs.getInt('userId') ?? 0).toString(); // Default to "0" or handle as needed
+      _userId = (prefs.getString('userId') ?? '0'); // Default to "0" or handle as needed
       _fetchAddresses();
       _fetchCartItems(); // Fetch cart items when the screen initializes
     });
@@ -125,8 +125,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       states: _postalCodeController.text,
       area: _addressLine2Controller.text,
       shipping: _addressLine1Controller.text,
-      orderId: '48',
-      cusId: '48',
+      orderId: _userId,
+      cusId: _userId,
     );
 
     try {
@@ -156,8 +156,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       states: _postalCodeController.text,
       area: _addressLine2Controller.text,
       shipping: _addressLine1Controller.text,
-      orderId: '48',
-      cusId: '48',
+      orderId: _userId,
+      cusId: _userId,
     );
 
     try {
