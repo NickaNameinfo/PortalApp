@@ -61,6 +61,7 @@ dependencies:
   google_maps_flutter: ^2.5.0
   shared_preferences: ^2.2.2
   marquee: ^2.2.0
+  geolocator: ^11.0.0
 
 dev_dependencies:
   flutter_test:
@@ -90,18 +91,6 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/images/
-    - assets/images/slides/
-    - assets/images/category_imgs/
-    - assets/images/products/men/
-    - assets/images/products/women/
-    - assets/images/products/children/
-    - assets/images/products/other/
-    - assets/images/products/sneakers/
-    - assets/images/sub_categories/men/
-    - assets/images/sub_categories/women/
-    - assets/images/sub_categories/children/
-    - assets/images/sub_categories/sneakers/
-    - assets/images/sub_categories/others/
     - assets/images/scaled_new-logo.png
 
   #   - images/a_dot_ham.jpeg

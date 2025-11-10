@@ -281,7 +281,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                             style: const TextStyle(
                                               decoration: TextDecoration.lineThrough,
                                               color: Colors.grey,
-                                              fontSize: 14,
+                                              fontSize: 12,
                                             ),
                                           ),
                                           Text(

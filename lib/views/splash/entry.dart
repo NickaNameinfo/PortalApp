@@ -6,9 +6,10 @@ import 'package:is_first_run/is_first_run.dart';
 import 'package:nickname_portal/views/splash/splash.dart';
 import '../../components/loading.dart';
 import '../../constants/colors.dart';
-import '../auth/account_type_selector.dart';
-
-import '../main/seller/seller_bottom_nav.dart';
+import 'package:nickname_portal/views/auth/account_type_selector.dart';
+import 'package:nickname_portal/views/main/customer/customer_bottom_nav.dart';
+import 'package:nickname_portal/views/main/seller/seller_bottom_nav.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EntryScreen extends StatefulWidget {
   static const routeName = '/entry-screen';
@@ -38,27 +39,32 @@ class _EntryScreenState extends State<EntryScreen> {
     );
   }
 
-  void _navigateToAuthOrHome() {
-    //Routing to Account Selection Type or Home
-    FirebaseAuth.instance.authStateChanges().listen((User? user) {
-      if (user != null) {
-        // home screen
-        //TODO: Check for Customer or Seller Account
-        if (!mounted) return;
+  void _navigateToAuthOrHome() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    final userRole = prefs.getString('userRole');
+
+    if (!mounted) return;
+
+    if (userId != null) {
+      // User is logged in
+      if (userRole == "3") {
         Navigator.of(context).pushNamedAndRemoveUntil(
-          // CustomerBottomNav.routeName,
           SellerBottomNav.routeName,
           (route) => false,
         );
       } else {
-        // auth screen
-        if (!mounted) return;
         Navigator.of(context).pushNamedAndRemoveUntil(
-          AccountTypeSelector.routeName,
+          CustomerBottomNav.routeName,
           (route) => false,
         );
       }
-    });
+    } else {
+      // User is not logged in
+      Navigator.of(context).pushReplacementNamed(
+        AccountTypeSelector.routeName,
+      );
+    }
   }
 
   @override

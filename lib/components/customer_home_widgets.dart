@@ -17,12 +17,24 @@ import 'package:nickname_portal/views/main/customer/product_screen.dart';
 import 'package:nickname_portal/views/auth/account_type_selector.dart';
 import 'package:nickname_portal/views/main/seller/dashboard_screens/orders.dart';
 import 'package:nickname_portal/views/auth/auth.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ... (ProfileButton, HomeTopBar remain unchanged) ...
 
 class ProfileButton extends StatelessWidget {
   const ProfileButton({super.key});
+
+
+void _logout(BuildContext context) async {
+  // 1. Clear saved user data
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.clear();
+  // 3. Navigate and remove all other routes
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (context) => const AccountTypeSelector()),
+    (Route<dynamic> route) => false,
+  );
+}
 
   @override
   Widget build(BuildContext context) {
@@ -43,14 +55,14 @@ class ProfileButton extends StatelessWidget {
           icon: Icons.home_outlined,
           text: 'Orders',
           value: 'orders',
-          badgeCount: 5,
+          // badgeCount: 5,
         ),
-        _buildPopupMenuItem(
-          icon: Icons.home_outlined,
-          text: 'Cart',
-          value: 'cart',
-          badgeCount: 2,
-        ),
+        // _buildPopupMenuItem(
+        //   icon: Icons.home_outlined,
+        //   text: 'Cart',
+        //   value: 'cart',
+        //   badgeCount: 2,
+        // ),
         // _buildPopupMenuItem(
         //   icon: Icons.home_outlined,
         //   text: 'Profile',
@@ -75,12 +87,9 @@ class ProfileButton extends StatelessWidget {
           // case 'profile':
           //   Navigator.pushNamed(context, '/profile');
           //   break;
-          case 'logout':
-            Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => AccountTypeSelector()),
-      (Route<dynamic> route) => false,
-    );
-            break;
+          // case 'logout':
+          //   _logout(context);
+          //   break;
         }
       },
 
@@ -437,37 +446,33 @@ class HomeFilterDrawer extends StatelessWidget {
         
         return Drawer(
           backgroundColor: drawerBackgroundColor,
-          child: Column(
-            children: [
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Image.asset(
-                          'assets/logo.png', 
-                          height: 40,
-                          errorBuilder: (context, error, stackTrace) => 
-                            const Text(
-                              'Nickname Infotech', 
-                              style: TextStyle(
-                                fontSize: 16, 
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black54
-                              ),
+          child: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Nickname Infotech',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
                             ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.black54),
-                          onPressed: () {
-                            Navigator.of(context).pop(); 
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.black54),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
         
                     _buildDrawerButton(
                       text: 'For Me',
@@ -546,6 +551,7 @@ class HomeFilterDrawer extends StatelessWidget {
               _buildFooter(),
             ],
           ),
+        ),
         );
       }
     );

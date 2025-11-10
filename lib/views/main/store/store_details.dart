@@ -35,6 +35,11 @@ class _StoreDetailsState extends State<StoreDetails> {
   late String _userId = ''; // Initialize with an empty string
   // The cart API endpoint for listing is 'https://nicknameinfo.net/api/cart/list/$_userId'
 
+  // Payment/Order Info flags
+  bool isPerOrder = false;
+  bool isOnline = false;
+  bool isCOD = false;
+
   @override
   void initState() {
     super.initState();
@@ -261,7 +266,7 @@ class _StoreDetailsState extends State<StoreDetails> {
   Widget buildStoreHeader() {
     final String openTime = store?['openTime'] ?? 'N/A';
     final String closeTime = store?['closeTime'] ?? 'N/A';
-    final String openCloseTime = (openTime != 'N/A' && closeTime != 'N/A') ? 'Open : $openTime - $closeTime' : 'Timings not available';
+    final String openCloseTime = (openTime != 'N/A' && closeTime != 'N/A') ? 'Open : $openTime AM - $closeTime PM' : 'Timings not available';
     final String? storePhone = store?['phone'];
     final String? storeWebsite = store?['website'];
     final String storeName = store?['storename'] ?? 'This Store';
@@ -304,7 +309,7 @@ class _StoreDetailsState extends State<StoreDetails> {
                 GestureDetector( onTap: () { if (storePhone != null) launchWhatsApp(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp number not available.'))); }, child: _buildCircleIcon(FontAwesomeIcons.whatsapp, Colors.green)),
                 GestureDetector( onTap: () { if (storePhone != null) makePhoneCall(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number not available.'))); }, child: _buildCircleIcon(Icons.phone, Colors.blue)),
                 GestureDetector( onTap: () { if (location != null && location.isNotEmpty) openMap(location); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not available.'))); }, child: _buildCircleIcon(Icons.location_on, Colors.purple)),
-                GestureDetector( onTap: () { if (storeWebsite != null && storeWebsite.isNotEmpty) launchWebsite(storeWebsite); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Website not available.'))); }, child: _buildCircleIcon(Icons.language, Colors.red)),
+                GestureDetector( onTap: () { launchWebsite(storeWebsite ?? '', store?['id'] ?? 0); }, child: _buildCircleIcon(Icons.language, Colors.red)),
                 GestureDetector( onTap: () { shareContent(shareText, subject: 'Check out this store!'); }, child: _buildCircleIcon(Icons.share, Colors.teal)),
               ],
             ),
@@ -346,6 +351,23 @@ Widget _buildQuantitySelector({ required int quantity, required VoidCallback onI
   );
 }
 
+// Helper widget for payment check items
+  Widget _buildCheckItem(bool isChecked, String text) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: [
+        Text(text, style: const TextStyle(fontSize: 12)),
+        const SizedBox(width: 5),
+         Icon(
+          isChecked ? Icons.check_circle : Icons.cancel,
+          color: isChecked ? Colors.green.shade600 : Colors.red.shade400,
+          size: 15,
+        ),
+      ],
+    );
+  }
+  
 Widget buildProductCard(Map<String, dynamic> item) {
     // --- Safe Access ---
     if (item['product'] == null || item['product'] is! Map) {
@@ -365,11 +387,17 @@ Widget buildProductCard(Map<String, dynamic> item) {
     final String priceString = product['price']?.toString() ?? 'N/A';
     final String totalString = product['total']?.toString() ?? 'N/A';
     final String unitSize = product['unitSize']?.toString() ?? '';
-    final String stockQty = product['qty']?.toString() ?? '0';
-    final String priceDisplay = unitSize.isNotEmpty ? "$totalString ($stockQty)" : totalString;
+    final String stockQty = product['unitSize']?.toString() ?? '0';
+    final String qty = product['qty']?.toString() ?? '0';
+    final String priceDisplay = unitSize.isNotEmpty ? "$totalString ($qty)" : totalString;
     final String discount = product['discountPer']?.toString() ?? '0';
-    final double discountValue = double.tryParse(discount) ?? 0.0;
+    final String discountDisplay = discount.isNotEmpty ? product['discount'].toString() : '';
 
+    final double discountValue = double.tryParse(discount) ?? 0.0;
+    final String paymentMode = product['paymentMode'];
+    final bool isPerOrder = paymentMode.contains('1');
+    final bool isOnline = paymentMode.contains('2'); // Not in API example, but safe check
+    final bool isCOD = paymentMode.contains('3');
     // Cart State: Reads the pre-loaded quantity or defaults to 0
     final int currentQuantity = _cartQuantities[productId] ?? 0;
     final bool isInCart = currentQuantity > 0;
@@ -396,25 +424,34 @@ Widget buildProductCard(Map<String, dynamic> item) {
                   ),
                 ),
               ),
-              if (discountValue > 0) Positioned( /* ... Discount Badge ... */ top: 10, left: 10, child: Container( decoration: BoxDecoration( color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(6)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text( "$discount %", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)))),
+              if (discountValue > 0) Positioned( /* ... Discount Badge ... */ top: 10, left: 10, child: Container( decoration: BoxDecoration( color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(6)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text( "$discountDisplay%", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)))),
               if (!available) Positioned( /* ... Not Available Badge ... */ bottom: 8, right: 8, child: Container( decoration: BoxDecoration( color: Colors.redAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: const Text( "Online Order Not Available", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)))),
           ]),
           Padding( /* ... Product Details ... */
             padding: const EdgeInsets.all(12),
             child: Column( crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(productName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(productName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
                 Row( /* ... Price and Stock ... */ crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text("Rs : $priceDisplay", style: const TextStyle(color: Colors.blue, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text("₹$priceDisplay", style: const TextStyle(color: Colors.blue, fontSize: 14, fontWeight: FontWeight.bold)),
                      const SizedBox(width: 8),
-                    if (priceString != totalString) Text("Rs : $discount", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough)),
+                    if (priceString != totalString) Text("₹$discount", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough)),
                     const Spacer(),
                     Text( int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? "Coming soon" : "$stockQty Stocks", style: TextStyle( color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Row( /* ... Payment/Order Info & Quantity/Add Button ... */ mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.end, children: [
-                     Column( crossAxisAlignment: CrossAxisAlignment.start, children: const [ Text("Per order", style: TextStyle(fontSize: 12, color: Colors.black54)), Text("Online payment", style: TextStyle(fontSize: 12, color: Colors.black54)), Text("Cash on delivery", style: TextStyle(fontSize: 12, color: Colors.black54))]),
+                Row( /* ... Payment/Order Info & Quantity/Add Button ... */ mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                     Column(
+                          // spacing: 15,
+                          // runSpacing: 5,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildCheckItem(isPerOrder, 'Per Order'),
+                            _buildCheckItem(isOnline, 'Online Payment'),
+                            _buildCheckItem(isCOD, 'Cash On Delivery'),
+                          ],
+                        ),
                      if(available)
                         isCartLoading
                           ? const SizedBox( height: 30, width: 30, child: Padding( padding: EdgeInsets.all(4.0), child: CircularProgressIndicator(strokeWidth: 2)))

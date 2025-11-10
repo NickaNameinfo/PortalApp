@@ -107,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-            onPressed: () => _logout(),
+            onPressed: () => _logout(context),
             child: const Text(
               'Yes',
               style: TextStyle(
@@ -135,13 +135,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _logout() {
-    // Navigate to the account type selector screen and remove all other routes
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (context) => const AccountTypeSelector()),
-      (Route<dynamic> route) => false,
-    );
-  }
+void _logout(BuildContext context) async {
+  // 1. Clear saved user data
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.clear();
+  // 3. Navigate and remove all other routes
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (context) => const AccountTypeSelector()),
+    (Route<dynamic> route) => false,
+  );
+}
 
   void _editProfile() {
     Navigator.of(context)

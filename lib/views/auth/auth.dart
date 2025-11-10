@@ -1,11 +1,8 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:nickname_portal/views/auth/forgot_password.dart';
 import 'package:http/http.dart' as http;
 import '../../components/loading.dart';
@@ -47,8 +44,7 @@ class _AuthState extends State<Auth> {
   var isLogin = true;
   File? profileImage;
   var isLoading = false;
-  final _auth = FirebaseAuth.instance;
-  final firebase = FirebaseFirestore.instance;
+  bool _rememberMe = false;
 
   // toggle password obscure
   void _togglePasswordObscure() {
@@ -164,19 +160,26 @@ class _AuthState extends State<Auth> {
   }
 
   // loading fnc
-  void isLoadingFnc() {
+  void isLoadingFnc() async {
     setState(() {
       isLoading = true;
     });
-    // Timer(const Duration(seconds: 5), () {
-      if (widget.isSellerReg) {
-        // seller account
-        Navigator.of(context).pushNamed(SellerBottomNav.routeName);
-      } else {
-        // customer account
-        Navigator.of(context).pushNamed(CustomerBottomNav.routeName);
-      }
-    // });
+    final prefs = await SharedPreferences.getInstance();
+    final userRole = prefs.getString('userRole');
+
+    if (userRole == "3") {
+      // seller account
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        SellerBottomNav.routeName,
+        (route) => false,
+      );
+    } else {
+      // customer account
+      Navigator.of(context).pushNamedAndRemoveUntil(
+        CustomerBottomNav.routeName,
+        (route) => false,
+      );
+    }
   }
 
   // handle sign in and  sign up
@@ -238,7 +241,7 @@ class _AuthState extends State<Auth> {
           url,
           headers: {'Content-Type': 'application/json'},
           body: json.encode({
-            'role': widget.isSellerReg ? "2" : "1",
+            'role': widget.isSellerReg ? "3" : "1",
             'firstName': _fullnameController.text.trim(),
             'email': _emailController.text.trim(),
             'phoneNo': _phoneController.text.trim(),
@@ -254,84 +257,13 @@ class _AuthState extends State<Auth> {
           showSnackBar('Registration failed: ${response.body}');
         }
       }
-    } catch (e) {
-      if (kDebugMode) {
-        print('AN ERROR OCCURRED! $e');
-      }
-      showSnackBar('An unexpected error occurred. Check your internet connection.');
+    } catch (error) {
+      showSnackBar(error.toString());
     } finally {
       setState(() {
         isLoading = false;
       });
     }
-  }
-
-  // authenticate using Google
-  Future<UserCredential> _googleAuth() async {
-    // Trigger the authentication flow
-    final GoogleSignInAccount? googleUser = await GoogleSignIn.instance.authenticate();
-
-    // Obtain the auth details from the request
-    final GoogleSignInAuthentication? googleAuth = googleUser?.authentication;
-
-    // Create a new credential
-    final credential = GoogleAuthProvider.credential(
-      idToken: googleAuth?.idToken,
-    );
-
-    try {
-      // send username, email, and phone number to firestore
-      var logCredential =
-          await FirebaseAuth.instance.signInWithCredential(credential);
-      if (widget.isSellerReg) {
-        await FirebaseFirestore.instance
-            .collection('sellers')
-            .doc(logCredential.user!.uid)
-            .set(
-          {
-            'fullname': googleUser!.displayName,
-            'email': googleUser.email,
-            'image': googleUser.photoUrl,
-            'auth-type': 'google',
-            'phone': _phoneController.text.trim(),
-            'address': '',
-          },
-        ).then((value) {
-          isLoadingFnc();
-        });
-      } else {
-        await FirebaseFirestore.instance
-            .collection('customers')
-            .doc(logCredential.user!.uid)
-            .set(
-          {
-            'fullname': googleUser!.displayName,
-            'email': googleUser.email,
-            'image': googleUser.photoUrl,
-            'auth-type': 'google',
-            'phone': _phoneController.text.trim(),
-            'address': '',
-          },
-        ).then((value) {
-          isLoadingFnc();
-        });
-      }
-    } on FirebaseAuthException catch (e) {
-      var error = 'An error occurred. Check credentials!';
-      if (e.message != null) {
-        error = e.message!;
-      }
-      showSnackBar(error); // showSnackBar will show error if any
-      setState(() {
-        isLoading = false;
-      });
-    } catch (e) {
-      if (kDebugMode) {
-        print(e);
-      }
-    }
-    // sign in with credential
-    return FirebaseAuth.instance.signInWithCredential(credential);
   }
 
   // navigate to forgot password screen
@@ -457,10 +389,11 @@ class _AuthState extends State<Auth> {
                                     Row(
                                       children: [
                                         Checkbox(
-                                          value:
-                                              false, // You'll need to manage this state
+                                          value: _rememberMe,
                                           onChanged: (value) {
-                                            // Handle remember me logic
+                                            setState(() {
+                                              _rememberMe = value!;
+                                            });
                                           },
                                         ),
                                         const Text('Remember Me'),

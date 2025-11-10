@@ -158,7 +158,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _logout() {
+  void _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userId');
+    await prefs.remove('storeId');
+    await prefs.remove('userRole');
     // Navigate without Firebase sign-out
     Navigator.of(context).pushNamedAndRemoveUntil(
       AccountTypeSelector.routeName,

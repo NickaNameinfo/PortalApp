@@ -19,11 +19,11 @@ Future<void> makePhoneCall(String phoneNumber) async {
 }
 
 // --- For Websites ---
-Future<void> launchWebsite(String url) async {
+Future<void> launchWebsite(String url,  int storeId) async {
   // Ensure the URL has a scheme (http or https)
   String properUrl = url;
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    properUrl = 'https://$url';
+  if (url.isEmpty) {
+    properUrl = 'https://nicknameportal.shop/Store/StoreDetails/$storeId';
   }
 
   final Uri launchUri = Uri.parse(properUrl);
@@ -40,8 +40,8 @@ Future<void> launchWebsite(String url) async {
 Future<void> openMap(String location) async {
   // --- FIX ---
   // Corrected the URL format to use a query parameter
-  final String query = Uri.encodeComponent(location);
-  final Uri launchUri = Uri.parse('http://googleusercontent.com/maps.google.com/?q=$query'); 
+  // final String query = Uri.encodeComponent(location);
+  final Uri launchUri = Uri.parse('$location'); 
   
   if (await canLaunchUrl(launchUri)) {
     await launchUrl(launchUri, mode: LaunchMode.externalApplication);

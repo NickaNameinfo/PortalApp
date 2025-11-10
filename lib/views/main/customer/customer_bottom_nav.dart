@@ -45,22 +45,22 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
     // Navigate to the corresponding route name
     switch (index) {
       case 0:
-        _navigatorKey.currentState?.pushReplacementNamed('/');
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil('/', (route) => false);
         break;
       case 1:
-        _navigatorKey.currentState?.pushReplacementNamed('/products');
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil('/products', (route) => false);
         break;
       case 2:
-        _navigatorKey.currentState?.pushReplacementNamed('/map-view');
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil('/map-view', (route) => false);
         break;
       case 3:
-        _navigatorKey.currentState?.pushReplacementNamed('/cart');
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil('/cart', (route) => false);
         break;
       case 4:
-        _navigatorKey.currentState?.pushReplacementNamed('/orders');
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil('/orders', (route) => false);
         break;
       case 5:
-        _navigatorKey.currentState?.pushReplacementNamed('/profile');
+        _navigatorKey.currentState?.pushNamedAndRemoveUntil('/profile', (route) => false);
         break;
     }
   }

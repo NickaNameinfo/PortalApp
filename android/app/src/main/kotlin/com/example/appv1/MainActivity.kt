@@ -1,4 +1,4 @@
-package com.example.NickName
+package nickname.infotech.portal
 
 import io.flutter.embedding.android.FlutterActivity
 

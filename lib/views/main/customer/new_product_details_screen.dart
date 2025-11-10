@@ -21,7 +21,7 @@ class NewProductDetailsScreen extends StatelessWidget {
     // Calculate final price after discount (API: total = 44100)
     final double discountedPrice = double.tryParse(_safeGet('total', price.toString())) ?? price;
     final double discountPer = double.tryParse(_safeGet('discountPer', '0')) ?? 0.0;
-    final int stockQty = int.tryParse(_safeGet('qty', '0')) ?? 0;
+    final int stockQty = int.tryParse(_safeGet('unitSize', '0')) ?? 0;
     
     // Check payment modes (API: paymentMode = "1,3")
     final String paymentMode = _safeGet('paymentMode', '');
@@ -40,7 +40,7 @@ class NewProductDetailsScreen extends StatelessWidget {
       ),
       // Use DefaultTabController for the tabbed interface at the bottom
       body: DefaultTabController(
-        length: 2, // Description and Customization
+        length: 3, // Description, Customization, and FeedBack
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,7 +113,7 @@ class NewProductDetailsScreen extends StatelessWidget {
                             ),
                             // Stock Indicator
                             Text(
-                              stockQty > 0 ? '$stockQty Stocks Available' : 'Out of Stock',
+                              stockQty > 0 ? '($stockQty) Stocks' : 'Out of Stock',
                               style: TextStyle(
                                 fontSize: 16,
                                 color: stockQty > 0 ? Colors.green.shade600 : Colors.red.shade600,
@@ -236,6 +236,7 @@ class NewProductDetailsScreen extends StatelessWidget {
                         tabs: const [
                           Tab(text: 'Description'),
                           Tab(text: 'Customization'),
+                          Tab(text: 'FeedBack'),
                         ],
                       ),
                     ),
@@ -247,10 +248,11 @@ class NewProductDetailsScreen extends StatelessWidget {
                       child: TabBarView(
                         children: [
                           // Tab 1: Description Card
-                          _buildDescriptionCard(_safeGet('desc', 'No detailed description available.')),
-
+                          _buildDescriptionCard(_safeGet('sortDesc', 'No detailed description available.')),
                           // Tab 2: Customization Card
                           _buildCustomizationCard(),
+                          // Tab 3: Customization Card
+                          _buildFeedBackCard(),
                         ],
                       ),
                     ),
@@ -397,6 +399,46 @@ class NewProductDetailsScreen extends StatelessWidget {
               maxLines: 5,
               decoration: InputDecoration(
                 hintText: 'Enter your customization details',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade400),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: primaryColor, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedBackCard() {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(15.0),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Give Feed back to imporve our business',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: primaryColor
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              maxLines: 5,
+              decoration: InputDecoration(
+                hintText: 'Enter your feedback',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide(color: Colors.grey.shade400),

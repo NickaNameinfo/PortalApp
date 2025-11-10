@@ -333,7 +333,7 @@ class _ProductScreenState extends State<ProductScreen> {
                                           ),
                                           const SizedBox(height: 5),
                                           Text(
-                                            'RS ${product['discountPer']}',
+                                            '₹${product['discountPer']}',
                                             style: const TextStyle(
                                               decoration: TextDecoration.lineThrough,
                                               color: Colors.grey,
@@ -341,10 +341,10 @@ class _ProductScreenState extends State<ProductScreen> {
                                           ),
                                           ),
                                           Text(
-                                            'RS ${product['total']}',
+                                            '₹${product['total']}',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
-                                              fontSize: 16,
+                                              fontSize: 14,
                                               color: primaryColor,
                                             ),
                                           ),
@@ -363,8 +363,8 @@ class _ProductScreenState extends State<ProductScreen> {
                                       borderRadius: BorderRadius.circular(5),
                                     ),
                                     child: Text(
-                                      'RS ${product['discount'] ?? 0} %',
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                      '${product['discount'] ?? 0}%',
+                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
                                     ),
                                   ),
                                 ),

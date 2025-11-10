@@ -172,6 +172,13 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
                           iconColor: primaryColor,
                           children: products.map((prod) {
                             return ListTile(
+                              onTap: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => NewProductDetailsScreen(product: prod),
+                                  ),
+                                );
+                              },
                               leading: CircleAvatar(
                                 backgroundColor: Colors.white,
                                 backgroundImage: NetworkImage(prod['photo']),
@@ -183,18 +190,9 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
                               subtitle: Text(
                                 'Qty: ${prod['qty']} • ₹${prod['price']}',
                               ),
-                              trailing: IconButton(
-                                icon: const Icon(
-                                  Icons.chevron_right,
-                                  color: primaryColor,
-                                ),
-                                onPressed: () {
-                                  Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder: (context) => NewProductDetailsScreen(product: prod),
-                                    ),
-                                  );  
-                                },
+                              trailing: const Icon(
+                                Icons.chevron_right,
+                                color: primaryColor,
                               ),
                             );
                           }).toList(),

@@ -313,7 +313,7 @@ Widget buildStoreHeader() {
                 GestureDetector( onTap: () { if (storePhone != null) launchWhatsApp(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp number not available.'))); }, child: _buildCircleIcon(FontAwesomeIcons.whatsapp, Colors.green)),
                 GestureDetector( onTap: () { if (storePhone != null) makePhoneCall(storePhone); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number not available.'))); }, child: _buildCircleIcon(Icons.phone, Colors.blue)),
                 GestureDetector( onTap: () { if (location != null && location.isNotEmpty) openMap(location); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not available.'))); }, child: _buildCircleIcon(Icons.location_on, Colors.purple)),
-                GestureDetector( onTap: () { if (storeWebsite != null && storeWebsite.isNotEmpty) launchWebsite(storeWebsite); else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Website not available.'))); }, child: _buildCircleIcon(Icons.language, Colors.red)),
+                GestureDetector( onTap: () { launchWebsite(storeWebsite ?? '', widget.product['store']?['id'] ?? 0); }, child: _buildCircleIcon(Icons.language, Colors.red)),
                 GestureDetector( onTap: () { Navigator.push(
                   context,
                   MaterialPageRoute(

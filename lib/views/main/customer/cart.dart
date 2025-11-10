@@ -368,29 +368,32 @@ class _CartScreenState extends State<CartScreen> {
     final int cartItemCount = cartItems.length;
 
     if (cartItemCount < 1) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Image.asset(
-            'assets/images/sp2.png',
-            width: 250,
-          ),
-          const SizedBox(height: 10),
-          const Text(
-            'Opps! No items to display',
-            style: TextStyle(
-              color: primaryColor,
-              fontSize: 18,
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Image.asset(
+              'assets/images/sp2.png',
+              width: 250,
             ),
-          )
-        ],
+            const SizedBox(height: 20),
+            const Text(
+              'Opps! No items to display',
+              style: TextStyle(
+                color: primaryColor,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+            )
+          ],
+        ),
       );
     }
 
     return Column(
       children: [
         SizedBox(
-          height: size.height / 1.3,
+          height: size.height / 1.5,
           child: ListView.builder(
             padding: const EdgeInsets.only(top: 5),
             itemCount: cartItemCount,
