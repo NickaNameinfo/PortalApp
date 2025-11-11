@@ -213,10 +213,17 @@ class _AuthState extends State<Auth> {
           final userId = responseData['data']['id'];
           final storeId = responseData['data']['storeId'];
           final userRole = responseData['data']['role'];
+          final phone = responseData['data']['phone'];
+          final email = responseData['data']['email'];
+          final firstName = responseData['data']['firstName'];
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('userId', userId.toString());
           await prefs.setString('storeId', storeId.toString());
           await prefs.setString('userRole', userRole);
+          await prefs.setString('phone', phone);
+          await prefs.setString('email', email);
+          await prefs.setString('firstName', firstName);
+
           showSnackBar('Login successful!');
           isLoadingFnc();
           if (userRole == "3") {

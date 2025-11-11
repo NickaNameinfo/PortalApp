@@ -15,6 +15,8 @@ import 'package:shared_preferences/shared_preferences.dart'; // Added for Shared
 import '../../../../utilities/categories_list.dart'; // Still needed for legacy/default values
 import 'package:path/path.dart' as path;
 import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/models/subscription_model.dart'; // Import SubscriptionPlan
+import 'package:nickname_portal/helpers/subscription_service.dart'; // Import SubscriptionService
 import 'dart:typed_data';
 
 // New: Enum for Product Status
@@ -93,6 +95,31 @@ class _EditProductState extends State<EditProduct> {
   List<dynamic> _childCategories = []; // Child Category List for selected subcategory
   bool _isCategoryLoading = true; 
 
+  String? _customerId;
+  late Future<SubscriptionPlan?> _plan1SubscriptionFuture;
+  late Future<SubscriptionPlan?> _plan2SubscriptionFuture;
+
+  Future<void> _loadCustomerId() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    final loadedCustomerId = prefs.getString('storeId');
+    
+    if (mounted) {
+      setState(() {
+        _customerId = loadedCustomerId; 
+        if (_customerId != null) {
+          // Fetch subscriptions for Plan1 and Plan2 keys
+          _plan1SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan1");
+          _plan2SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan2");
+        } else {
+          // Handle case where customerId is missing
+          final errorFuture = Future<SubscriptionPlan?>.error('Customer ID not found.');
+          _plan1SubscriptionFuture = errorFuture;
+          _plan2SubscriptionFuture = errorFuture;
+        }
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +136,7 @@ class _EditProductState extends State<EditProduct> {
     _brandController.text = '';
     
     _loadSupplierId();
+    _loadCustomerId(); // Call _loadCustomerId here
     _fetchSubscriptionDetails();
     _fetchCategories().then((_) {
       // Initialize product data only after categories are fetched
@@ -341,10 +369,27 @@ class _EditProductState extends State<EditProduct> {
       return;
     }
 
+    List<XFile> validImages = [];
+    for (XFile image in pickedImages) {
+      final fileSize = await image.length(); // Get file size in bytes
+      if (fileSize <= 500 * 1024) { // 500 KB
+        validImages.add(image);
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Image ${image.name} is larger than 500KB and will not be uploaded.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+
     if (mounted) {
       setState(() {
-        productImages = pickedImages?.cast<dynamic>() ?? [];
-        isImagePicked = true;
+        productImages = validImages.cast<dynamic>();
+        isImagePicked = validImages.isNotEmpty;
         currentImage = 0; 
         imageDownloadLinks = []; 
       });
@@ -760,23 +805,30 @@ class _EditProductState extends State<EditProduct> {
   }
 
   // New: Widget for Subscription Toggle
-  Widget _buildSubscriptionToggle(bool isChecked, String label, Function(bool?) onChanged) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Switch(
-          value: isChecked,
-          onChanged: onChanged,
-          activeColor: primaryColor,
-        ),
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+  Widget _buildSubscriptionToggle(bool isChecked, String label, Function(bool?) onChanged, {SubscriptionPlan? subscriptionPlan, required bool initialEnabledState}) {
+    final bool isEnabled = (subscriptionPlan?.subscriptionCount ?? 0) > 0;
+    final bool wasInitiallyEnabledInEditMode = widget.productData != null && initialEnabledState;
+
+    return Opacity(
+      opacity: isEnabled ? 1.0 : 0.5, // Reduce opacity when disabled
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Switch(
+            value: isChecked,
+            onChanged: (isEnabled && !wasInitiallyEnabledInEditMode) ? onChanged : null,
+            activeColor: primaryColor,
           ),
-        ),
-      ],
+          Text(
+            isEnabled ? label : 'Get subscription and enable the option',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: isEnabled ? Colors.black : Colors.grey,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -970,12 +1022,20 @@ class _EditProductState extends State<EditProduct> {
                       _SubscriptionPill(
                         color: Colors.blue,
                         title: 'Total Ecommerce Subscription',
-                        total: 0, used: 0,
+                        planFuture: _plan1SubscriptionFuture,
+                        onTap: () {
+                          // Handle tap for Plan1
+                          print('Ecommerce Subscription tapped');
+                        },
                       ),
                       _SubscriptionPill(
                         color: Colors.pink,
                         title: 'Total Customize Subscription',
-                        total: 0, used: 0,
+                        planFuture: _plan2SubscriptionFuture,
+                        onTap: () {
+                          // Handle tap for Plan2
+                          print('Customize Subscription tapped');
+                        },
                       ),
                     ],
                   ),
@@ -1034,47 +1094,47 @@ class _EditProductState extends State<EditProduct> {
                         const SizedBox(height: 20),
                         
                         // Row 2: Subcategory & Child Category
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Flexible(
-                              flex: 1,
-                              child: _buildCategoryDropdown<dynamic>(
-                                type: DropDownType.subCategory,
-                                list: _subcategories,
-                                currentValue: selectedSubCategoryId,
-                                label: 'Select Sub Category',
-                                onChanged: (newId) {
-                                  if (mounted) {
-                                    setState(() {
-                                      selectedSubCategoryId = newId;
-                                      _updateChildCategoryList(newId);
-                                      // Reset child category ID when subcategory changes
-                                      selectedChildCategoryId = null;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Flexible(
-                              flex: 1,
-                              child: _buildCategoryDropdown<dynamic>(
-                                type: DropDownType.childCategory,
-                                list: _childCategories,
-                                currentValue: selectedChildCategoryId,
-                                label: 'Select Child Category',
-                                onChanged: (newId) {
-                                  if (mounted) {
-                                    setState(() {
-                                      selectedChildCategoryId = newId;
-                                    });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
+                        // Row(
+                        //   crossAxisAlignment: CrossAxisAlignment.start,
+                        //   children: [
+                        //     Flexible(
+                        //       flex: 1,
+                        //       child: _buildCategoryDropdown<dynamic>(
+                        //         type: DropDownType.subCategory,
+                        //         list: _subcategories,
+                        //         currentValue: selectedSubCategoryId,
+                        //         label: 'Select Sub Category',
+                        //         onChanged: (newId) {
+                        //           if (mounted) {
+                        //             setState(() {
+                        //               selectedSubCategoryId = newId;
+                        //               _updateChildCategoryList(newId);
+                        //               // Reset child category ID when subcategory changes
+                        //               selectedChildCategoryId = null;
+                        //             });
+                        //           }
+                        //         },
+                        //       ),
+                        //     ),
+                        //     const SizedBox(width: 15),
+                        //     Flexible(
+                        //       flex: 1,
+                        //       child: _buildCategoryDropdown<dynamic>(
+                        //         type: DropDownType.childCategory,
+                        //         list: _childCategories,
+                        //         currentValue: selectedChildCategoryId,
+                        //         label: 'Select Child Category',
+                        //         onChanged: (newId) {
+                        //           if (mounted) {
+                        //             setState(() {
+                        //               selectedChildCategoryId = newId;
+                        //             });
+                        //           }
+                        //         },
+                        //       ),
+                        //     ),
+                        //   ],
+                        // ),
                         const SizedBox(height: 20),
 
                         // Row 3: Name & Unit
@@ -1296,26 +1356,48 @@ class _EditProductState extends State<EditProduct> {
                                       color: Colors.grey,
                                     ),
                                   ),
-                                  _buildSubscriptionToggle(
-                                    isEcommerceEnabled,
-                                    'Enable Ecommerce',
-                                    (newValue) {
-                                      if (mounted) {
-                                        setState(() {
-                                          isEcommerceEnabled = newValue ?? false;
-                                        });
+                                  FutureBuilder<SubscriptionPlan?>(
+                                    future: _plan1SubscriptionFuture,
+                                    builder: (context, snapshot) {
+                                      SubscriptionPlan? plan;
+                                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                                        plan = snapshot.data;
                                       }
+                                      return _buildSubscriptionToggle(
+                                        isEcommerceEnabled,
+                                        'Enable Ecommerce',
+                                        (newValue) {
+                                          if (mounted) {
+                                            setState(() {
+                                              isEcommerceEnabled = newValue ?? false;
+                                            });
+                                          }
+                                        },
+                                        subscriptionPlan: plan,
+                                        initialEnabledState: widget.productData?['isEnableEcommerce'] == "1",
+                                      );
                                     },
                                   ),
-                                  _buildSubscriptionToggle(
-                                    isCustomizeEnabled,
-                                    'Enable Customize',
-                                    (newValue) {
-                                      if (mounted) {
-                                        setState(() {
-                                          isCustomizeEnabled = newValue ?? false;
-                                        });
+                                  FutureBuilder<SubscriptionPlan?>(
+                                    future: _plan2SubscriptionFuture,
+                                    builder: (context, snapshot) {
+                                      SubscriptionPlan? plan;
+                                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                                        plan = snapshot.data;
                                       }
+                                      return _buildSubscriptionToggle(
+                                        isCustomizeEnabled,
+                                        'Enable Customize',
+                                        (newValue) {
+                                          if (mounted) {
+                                            setState(() {
+                                              isCustomizeEnabled = newValue ?? false;
+                                            });
+                                          }
+                                        },
+                                        subscriptionPlan: plan,
+                                        initialEnabledState: widget.productData?['isEnableCustomize'] == 1,
+                                      );
                                     },
                                   ),
                                 ],
@@ -1338,47 +1420,61 @@ class _EditProductState extends State<EditProduct> {
 class _SubscriptionPill extends StatelessWidget {
   final Color color;
   final String title;
-  final int total;
-  final int used;
+  final Future<SubscriptionPlan?> planFuture;
+  final VoidCallback onTap;
 
   const _SubscriptionPill({
     required this.color,
     required this.title,
-    required this.total,
-    required this.used,
+    required this.planFuture,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color, width: 1),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            title,
-            textAlign: TextAlign.center, 
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.bold,
-              fontSize: 10,
+    return GestureDetector(
+      onTap: onTap,
+      child: FutureBuilder<SubscriptionPlan?>(
+        future: planFuture,
+        builder: (context, snapshot) {
+          String total = 'N/A';
+          String used = 'N/A';
+          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+            total = snapshot.data!.subscriptionCount.toString();
+            used = (snapshot.data!.subscriptionCount - snapshot.data!.freeCount).toString();
+          }
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: color, width: 1),
             ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Total: $total | Used: $used',
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 10,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Total: $total | Used: $used',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
-          ),
-        ],
+          );
+        },
       ),
     );
   }

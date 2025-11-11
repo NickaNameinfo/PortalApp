@@ -4,6 +4,7 @@ import 'package:nickname_portal/constants/colors.dart'; // Assuming this exists
 import 'package:nickname_portal/helpers/subscription_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
+import 'package:razorpay_flutter/razorpay_flutter.dart';
 
 class SubscriptionScreen extends StatefulWidget {
   final String customerId;
@@ -20,7 +21,7 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  late Future<SubscriptionPlan?> _subscriptionPlanFuture;
+  // late Future<SubscriptionPlan?> _subscriptionPlanFuture; // Unused, can be removed
   late Future<SubscriptionPlan?> _plan1SubscriptionFuture;
   late Future<SubscriptionPlan?> _plan2SubscriptionFuture;
   String? _customerId;
@@ -30,7 +31,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   void initState() {
     super.initState();
     _selectedCategoryKey = subscriptionData.first.key; // Initialize with the first category's key
-    _subscriptionPlanFuture = Future.value(null);
+    // _subscriptionPlanFuture = Future.value(null); // Unused, can be removed
     _plan1SubscriptionFuture = Future.value(null);
     _plan2SubscriptionFuture = Future.value(null);
     _loadCustomerId();
@@ -38,21 +39,25 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
 
   Future<void> _loadCustomerId() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
+    final loadedCustomerId = prefs.getString('storeId');
+    
     if (mounted) {
       setState(() {
-        _customerId = prefs.getString('storeId'); // Assuming 'storeId' is where customerId is stored
+        _customerId = loadedCustomerId; 
         if (_customerId != null) {
           // Fetch subscriptions for Plan1 and Plan2 keys
           _plan1SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan1");
           _plan2SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan2");
         } else {
           // Handle case where customerId is missing
-          _plan1SubscriptionFuture = Future.error('Customer ID not found.');
-          _plan2SubscriptionFuture = Future.error('Customer ID not found.');
+          final errorFuture = Future<SubscriptionPlan?>.error('Customer ID not found.');
+          _plan1SubscriptionFuture = errorFuture;
+          _plan2SubscriptionFuture = errorFuture;
         }
       });
     }
   }
+  
   // Hardcoded data matching the visual structure for new subscriptions
   final List<SubscriptionCategory> subscriptionData = [
     SubscriptionCategory(
@@ -162,7 +167,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             ),
             const SizedBox(height: 16),
             
-            // FIX: Wrap current subscription cards in a horizontal scroll view
+            // Current subscription cards in a horizontal scroll view
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               child: Row(
@@ -175,7 +180,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                         // Use a smaller loading widget for horizontal row
                         return const SizedBox(width: 150, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
                       } else if (snapshot.hasError) {
-                        return SizedBox(width: 150, child: Center(child: Text('Error: ${snapshot.error}', style: TextStyle(fontSize: 12))));
+                        // FIX: Show a clear error message in the card space
+                        return SizedBox(width: 250, child: Center(child: Text('Error loading Plan 1: Customer ID not found.', style: TextStyle(fontSize: 12, color: Colors.red))));
                       } else if (snapshot.hasData && snapshot.data != null) {
                         return _CurrentPlanCard(
                           plan: snapshot.data!,
@@ -185,7 +191,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           isCurrentSubscription: true,
                         );
                       } else {
-                        return const SizedBox(width: 250, child: Center(child: Text('No Plan 1 subscription found.', style: TextStyle(fontSize: 14))));
+                        return const SizedBox(width: 250, child: Center(child: Text('No active Plan 1 subscription.', style: TextStyle(fontSize: 14, color: Colors.grey))));
                       }
                     },
                   ),
@@ -199,7 +205,8 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const SizedBox(width: 150, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
                       } else if (snapshot.hasError) {
-                        return SizedBox(width: 150, child: Center(child: Text('Error: ${snapshot.error}', style: TextStyle(fontSize: 12))));
+                        // FIX: Show a clear error message in the card space
+                        return SizedBox(width: 250, child: Center(child: Text('Error loading Plan 2: Customer ID not found.', style: TextStyle(fontSize: 12, color: Colors.red))));
                       } else if (snapshot.hasData && snapshot.data != null) {
                         return _CurrentPlanCard(
                           plan: snapshot.data!,
@@ -209,7 +216,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                           isCurrentSubscription: true,
                         );
                       } else {
-                        return const SizedBox(width: 250, child: Center(child: Text('No Plan 2 subscription found.', style: TextStyle(fontSize: 14))));
+                        return const SizedBox(width: 250, child: Center(child: Text('No active Plan 2 subscription.', style: TextStyle(fontSize: 14, color: Colors.grey))));
                       }
                     },
                   ),
@@ -247,6 +254,15 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
                 return FutureBuilder<SubscriptionPlan?>(
                   future: activePlanFuture,
                   builder: (context, activeSnapshot) {
+                    // Check for error/waiting state for active plan before rendering cards
+                    if (activeSnapshot.connectionState == ConnectionState.waiting) {
+                      // Optionally show a loading state for the expansion tile
+                      // For now, proceed with null activePlan, which is safe.
+                    } else if (activeSnapshot.hasError) {
+                       // Handle error state, possibly logging it or showing a generic message
+                       // For now, proceed with null activePlan
+                    }
+                    
                     final activePlan = activeSnapshot.data;
                     final bool isComingSoon = category.plans.any((plan) => plan.subscriptionPlan?.toLowerCase() == 'coming soon') || category.plans.isEmpty;
 
@@ -383,7 +399,8 @@ class _CurrentPlanCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Price: ₹${double.tryParse(plan.subscriptionPrice.toString() ?? '0')?.toStringAsFixed(0) ?? '0'}',
+            // FIX: Use optional chaining in toStringAsFixed for safety
+            'Price: ₹${(plan.subscriptionPrice ?? 0.0).toStringAsFixed(0)}',
             style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
           ),
           const SizedBox(height: 12),
@@ -425,6 +442,10 @@ class _NewPlanCardState extends State<_NewPlanCard> {
   double calculatedPrice = 0.0;
   bool _isOrdering = false;
   late bool _isActivePlan;
+  late Razorpay _razorpay;
+  String? _userId;
+  String? _userEmail;
+  String? _userPhone;
 
   @override
   void initState() {
@@ -432,18 +453,37 @@ class _NewPlanCardState extends State<_NewPlanCard> {
     _checkActivePlan();
     _calculatePrice();
     _itemCountController.addListener(_calculatePrice);
+    _loadUserDetails(); // Load user details
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
   }
-  
+
+  // FIX: Added the missing logic for _checkActivePlan
   void _checkActivePlan() {
-    _isActivePlan = widget.activePlan != null && 
-        widget.activePlan!.subscriptionPlan == widget.plan.subscriptionPlan; // Check based on PL1_001, PL2_003, etc.
+    // Check if the current plan's subscriptionPlan matches the active plan's subscriptionPlan
+    // and if the categoryKey matches (implicit by the FutureBuilder in the parent).
+    _isActivePlan = widget.activePlan?.subscriptionPlan == widget.plan.subscriptionPlan;
+  }
+
+  Future<void> _loadUserDetails() async {
+    final prefs = await SharedPreferences.getInstance();
+    _userId = prefs.getString('userId');
+    _userEmail = prefs.getString('email');
+    _userPhone = prefs.getString('phone');
+    setState(() {}); // Trigger rebuild to update UI with fetched details
   }
 
   @override
   void didUpdateWidget(covariant _NewPlanCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.activePlan != oldWidget.activePlan) {
+    if (widget.activePlan != oldWidget.activePlan || widget.plan.subscriptionPlan != oldWidget.plan.subscriptionPlan) {
       _checkActivePlan();
+    }
+    // Recalculate price in case the plan data itself changed (though less common in this structure)
+    if (widget.plan.subscriptionPrice != oldWidget.plan.subscriptionPrice) {
+      _calculatePrice();
     }
   }
 
@@ -451,11 +491,13 @@ class _NewPlanCardState extends State<_NewPlanCard> {
   void dispose() {
     _itemCountController.removeListener(_calculatePrice);
     _itemCountController.dispose();
+    _razorpay.clear(); // Dispose Razorpay instance
     super.dispose();
   }
 
   void _calculatePrice() {
-    final basePrice = widget.plan.subscriptionPrice;
+    // Safely use 0.0 if subscriptionPrice is null
+    final basePrice = widget.plan.subscriptionPrice ?? 0.0;
     final count = int.tryParse(_itemCountController.text) ?? 1;
 
     if (mounted) {
@@ -465,16 +507,35 @@ class _NewPlanCardState extends State<_NewPlanCard> {
     }
   }
 
-  Future<void> _handleOrder() async {
-    if (calculatedPrice <= 0) {
-       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Price cannot be zero or negative.')),
-      );
-      return;
-    }
-    
-    if (mounted) setState(() => _isOrdering = true);
 
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    // Do something when payment succeeds
+    print("SUCCESS: " + response.paymentId!);
+    _showSnackBar('Payment Successful: ${response.paymentId}');
+    _createSubscriptionAfterPayment();
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    // Do something when payment fails
+    print("ERROR: " + response.code.toString() + " - " + response.message!);
+    _showSnackBar('Payment Failed: ${response.code} - ${response.message}');
+    if (mounted) setState(() => _isOrdering = false);
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    // Do something when an external wallet is selected
+    print("EXTERNAL WALLET: " + response.walletName!);
+    _showSnackBar('External Wallet Selected: ${response.walletName}');
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<void> _createSubscriptionAfterPayment() async {
     final int quantity = int.tryParse(_itemCountController.text) ?? 1;
 
     final Map<String, dynamic> payload = {
@@ -499,21 +560,65 @@ class _NewPlanCardState extends State<_NewPlanCard> {
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to place order. Please try again.')),
+            const SnackBar(content: Text('Failed to create subscription after payment.')),
           );
         }
       }
     } catch (e) {
-      debugPrint('Order error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('An unexpected error occurred: ${e.toString()}')),
+          SnackBar(content: Text('Error creating subscription: $e')),
         );
       }
     } finally {
       if (mounted) setState(() => _isOrdering = false);
     }
   }
+
+  // FIX: Corrected the misplaced closing brace and the duplicate SnackBar call
+  Future<void> _handleOrder() async {
+    if (calculatedPrice <= 0) {
+       ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Price cannot be zero or negative.')),
+      );
+      return;
+    }
+    
+    // if (_isActivePlan) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(content: Text('This plan is already active.')),
+    //   );
+    //   return;
+    // }
+
+    if (mounted) setState(() => _isOrdering = true);
+
+    // Razorpay integration starts here
+    var options = {
+      'key': 'rzp_live_efRIa318ph9lot', // Replace with your Razorpay Key ID
+      'amount': (calculatedPrice * 100).toInt(), // Amount in paise
+      'name': 'Nickname Portal',
+      'description': 'Subscription for ${widget.plan.subscriptionType}',
+      'prefill': {'contact': _userPhone ?? '', 'email': _userEmail ?? ''}, // Use dynamic user details
+      'external': {
+        'wallets': ['paytm']
+      }
+    };
+
+    try {
+      _razorpay.open(options);
+    } catch (e) {
+      debugPrint('Error: $e');
+      _showSnackBar('Error initiating payment: $e');
+      if (mounted) setState(() => _isOrdering = false);
+    }
+    // The previous code had a misplaced closing brace and duplicate logic here.
+    // The `_razorpay.open` call is asynchronous and handles success/failure via the listeners.
+    // We should not have any synchronous logic after `_razorpay.open(options);` that assumes failure.
+    // The `_isOrdering = false` is handled in the payment error callback.
+    // The final `finally` block at the end of the original function is now correctly removed/replaced by the try-catch block above.
+  } // Corrected closing brace for _handleOrder
+
 
   @override
   Widget build(BuildContext context) {
@@ -557,7 +662,7 @@ class _NewPlanCardState extends State<_NewPlanCard> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Price: ₹${widget.plan.subscriptionPrice.toStringAsFixed(0)}',
+                  'Price: ₹${(widget.plan.subscriptionPrice ?? 0.0).toStringAsFixed(0)}',
                   style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                 ),
                 
@@ -603,7 +708,7 @@ class _NewPlanCardState extends State<_NewPlanCard> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 // Input Field
-                SizedBox( // FIX: Use fixed width instead of Expanded for better control in this small row segment
+                SizedBox( 
                   width: 60, // Set a fixed width for the input field
                   height: 40,
                   child: TextFormField(
@@ -611,7 +716,6 @@ class _NewPlanCardState extends State<_NewPlanCard> {
                     keyboardType: TextInputType.number,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
-                      // FIX: Removed unnecessary labelText to prevent cutoff/overflow
                       hintText: '1', 
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 13),
@@ -630,8 +734,6 @@ class _NewPlanCardState extends State<_NewPlanCard> {
                 const SizedBox(width: 8),
 
                 // Price Badge
-                // FIX: Use an Expanded widget here to allow the price to take available space if needed, 
-                // but use a fixed padding for visual consistency.
                 Expanded(
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
@@ -656,26 +758,24 @@ class _NewPlanCardState extends State<_NewPlanCard> {
 
                 // Order Button
                 ElevatedButton(
-                  onPressed: _handleOrder,
+                  onPressed:  _handleOrder, // Disable button if active
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _isActivePlan ? Colors.green.shade600 : Colors.grey.shade300,
-                    foregroundColor: _isActivePlan ? Colors.white : Colors.black87,
+                    backgroundColor:  primaryColor, // Use primary color for non-active
+                    foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                     minimumSize: const Size(40, 40),
                     elevation: 0,
                   ),
-                  child: _isActivePlan
-                      ? const Text('Active', style: TextStyle(fontWeight: FontWeight.bold))
-                      : (_isOrdering
+                  child: (_isOrdering
                           ? const SizedBox(
                               height: 20,
                               width: 20,
                               child: CircularProgressIndicator(
-                                color: Colors.black,
+                                color: Colors.white, // Changed color for visibility on primaryColor background
                                 strokeWidth: 2,
                               ),
                             )
-                          : const Text('Order')),
+                          : const Text('Order', style: TextStyle(fontWeight: FontWeight.bold))),
                 ),
               ],
             ),

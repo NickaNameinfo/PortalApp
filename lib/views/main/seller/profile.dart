@@ -10,7 +10,8 @@ import '../../auth/account_type_selector.dart';
 import 'dashboard_screens/manage_products.dart';
 import 'edit_profile.dart';
 import '../../../components/k_list_tile.dart';
-import 'dashboard_screens/account_balance.dart'; 
+import 'dashboard_screens/account_balance.dart';
+import '../../../utilities/url_launcher_utils.dart'; 
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -49,11 +50,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       if (response.statusCode == 200) {
         final decodedData = json.decode(response.body);
         if (decodedData['success'] == true && decodedData['data'] != null) {
-          if (mounted) {
             setState(() {
               _store = Store.fromJson(decodedData['data']);
             });
-          }
+          debugPrint('_store object after parsing: $_store');
         } else {
           debugPrint('Store API returned success: false or missing data.');
         }
@@ -73,6 +73,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // 1. Load supplier ID from SharedPreferences
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? loadedSupplierId = prefs.getString('storeId');
+    debugPrint('Loaded supplier ID from SharedPreferences: $loadedSupplierId');
 
     if (mounted) {
       setState(() {
@@ -205,6 +206,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     
     // Safely retrieve data from _store (Owner/Seller Details)
     final fullName = _store?.ownername ?? 'Store Owner';
+
+    // Debug prints relocated as per instruction
+    debugPrint('Bank Name from _store: ${_store?.bankName}');
+    debugPrint('Account Holder Name from _store: ${_store?.accountHolderName}');
     // Use storeImage or a fallback if ownerImage is not provided in the model
     final imageUrl = _store?.storeImage ?? 'https://placehold.co/100x100/CCCCCC/000000?text=P'; 
     final storeName = _store?.storename ?? 'N/A';
@@ -405,12 +410,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       // ),
                       const SizedBox(height: 20),
                       Container(
-                        height: size.height / 1.8, 
+                        // height: size.height / 1.8, 
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: ListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
                           padding: EdgeInsets.zero,
                           children: [
                             if (dataLoaded) ...[
@@ -447,6 +454,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 subtitle: getOwnerDetail('owneraddress'),
                                 icon: Icons.location_pin,
                               ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Bank Name',
+                                subtitle: getOwnerDetail('bankName'),
+                                icon: Icons.account_balance,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Account Holder Name',
+                                subtitle: getOwnerDetail('accountHolderName'),
+                                icon: Icons.person_outline,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Account Number',
+                                subtitle: getOwnerDetail('accountNo'),
+                                icon: Icons.credit_card,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'IFSC Code',
+                                subtitle: getOwnerDetail('IFSC'),
+                                icon: Icons.code,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'PAN Card Number',
+                                subtitle: getOwnerDetail('panCardNo'),
+                                icon: Icons.credit_card_outlined,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'GST Number',
+                                subtitle: getOwnerDetail('GSTNo'),
+                                icon: Icons.receipt,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Website',
+                                subtitle: getOwnerDetail('website'),
+                                icon: Icons.web,
+                                onTapHandler: () {
+                                  if (_store!.website != null && _store!.website!.isNotEmpty) {
+                                    launchWebsite(_store!.website!, _store!.id);
+                                  }
+                                },
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Open Time',
+                                subtitle: _store!.openTime,
+                                icon: Icons.access_time,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Close Time',
+                                subtitle: _store!.closeTime,
+                                icon: Icons.access_time_filled,
+                              ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Location',
+                                subtitle: _store!.location,
+                                icon: Icons.location_on,
+                              ),
                               
                               // Store Details
                               const Padding(
@@ -467,6 +569,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 subtitle: _store!.storeaddress,
                                 icon: Icons.location_city,
                               ),
+                              const Padding(
+                                padding: EdgeInsets.all(8.0),
+                                child: Divider(thickness: 1),
+                              ),
+                              KListTile(
+                                title: 'Verification Document',
+                                subtitle: _store!.verifyDocument.isNotEmpty ? _store!.verifyDocument : 'Not provided',
+                                icon: Icons.verified_user,
+                                onTapHandler: () {
+                                  if (_store!.verifyDocument.isNotEmpty) {
+                                    launchWebsite(_store!.verifyDocument, _store!.id);
+                                  }
+                                },
+                              ),
                             ],
                             // Fallback if no user or store data is available
                             if (!dataLoaded && !isLoading)
@@ -479,12 +595,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 20),
                       Container(
-                        height: size.height / 17,
+                        // height: size.height / 17,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
                         ),
                         child: ListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
                           padding: EdgeInsets.zero,
                           children: [
                             KListTile(

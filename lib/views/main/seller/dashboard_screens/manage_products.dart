@@ -6,7 +6,7 @@ import '../../../../constants/colors.dart';
 import '../../../../helpers/product_api_service.dart';
 import '../../product/details.dart';
 import 'edit_product.dart';
-
+import '../category.dart';
 class ManageProductsScreen extends StatefulWidget {
   static const routeName = '/manage_products';
 
@@ -226,21 +226,41 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => EditProduct(productData: null),
-            ),
-          ).then((value) {
-            if (value == true) {
-              _loadSupplierIdAndFetchProducts(); // Refresh products after adding a new one
-            }
-          });
-        },
-        backgroundColor: primaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton(
+            heroTag: "addProduct",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => EditProduct(productData: null),
+                ),
+              ).then((value) {
+                if (value == true) {
+                  _loadSupplierIdAndFetchProducts(); // Refresh products after adding a new one
+                }
+              });
+            },
+            backgroundColor: primaryColor,
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            heroTag: "addCategory",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CategoryScreen(),
+                ),
+              );
+            },
+            backgroundColor: primaryColor,
+            child: const Icon(Icons.category, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
