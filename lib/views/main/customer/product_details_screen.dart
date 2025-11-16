@@ -11,6 +11,7 @@ import 'package:nickname_portal/views/main/customer/new_product_details_screen.d
 import 'package:nickname_portal/views/main/customer/cart.dart';
 import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/store/store_details.dart';
+import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
@@ -336,6 +337,11 @@ Widget buildStoreHeader() {
     final Map<String, dynamic>? storeData = product['store'] as Map<String, dynamic>?;
     final bool isOnlineOrderAvailable = product['isEnableEcommerce'] == '1';
     final int? productId = product['id'] as int?;
+    
+    // Booking functionality
+    final bool isBooking = product['isBooking']?.toString() == '1';
+    final String stockQty = product['qty']?.toString() ?? '0';
+    final bool available = isOnlineOrderAvailable;
 
     // Cart state checks
     final int currentQuantity = productId != null ? (_cartQuantities[productId] ?? 0) : 0;
@@ -352,9 +358,9 @@ Widget buildStoreHeader() {
     return Scaffold(
       backgroundColor: Colors.grey[200],
       appBar: AppBar(
-        title: const Text('Store Details'),
+        title: const Text('Store and Product Details'),
         backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black,
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -404,13 +410,23 @@ Widget buildStoreHeader() {
                                   ),
                                 ),
                                 // 'Online Order Not Available' Badge
-                                if (!isOnlineOrderAvailable)
+                                if (!isOnlineOrderAvailable && !isBooking)
                                   Positioned(
                                     bottom: 10, left: 10,
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(5)),
                                       child: const Text('Online Order Not Available', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    ),
+                                  ),
+                                // 'Booking Only' Badge
+                                if (isBooking)
+                                  Positioned(
+                                    bottom: 10, right: 10,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(5)),
+                                      child: const Text('Booking Only', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                     ),
                                   ),
                               ],
@@ -439,8 +455,12 @@ Widget buildStoreHeader() {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            '${product['qty'] ?? 0} Stocks',
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green),
+                            int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "$stockQty Stocks",
+                            style: TextStyle(
+                              fontSize: 16, 
+                              fontWeight: FontWeight.bold, 
+                              color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green
+                            ),
                           ),
                           Text(
                             'Rs : ${product['total'] ?? 0}',
@@ -484,20 +504,37 @@ Widget buildStoreHeader() {
                         ),
                      const SizedBox(height: 10),
                      Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                                  GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => CartScreen(),
-                                        ),
-                                      );
-                                    },
-                                  child: Icon(
-                                      Icons.favorite_border,
-                                      color: Colors.pink[300] ?? Colors.pink, // <-- Fix applied here
-                                    ),
-                                  ),
+                                  if (isBooking || available)
+                      ElevatedButton(
+                        onPressed: () {
+                          // Create a 'cart-like' item map that CheckoutScreen understands
+                          final checkoutProduct = {
+                            'productId': productId,
+                            'name': product['name'] ?? 'N/A',
+                            'price': double.tryParse(product['total']?.toString() ?? '0') ?? 0,
+                            'qty': 1, // Default quantity for "Buy Now"
+                            'storeId': storeData?['id'], // Pass the storeId
+                            'photo': product['photo'] ?? 'https://via.placeholder.com/150', // Pass photo for summary
+                            'isBooking': isBooking, // Pass booking status
+                          };
+                          
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CheckoutScreen(product: checkoutProduct),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: isBooking ? const Text('Book Now') : const Text('Order Now'),
+                      ),
                                   GestureDetector(
                                     onTap: () {
                                       Navigator.push(

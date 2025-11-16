@@ -3,16 +3,22 @@ import 'package:nickname_portal/providers/cart.dart';
 import 'package:nickname_portal/utilities/show_message.dart';
 import 'package:provider/provider.dart';
 import 'package:nickname_portal/routes/routes.dart';
-import 'package:http/http.dart' as http; // Import http package
-import 'dart:convert'; // Import for json.decode
-// *** FIX: Import the Address class from its definitive location ***
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:nickname_portal/helpers/address_service.dart';
-import 'package:nickname_portal/helpers/order_service.dart';
+import 'package:nickname_portal/helpers/order_service.dart'; // We keep this for Address class
 import 'package:nickname_portal/views/main/customer/home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-// --- MOCK DEFINITIONS FOR UTILITY FUNCTIONS (Kept to resolve previous errors) ---
-// These functions are assumed to be defined in 'package:nickname_portal/utilities/show_message.dart'
+// --- New Imports Required for Payment Logic ---
+import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:nickname_portal/helpers/checkout_api_helper.dart'; // Our new helper
+// Assuming you have a loading component
+// import 'package:nickname_portal/components/loading.dart'; 
+// import 'package:nickname_portal/constants/colors.dart';
+
+
+// --- MOCK DEFINITIONS (from your code) ---
 void showErrorMessage(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(content: Text('ERROR: $message'), backgroundColor: Colors.red),
@@ -26,11 +32,9 @@ void showSuccessMessage(BuildContext context, String message) {
 }
 // --------------------------------------------------------
 
-// *** REMOVED: The duplicate definition of the 'Address' class was here ***
-
-
 class CheckoutScreen extends StatefulWidget {
-  const CheckoutScreen({super.key});
+  final Map<String, dynamic>? product;
+  const CheckoutScreen({super.key, this.product});
 
   @override
   State<CheckoutScreen> createState() => _CheckoutScreenState();
@@ -44,21 +48,41 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressLine2Controller = TextEditingController();
   final _cityController = TextEditingController();
   final _postalCodeController = TextEditingController();
+  
   late String _userId = '';
-  int _selectedPaymentOption = 1;
+  int _selectedPaymentOption = 2; // Default to COD
   DateTime? _selectedDeliveryDate;
-  // Now uses the Address class imported from address_service.dart
-  List<Address> _addresses = []; 
+  List<Address> _addresses = [];
   Address? _selectedAddress;
   final AddressService _addressService = AddressService();
-  List<dynamic> _cartItems = []; // New state variable to store cart items
+  List<dynamic> _cartItems = [];
+  
+  // --- New State Variables for Payment Logic ---
+  late Razorpay _razorpay;
+  bool _isLoading = false;
+  
+  // To pass data to the Razorpay success callback
+  Map<String, dynamic>? _pendingApiParams;
+  Map<String, dynamic>? _pendingPaymentResult;
 
-  // Placeholder for userId, replace with actual user ID from authentication
 
   @override
   void initState() {
     super.initState();
+    
+    // Check if product data was passed directly
+    if (widget.product != null) {
+      // Set cart items with the single product
+      _cartItems = [widget.product!];
+    }
+    
     _loadUserId();
+    
+    // --- Initialize Razorpay ---
+    _razorpay = Razorpay();
+    _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
+    _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
+    _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
   }
 
   @override
@@ -70,27 +94,37 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _addressLine2Controller.dispose();
     _cityController.dispose();
     _postalCodeController.dispose();
+    
+    // --- Dispose Razorpay ---
+    _razorpay.clear();
     super.dispose();
   }
 
  
   Future<void> _loadUserId() async {
+    setState(() { _isLoading = true; });
     final prefs = await SharedPreferences.getInstance();
     setState(() {
-      _userId = (prefs.getString('userId') ?? '0'); // Default to "0" or handle as needed
-      _fetchAddresses();
-      _fetchCartItems(); // Fetch cart items when the screen initializes
+      _userId = (prefs.getString('userId') ?? '0');
     });
+    
+    if (_userId != '0') {
+      await _fetchAddresses();
+      // Only fetch cart items if no direct product was passed
+      if (widget.product == null) {
+        await _fetchCartItems();
+      }
+    } else {
+      showErrorMessage(context, "User not logged in.");
+    }
+    setState(() { _isLoading = false; });
   }
   
   Future<void> _fetchAddresses() async {
     try {
-      // Replace with actual user ID
-      final fetchedAddresses = await _addressService.fetchAddresses(_userId); 
-      print(fetchedAddresses);
+      final fetchedAddresses = await _addressService.fetchAddresses(_userId);
       setState(() {
-        // *** LINE 94 FIX: Assignment now works because both types are the same imported Address ***
-        _addresses = fetchedAddresses; 
+        _addresses = fetchedAddresses;
         if (_addresses.isNotEmpty) {
           _selectedAddress = _addresses.first;
           _populateAddressFields(_selectedAddress!);
@@ -113,11 +147,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _addAddress() async {
-    // We must now create the Address object using the constructor provided
-    // by the Address class imported from address_service.dart.
-    // Assuming the constructor signature is the same.
     final newAddress = Address(
-      id: DateTime.now().millisecondsSinceEpoch.toString(), // Temporary ID
+      id: DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID
       fullname: _nameController.text,
       phone: _phoneNumberController.text,
       discrict: _districtController.text,
@@ -130,14 +161,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     try {
-      // *** LINE 130 FIX: Argument type is now the correct imported Address type ***
-      await _addressService.createAddress(newAddress); 
-      _fetchAddresses();
+      setState(() { _isLoading = true; });
+      await _addressService.createAddress(newAddress);
+      await _fetchAddresses(); // Refresh list
       showSuccessMessage(context, 'Address added successfully!');
-      
     } catch (e) {
       print('Error adding address: $e');
       showErrorMessage(context, 'Failed to add address.');
+    } finally {
+      setState(() { _isLoading = false; });
     }
   }
 
@@ -161,79 +193,269 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     );
 
     try {
-      // *** LINE 160 FIX: Argument type is now the correct imported Address type ***
+      setState(() { _isLoading = true; });
       await _addressService.updateAddress(updatedAddress);
-      _fetchAddresses();
+      await _fetchAddresses(); // Refresh list
       showSuccessMessage(context, 'Address updated successfully!');
-      
     } catch (e) {
       print('Error updating address: $e');
       showErrorMessage(context, 'Failed to update address.');
+    } finally {
+      setState(() { _isLoading = false; });
     }
   }
 
-  Future<void> _placeOrder() async {
+  // --- NEW PAYMENT HANDLERS ---
+
+  void _handlePaymentSuccess(PaymentSuccessResponse response) {
+    print("Razorpay Success: ${response.paymentId}");
+    final paymentId = response.paymentId;
+    
+    if (paymentId != null && _pendingApiParams != null && _pendingPaymentResult != null) {
+      // Call the equivalent of 'afterPaymentSuccess'
+      _afterPaymentSuccess(paymentId, _pendingApiParams!, _pendingPaymentResult!);
+    } else {
+      setState(() { _isLoading = false; });
+      showErrorMessage(context, "Payment succeeded but local data was lost. Please contact support.");
+    }
+  }
+
+  void _handlePaymentError(PaymentFailureResponse response) {
+    print("Razorpay Error: ${response.code} - ${response.message}");
+    setState(() { _isLoading = false; });
+    showErrorMessage(context, "Payment Failed: ${response.message}");
+  }
+
+  void _handleExternalWallet(ExternalWalletResponse response) {
+    print("External Wallet: ${response.walletName}");
+  }
+
+  // --- REPLACED _placeOrder with _handlePlaceOrder ---
+  // This is the implementation of the JavaScript 'handleAddOrder' logic
+  
+  Future<void> _handlePlaceOrder() async {
     if (_selectedAddress == null) {
-      showErrorMessage(context, 'Please select a delivery address.');
+      showErrorMessage(context, 'Please select or add a delivery address.');
       return;
     }
-
     if (_cartItems.isEmpty) {
       showErrorMessage(context, 'Your cart is empty.');
       return;
     }
-
-    try {
-      // Place order using OrderService
-      final orderResponse = await OrderService.placeOrder(
-        customerId: int.parse(_userId),
-        paymentMethod: 3, // Update with actual payment method
-        orderId: int.parse(_userId), // Update with actual order ID logic
-        grandTotal: _cartItems.fold(0.0, (sum, item) => sum + (item['price'] as double) * (item['qty'] as double)),
-        productIds: _cartItems.map((item) => item['productId'] as int).toList(),
-        quantities: _cartItems.map((item) => item['qty'] as int).toList(),
-      );
-
-      // Delete cart items after successful order
-      for (var item in _cartItems) {
-        await OrderService.deleteCartItem(
-          userId: _userId,
-          productId: item['productId'] as int,
-        );
-      }
-
-      showSuccessMessage(context, 'Order placed successfully!');
-      _cartItems = [];
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (context) => const HomeScreen()));
-    } catch (e) {
-      print('Error placing order: $e');
-      showErrorMessage(context, 'Failed to place order.');
+    
+    // Check for date if payment option 4 is selected
+    if (_selectedPaymentOption == 4 && _selectedDeliveryDate == null) {
+      showErrorMessage(context, 'Please select a delivery date.');
+      return;
     }
+
+    setState(() { _isLoading = true; });
+
+    final double grandTotal = _cartItems.fold(0.0, (sum, item) {
+       final double price = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
+       final int qty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
+       return sum + (price * qty);
+    });
+
+    // 1. Create baseApiParams
+    // We assume the Address object has a toMap() method for serialization
+    // If not, you must manually create a Map from _selectedAddress fields.
+    Map<String, dynamic> addressMap;
+    try {
+      // Use toJson() method instead of toMap()
+      addressMap = _selectedAddress!.toJson(); 
+    } catch (e) {
+      // Manual fallback if toJson() doesn't exist
+      addressMap = {
+        "fullname": _selectedAddress!.fullname,
+        "phone": _selectedAddress!.phone,
+        "discrict": _selectedAddress!.discrict,
+        "city": _selectedAddress!.city,
+        "states": _selectedAddress!.states,
+        "area": _selectedAddress!.area,
+        "shipping": _selectedAddress!.shipping,
+        "cusId": _selectedAddress!.cusId,
+        "orderId": _selectedAddress!.orderId,
+      };
+    }
+
+    final baseApiParams = {
+      "custId": _userId,
+      "paymentmethod": _selectedPaymentOption.toString(),
+      "orderId": int.tryParse(_userId) ?? 0, // Using userId as per JS
+      "grandTotal": grandTotal,
+      "storeId": _cartItems.first['storeId'], // Assuming all items from same store
+      "cutomerDeliveryDate": _selectedDeliveryDate?.toIso8601String() ?? '',
+      "deliveryAddress": addressMap,
+      "orderType": "Product",
+    };
+
+    // 2. Check payment method
+    // Based on your new UI: 1 = Online, 2/3/4 = Offline
+    if (_selectedPaymentOption == 1 || _selectedPaymentOption == 3 || _selectedPaymentOption == 4) {
+      // --- ONLINE PAYMENT FLOW (Razorpay) ---
+      try {
+        final paymentResult = await CheckoutApiHelper.createRazorpayOrder(grandTotal, _userId);
+
+        if (paymentResult['success'] == true && paymentResult['data'] != null) {
+          final paymentData = paymentResult['data'];
+          
+          _pendingApiParams = baseApiParams;
+          _pendingPaymentResult = paymentData;
+
+          final options = {
+            'key': 'rzp_live_RgPc8rKEOZbHgf', // Your Razorpay Key
+            'amount': paymentData['amount'],
+            'currency': paymentData['currency'],
+            'order_id': paymentData['id'],
+            'name': 'Nickname Infotech',
+            'description': 'For Subscriptions',
+            'theme': {'color': '#49a84c'}
+          };
+          
+          _razorpay.open(options);
+          // Loading remains true until callback
+
+        } else {
+          throw Exception(paymentResult['message'] ?? "Failed to create payment order.");
+        }
+      } catch (e) {
+        setState(() { _isLoading = false; });
+        showErrorMessage(context, "Payment Error: ${e.toString()}");
+      }
+    } else {
+      // --- OFFLINE PAYMENT FLOW (COD, Pre-Order, Future) ---
+      try {
+        await _placeIndividualOrders(baseApiParams);
+        _showSuccessAndClear();
+      } catch (e) {
+        setState(() { _isLoading = false; });
+        showErrorMessage(context, "Order Failed: ${e.toString()}");
+      }
+    }
+  }
+
+  // Equivalent to 'afterPaymentSuccess' in JS
+  Future<void> _afterPaymentSuccess(String paymentId, Map<String, dynamic> apiParams, Map<String, dynamic> paymentResult) async {
+    try {
+      // --- ⭐️ START: MODIFICATION ---
+      // Removed `custId: _userId` as it's not in the CheckoutApiHelper.updatePaymentRecord definition
+      final razorpayPaymentUpdate = await CheckoutApiHelper.updatePaymentRecord(
+        orderCreationId: apiParams['orderId'].toString(),
+        razorpayPaymentId: paymentId,
+        razorpayOrderId: paymentResult['id'],
+      );
+      // --- ⭐️ END: MODIFICATION ---
+
+      if (razorpayPaymentUpdate['success'] == true) {
+        // 2. Iterate and create separate orders (as per JS logic)
+        await _placeIndividualOrders(apiParams);
+        _showSuccessAndClear();
+        
+      } else {
+         throw Exception(razorpayPaymentUpdate['message'] ?? "Failed to update payment record.");
+      }
+    } catch (e) {
+        setState(() { _isLoading = false; });
+        showErrorMessage(context, "Post-Payment Error: ${e.toString()}");
+    }
+  }
+
+  // This helper function creates individual orders, used by both online and offline flows
+  Future<void> _placeIndividualOrders(Map<String, dynamic> baseApiParams) async {
+    final List<Future<void>> orderPromises = [];
+    
+    // --- ⭐️ START: MODIFICATION ---
+    // Check if this is a direct buy (widget.product is not null) or from the cart
+    final bool isDirectBuy = widget.product != null;
+    // --- ⭐️ END: MODIFICATION ---
+    
+    for (final item in _cartItems) {
+      final double itemPrice = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
+      final int itemQty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
+
+      final itemApiParams = {
+        ...baseApiParams,
+        "grandTotal": itemPrice * itemQty,
+        "productIds": item['productId'],
+        "qty": item['qty'],
+        "orderType": item["isBooking"] ? "Service" : "Product"
+      };
+      
+      orderPromises.add(
+        CheckoutApiHelper.createOrder(itemApiParams).then((_) {
+          // --- ⭐️ START: MODIFICATION ---
+          // ONLY delete from cart if it was NOT a direct buy
+          if (!isDirectBuy) {
+            return CheckoutApiHelper.deleteCartItem(_userId, item['productId']);
+          } else {
+            // If it's a direct buy, do nothing with the cart
+            return Future.value(null);
+          }
+          // --- ⭐️ END: MODIFICATION ---
+        })
+      );
+    }
+    
+    await Future.wait(orderPromises);
+  }
+
+  void _showSuccessAndClear() {
+    setState(() { 
+      _isLoading = false; 
+      _cartItems = [];
+      _selectedAddress = null;
+    });
+
+    showSuccessMessage(context, 'Order placed successfully!');
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const HomeScreen()),
+      (Route<dynamic> route) => false,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    // Wrap with Stack to show loading overlay
     return Scaffold(
       appBar: AppBar(
         title: const Text('Checkout'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildDeliveryAddressSection(),
-            const SizedBox(height: 20),
-            _buildOrderSummarySection(),
-            const SizedBox(height: 20),
-            _buildPaymentOptionsSection(),
-            const SizedBox(height: 20),
-            _buildActionButtons(),
-          ],
-        ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDeliveryAddressSection(),
+                const SizedBox(height: 20),
+                _buildOrderSummarySection(),
+                const SizedBox(height: 20),
+                _buildPaymentOptionsSection(),
+                const SizedBox(height: 20),
+                _buildActionButtons(),
+              ],
+            ),
+          ),
+          
+          // --- Loading Overlay ---
+          if (_isLoading)
+            Container(
+              color: Colors.black.withOpacity(0.5),
+              child: const Center(
+                // Assuming you have a Loading widget
+                // child: Loading(color: primaryColor, kSize: 30),
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
       ),
     );
   }
+
+  // --- All your _build... Widgets remain unchanged ---
+  // --- They are perfectly fine ---
 
   Widget _buildDeliveryAddressSection() {
     return Card(
@@ -324,7 +546,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Widget _buildOrderSummarySection() {
-    // final cartData = Provider.of<CartData>(context);
+    double total = 0.0;
+    if(_cartItems.isNotEmpty) {
+      total = _cartItems.fold(0.0, (sum, item) {
+       final double price = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
+       final int qty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
+       return sum + (price * qty);
+      });
+    }
+
     return Card(
       elevation: 2,
       margin: EdgeInsets.zero,
@@ -338,16 +568,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 10),
-            // Display fetched cart items
             if (_cartItems.isNotEmpty)
               ..._cartItems.map((item) {
+                 final double price = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
+                 final int qty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4.0),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('${item['name']} (x${item['qty']})'),
-                      Text('Rs: ${(item['price'] * item['qty']).toStringAsFixed(2)}'),
+                      Text('Rs: ${(price * qty).toStringAsFixed(2)}'),
                     ],
                   ),
                 );
@@ -359,7 +590,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text('Total Products (${_cartItems.length} Items)'),
-                Text('Rs: ${_cartItems.fold<double>(0.0, (double sum, item) => sum + (item['price'] as double) * (item['qty'] as double)).toStringAsFixed(2)}'),
+                Text('Rs: ${total.toStringAsFixed(2)}'),
               ],
             ),
             const SizedBox(height: 5),
@@ -379,7 +610,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 Text(
-                  'Rs. ${_cartItems.fold<double>(0.0, (double sum, item) => sum + (item['price'] as double) * (item['qty'] as double)).toStringAsFixed(2)}',
+                  'Rs. ${total.toStringAsFixed(2)}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
               ],
@@ -485,12 +716,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
-        Tooltip(
-          message: "We are currently collaborating with stores and will enable ordering soon.",
-          child: ElevatedButton(
-            onPressed: null, // Disable the button
-            child: const Text('Confirm Order'),
-          ),
+        // --- THIS IS THE KEY CHANGE ---
+        // The button is now enabled and calls the new logic
+        ElevatedButton(
+          onPressed: _handlePlaceOrder, // Changed from null
+          child: const Text('Confirm Order'),
         ),
         OutlinedButton(
           onPressed: () {

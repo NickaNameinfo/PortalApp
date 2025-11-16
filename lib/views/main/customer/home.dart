@@ -318,42 +318,39 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Container(
         decoration: gradientBackgroundDecoration,
         child: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                HomeTopBar(
-                  searchController: _searchController,
-                  onSearchSubmitted: _onSearchSubmitted,
-                ),
-                // --- NEW: Display location status ---
-                if (_locationError != null)
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Text(
-                      'Location Error: $_locationError',
-                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
-                  ) 
-                else if (_position == null)
-                  const Padding(
-                    padding: EdgeInsets.all(8.0),
-                    child: Text(
-                      'Fetching location...',
-                      style: TextStyle(color: Colors.white70),
-                    ),
-                  ),
-                // -------------------------------------
-                const SizedBox(height: 15),
-                CategoriesWidget(
-                  categoriesFuture: _categoriesFuture,
-                ),
-                const SizedBox(height: 15),
-                _buildContentCards(),
-                const SizedBox(height: 15),
-              ],
-            ),
+          child: Column(
+        children: [
+          HomeTopBar(
+            searchController: _searchController,
+            onSearchSubmitted: _onSearchSubmitted,
           ),
+          if (_locationError != null)
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Text(
+                'Location Error: $_locationError',
+                style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+            ) 
+          else if (_position == null)
+            const Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text(
+                'Fetching location...',
+                style: TextStyle(color: Colors.white70),
+              ),
+            ),
+          const SizedBox(height: 15),
+          CategoriesWidget(
+            categoriesFuture: _categoriesFuture,
+          ),
+          const SizedBox(height: 15),
+          Expanded(
+            child: _buildContentCards(),
+          ),
+        ],
+      ),
         ),
       ),
     );
@@ -380,7 +377,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
           final List<dynamic> storeList = snapshot.data!;
 
-          return Column(
+          return ListView(
             children: storeList.map((store) {
               final openTime = store['openTime'] ?? 'N/A';
               final closeTime = store['closeTime'] ?? 'N/A';

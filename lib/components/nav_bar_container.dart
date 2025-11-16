@@ -14,7 +14,7 @@ class NavBarContainer extends StatelessWidget {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 20.0),
+          padding: const EdgeInsets.symmetric(horizontal: 5.0, vertical: 10.0),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.3),
             borderRadius: BorderRadius.circular(28),

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-const primaryColor = Color(0xFF4C86F9);
-const Color litePrimary = Color(0x804C86F9);
+const primaryColor = Color(0xFF8465F7);
+const Color litePrimary = Color(0x808465F7);
 var greyLite = Colors.grey.shade400;
 var bWhite = Colors.white70.withValues(alpha: 0.5);
 

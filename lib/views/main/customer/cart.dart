@@ -319,7 +319,7 @@ class _CartScreenState extends State<CartScreen> {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('\$${totalPrice.toStringAsFixed(2)}'),
+                Text('\₹${totalPrice.toStringAsFixed(2)}'),
                 const SizedBox(height: 5),
                 Row(
                   children: [
@@ -328,6 +328,7 @@ class _CartScreenState extends State<CartScreen> {
                       child: const Icon(
                         Icons.add,
                         color: primaryColor,
+                        size: 20,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -335,7 +336,7 @@ class _CartScreenState extends State<CartScreen> {
                       quantity.toString(),
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
-                        fontSize: 18,
+                        fontSize: 14,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -344,6 +345,7 @@ class _CartScreenState extends State<CartScreen> {
                       child: const Icon(
                         Icons.remove,
                         color: primaryColor,
+                        size: 20,
                       ),
                     ),
                   ],
@@ -421,7 +423,7 @@ class _CartScreenState extends State<CartScreen> {
                     ),
                     const SizedBox(width: 5),
                     Text(
-                      '\$${total.toStringAsFixed(2)}',
+                      '\₹${total.toStringAsFixed(2)}',
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 28,
@@ -467,12 +469,10 @@ class _CartScreenState extends State<CartScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF6A5ACD),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
-          onPressed: () {
-            Navigator.of(context).pop();
-          },
-        ),
+        // leading: IconButton(
+        //   icon: const Icon(Icons.arrow_back, color: Colors.white, size: 30),
+        //   onPressed: () => Navigator.pop(context),
+        // ),
         title: const Text(
           'Cart',
           style: TextStyle(

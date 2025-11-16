@@ -80,31 +80,69 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
     return Scaffold(
       bottomNavigationBar: ConvexAppBar(
         backgroundColor: primaryColor,
+        color: Colors.white70,
         activeColor: Colors.white,
         initialActiveIndex: currentPageIndex,
         style: TabStyle.reactCircle,
         items: [
-          const TabItem(icon: Icons.store),
-          const TabItem(icon: Icons.local_shipping),
-          const TabItem(icon: Icons.map),
           TabItem(
-            icon: Consumer<CartData>(
-              builder: (context, data, child) => badges_lib.Badge(
-                badgeContent: Text(
-                  cartData.cartItemCount.toString(),
-                  style: const TextStyle(color: primaryColor),
-                ),
-                showBadge: cartData.cartItems.isNotEmpty,
-                child: Icon(
-                  Icons.shopping_bag_outlined,
-                  size: currentPageIndex == 3 ? 40 : 25,
-                  color: currentPageIndex == 3 ? primaryColor : Colors.white70,
-                ),
-              ),
+            icon: Icon(
+              Icons.store,
+              size: currentPageIndex == 0 ? 22 : 18,
+              color: currentPageIndex == 0 ? primaryColor : Colors.white70,
             ),
           ),
-          const TabItem(icon: Icons.receipt_long),
-          const TabItem(icon: Icons.person_outline),
+          TabItem(
+            icon: Icon(
+              Icons.local_shipping,
+              size: currentPageIndex == 1 ? 22 : 18,
+              color: currentPageIndex == 1 ? primaryColor : Colors.white70,
+            ),
+          ),
+          TabItem(
+            icon: Icon(
+              Icons.map,
+              size: currentPageIndex == 2 ? 22 : 18,
+              color: currentPageIndex == 2 ? primaryColor : Colors.white70,
+            ),
+          ),
+          TabItem(
+            icon: Icon(
+              Icons.shopping_bag_outlined,
+              size: currentPageIndex == 3 ? 22 : 18,
+              color: currentPageIndex == 3 ? primaryColor : Colors.white70,
+            ),
+          ),
+          // TabItem(
+          //   icon: Consumer<CartData>(
+          //     builder: (context, data, child) => badges_lib.Badge(
+          //       badgeContent: Text(
+          //         cartData.cartItemCount.toString(),
+          //         style: const TextStyle(color: primaryColor),
+          //       ),
+          //       showBadge: cartData.cartItems.isNotEmpty,
+          //       child: Icon(
+          //         Icons.shopping_bag_outlined,
+          //         size: currentPageIndex == 3 ? 22 : 18,
+          //         color: currentPageIndex == 3 ? primaryColor : Colors.white70,
+          //       ),
+          //     ),
+          //   ),
+          // ),
+          TabItem(
+            icon: Icon(
+              Icons.receipt_long,
+              size: currentPageIndex == 4 ? 22 : 18,
+              color: currentPageIndex == 4 ? primaryColor : Colors.white70,
+            ),
+          ),
+          TabItem(
+            icon: Icon(
+              Icons.person_outline,
+              size: currentPageIndex == 5 ? 22 : 18,
+              color: currentPageIndex == 5 ? primaryColor : Colors.white70,
+            ),
+          ),
         ],
         onTap: selectPage,
       ),

@@ -161,10 +161,10 @@ class HomeTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return NavBarContainer(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18.0),
-        child: Row(
+    return Container(
+      color: litePrimary,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const ProfileButton(),
@@ -236,7 +236,6 @@ class HomeTopBar extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }
@@ -408,7 +407,7 @@ class CategoriesWidget extends StatelessWidget {
         return SizedBox(
           height: 50,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10.0),
+            padding: const EdgeInsets.symmetric(horizontal: 5.0),
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
               itemCount: categories.length,
@@ -548,7 +547,7 @@ class HomeFilterDrawer extends StatelessWidget {
                 ),
               ),
               
-              _buildFooter(),
+              // _buildFooter(),
             ],
           ),
         ),

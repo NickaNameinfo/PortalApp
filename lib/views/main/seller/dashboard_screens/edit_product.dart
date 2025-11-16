@@ -579,7 +579,7 @@ class _EditProductState extends State<EditProduct> {
   Future<String?> _uploadFile(XFile image) async {
     final uri = Uri.parse('https://nicknameinfo.net/api/auth/upload-file');
     final request = http.MultipartRequest('POST', uri);
-
+    request.fields['storeName'] = _supplierId ?? 'unknown_store';
     if (kIsWeb) {
       final bytes = await image.readAsBytes();
       request.files.add(http.MultipartFile.fromBytes(

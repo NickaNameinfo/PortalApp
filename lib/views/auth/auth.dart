@@ -259,6 +259,35 @@ class _AuthState extends State<Auth> {
 
         if (response.statusCode == 200) {
           showSnackBar('Registration successful!');
+          
+          // If this is a seller registration, create the store
+          if (widget.isSellerReg) {
+            try {
+              final storeUrl = Uri.parse('https://nicknameinfo.net/api/store/create');
+              final storeResponse = await http.post(
+                storeUrl,
+                headers: {'Content-Type': 'application/json'},
+                body: json.encode({
+                  'storename': _fullnameController.text.trim(),
+                  'email': _emailController.text.trim(),
+                  'phone': _phoneController.text.trim(),
+                  'status': 0,
+                  'ownername': _fullnameController.text.trim(),
+                  'password': _passwordController.text.trim(),
+                  'areaId': 3,
+                }),
+              );
+
+              if (storeResponse.statusCode == 200) {
+                showSnackBar('Store created successfully!');
+              } else {
+                showSnackBar('Store creation failed: ${storeResponse.body}');
+              }
+            } catch (storeError) {
+              showSnackBar('Store creation error: $storeError');
+            }
+          }
+          
           isLoadingFnc();
         } else {
           showSnackBar('Registration failed: ${response.body}');

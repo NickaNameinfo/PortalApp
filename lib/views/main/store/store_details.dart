@@ -10,6 +10,7 @@ import 'package:nickname_portal/helpers/cart_api_helper.dart';
 import 'package:nickname_portal/views/main/customer/new_product_details_screen.dart';
 import 'package:nickname_portal/views/main/customer/cart.dart';
 import 'package:nickname_portal/views/main/customer/order.dart';
+import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 
 // Assuming constants/colors.dart defines primaryColor or similar
 // import '../../../constants/colors.dart';
@@ -382,10 +383,21 @@ Widget buildProductCard(Map<String, dynamic> item) {
 
     // Use ?? to provide defaults for potentially null/missing fields
     final bool available = product['isEnableEcommerce']?.toString() == '1';
+    final bool isBooking = product['isBooking']?.toString() == '1';
     final String? photoUrl = product['photo'] as String?;
     final String productName = product['name']?.toString() ?? 'Unnamed Product';
-    final String priceString = product['price']?.toString() ?? 'N/A';
-    final String totalString = product['total']?.toString() ?? 'N/A';
+    
+    // --- START: Price Parsing ---
+    // Use 'total' first, as it's likely the final/discounted price
+    final priceToParse = product['total'] ?? product['price'] ?? '0.0';
+    final double finalPrice = (priceToParse is num) 
+        ? priceToParse.toDouble() 
+        : double.tryParse(priceToParse.toString()) ?? 0.0;
+        
+    final String priceString = product['price']?.toString() ?? '0.0';
+    final String totalString = product['total']?.toString() ?? priceString;
+    // --- END: Price Parsing ---
+
     final String unitSize = product['unitSize']?.toString() ?? '';
     final String stockQty = product['unitSize']?.toString() ?? '0';
     final String qty = product['qty']?.toString() ?? '0';
@@ -425,7 +437,8 @@ Widget buildProductCard(Map<String, dynamic> item) {
                 ),
               ),
               if (discountValue > 0) Positioned( /* ... Discount Badge ... */ top: 10, left: 10, child: Container( decoration: BoxDecoration( color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(6)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text( "$discountDisplay%", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)))),
-              if (!available) Positioned( /* ... Not Available Badge ... */ bottom: 8, right: 8, child: Container( decoration: BoxDecoration( color: Colors.redAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: const Text( "Online Order Not Available", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)))),
+              if (!available && !isBooking) Positioned( /* ... Not Available Badge ... */ bottom: 8, right: 8, child: Container( decoration: BoxDecoration( color: Colors.redAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: const Text( "Online Order Not Available", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)))),
+              if (isBooking) Positioned( /* ... Not Available Badge ... */ bottom: 8, right: 8, child: Container( decoration: BoxDecoration( color: Colors.redAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: const Text( "Booking Only", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)))),
           ]),
           Padding( /* ... Product Details ... */
             padding: const EdgeInsets.all(12),
@@ -437,7 +450,7 @@ Widget buildProductCard(Map<String, dynamic> item) {
                      const SizedBox(width: 8),
                     if (priceString != totalString) Text("₹$discount", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough)),
                     const Spacer(),
-                    Text( int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? "Coming soon" : "$stockQty Stocks", style: TextStyle( color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
+                    Text( int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "$stockQty Stocks", style: TextStyle( color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -452,7 +465,7 @@ Widget buildProductCard(Map<String, dynamic> item) {
                             _buildCheckItem(isCOD, 'Cash On Delivery'),
                           ],
                         ),
-                     if(available)
+                     if(available && !isBooking)
                         isCartLoading
                           ? const SizedBox( height: 30, width: 30, child: Padding( padding: EdgeInsets.all(4.0), child: CircularProgressIndicator(strokeWidth: 2)))
                           : isInCart
@@ -464,20 +477,39 @@ Widget buildProductCard(Map<String, dynamic> item) {
                 Divider(color: Colors.grey[200]),
                 const SizedBox(height: 8),
                 Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CartScreen(),
+                    if (isBooking || available)
+                      ElevatedButton(
+                        onPressed: () {
+                          // --- ⭐️ START: MODIFICATION ---
+                          // Create a 'cart-like' item map that CheckoutScreen understands
+                          final checkoutProduct = {
+                            'productId': productIdRaw,
+                            'name': productName,
+                            'price': finalPrice, // Use the parsed numeric price
+                            'qty': 1, // Default quantity for "Buy Now"
+                            'storeId': widget.storeId, // Pass the storeId
+                            'photo': photoUrl, // Pass photo for summary
+                            'isBooking': isBooking, // Pass booking status
+                          };
+                          // --- ⭐️ END: MODIFICATION ---
+                          
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CheckoutScreen(product: checkoutProduct),
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
-                        );
-                      },
-                     child: Icon(
-                        Icons.favorite_border,
-                        color: Colors.pink[300] ?? Colors.pink, // <-- Fix applied here
+                        ),
+                        child: isBooking ? const Text('Book Now') : const Text('Order Now'),
                       ),
-                    ),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -553,14 +585,14 @@ Widget buildProductCard(Map<String, dynamic> item) {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           elevation: 0,
-          backgroundColor: Colors.transparent,
+          backgroundColor: const Color(0xFF6A5ACD),
           leading: IconButton(
             icon: const Icon(Icons.chevron_left, color: Colors.black, size: 30),
             onPressed: () => Navigator.pop(context),
           ),
           title: const Text(
             "Store Details",
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
         ),
