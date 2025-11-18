@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -75,7 +77,15 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _removeFromCart(int productId, String productName) async {
     try {
-      final response = await http.delete(Uri.parse('https://nicknameinfo.net/api/cart/delete/$_userId/$productId'));
+      final response = await http.delete(
+        Uri.parse('https://nicknameinfo.net/api/cart/delete/$_userId/$productId')
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Request timeout');
+        },
+      );
+      
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
         if (responseData['success'] == true) {
@@ -89,6 +99,14 @@ class _CartScreenState extends State<CartScreen> {
       } else {
         throw Exception('Failed to remove item from cart: ${response.statusCode}');
       }
+    } on TimeoutException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Request timed out. Please try again.')),
+      );
+    } on SocketException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No internet connection.')),
+      );
     } catch (e) {
       debugPrint("Error removing from cart: $e");
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not remove item: ${e.toString()}')));
@@ -114,16 +132,30 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<List<dynamic>> _fetchCartItems() async {
     print('Fetching cart items for userId: $_userId');
-    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId'));
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = json.decode(response.body);
-      if (data['success'] == true && data['data'] != null) {
-        return data['data'];
+    try {
+      final response = await http.get(
+        Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId')
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Request timeout');
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          return data['data'];
+        } else {
+          return [];
+        }
       } else {
-        return [];
+        throw Exception('Failed to load cart items');
       }
-    } else {
-      throw Exception('Failed to load cart items');
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check your internet connection.');
+    } on SocketException {
+      throw Exception('No internet connection.');
     }
   }
 
@@ -143,11 +175,34 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _clearCart() async {
     // Implement API call to clear cart
-    final response = await http.delete(Uri.parse('https://nicknameinfo.net/api/cart/clear/$_userId'));
-    if (response.statusCode == 200) {
-      _refreshCart();
-    } else {
-      print('Clear cart failed');
+    try {
+      final response = await http.delete(
+        Uri.parse('https://nicknameinfo.net/api/cart/clear/$_userId')
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Request timeout');
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        _refreshCart();
+      } else {
+        print('Clear cart failed');
+      }
+    } on TimeoutException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Request timed out. Please try again.')),
+      );
+    } on SocketException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No internet connection.')),
+      );
+    } catch (e) {
+      print('Clear cart error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not clear cart: ${e.toString()}')),
+      );
     }
   }
 

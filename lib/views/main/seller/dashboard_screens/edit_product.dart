@@ -820,7 +820,7 @@ class _EditProductState extends State<EditProduct> {
             activeColor: primaryColor,
           ),
           Text(
-            isEnabled ? label : 'Get subscription and enable the option',
+            isEnabled ? label : 'Get subscription',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,

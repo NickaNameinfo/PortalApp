@@ -197,7 +197,7 @@ class _AuthState extends State<Auth> {
 
     try {
       if (isLogin) {
-        // Custom Login API
+        // Custom Login API with timeout
         final url = Uri.parse('https://nicknameinfo.net/api/auth/rootLogin');
         final response = await http.post(
           url,
@@ -206,6 +206,11 @@ class _AuthState extends State<Auth> {
             'email': _emailController.text.trim(),
             'password': _passwordController.text.trim(),
           }),
+        ).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            throw TimeoutException('Login request timed out. Please check your internet connection.');
+          },
         );
 
         if (response.statusCode == 200) {
@@ -228,7 +233,7 @@ class _AuthState extends State<Auth> {
           isLoadingFnc();
           if (userRole == "3") {
             // Redirect to seller screen
-            Navigator.of(context).pushReplacementNamed(SellerBottomNav.routeName); // Assuming a route named '/seller-screen'
+            Navigator.of(context).pushReplacementNamed(SellerBottomNav.routeName);
           }
         } else {
           final errorResponse = json.decode(response.body);
@@ -242,7 +247,7 @@ class _AuthState extends State<Auth> {
         }
       } else {
         print(_phoneController);
-        // Custom Registration API
+        // Custom Registration API with timeout
         final url = Uri.parse('https://nicknameinfo.net/api/auth/register');
         final response = await http.post(
           url,
@@ -255,6 +260,11 @@ class _AuthState extends State<Auth> {
             'password': _passwordController.text.trim(),
             'verify': 1,
           }),
+        ).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () {
+            throw TimeoutException('Registration request timed out. Please check your internet connection.');
+          },
         );
 
         if (response.statusCode == 200) {
@@ -276,6 +286,11 @@ class _AuthState extends State<Auth> {
                   'password': _passwordController.text.trim(),
                   'areaId': 3,
                 }),
+              ).timeout(
+                const Duration(seconds: 15),
+                onTimeout: () {
+                  throw TimeoutException('Store creation request timed out.');
+                },
               );
 
               if (storeResponse.statusCode == 200) {
@@ -283,6 +298,8 @@ class _AuthState extends State<Auth> {
               } else {
                 showSnackBar('Store creation failed: ${storeResponse.body}');
               }
+            } on TimeoutException catch (e) {
+              showSnackBar('Store creation timed out. Please try again.');
             } catch (storeError) {
               showSnackBar('Store creation error: $storeError');
             }
@@ -293,6 +310,10 @@ class _AuthState extends State<Auth> {
           showSnackBar('Registration failed: ${response.body}');
         }
       }
+    } on TimeoutException catch (e) {
+      showSnackBar(e.message ?? 'Request timed out. Please try again.');
+    } on SocketException catch (e) {
+      showSnackBar('No internet connection. Please check your network.');
     } catch (error) {
       showSnackBar(error.toString());
     } finally {

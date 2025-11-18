@@ -57,22 +57,17 @@ void _logout(BuildContext context) async {
           value: 'orders',
           // badgeCount: 5,
         ),
-        // _buildPopupMenuItem(
-        //   icon: Icons.home_outlined,
-        //   text: 'Cart',
-        //   value: 'cart',
-        //   badgeCount: 2,
-        // ),
+        _buildPopupMenuItem(
+          icon: Icons.home_outlined,
+          text: 'Cart',
+          value: 'cart',
+          // badgeCount: 2,
+        ),
         // _buildPopupMenuItem(
         //   icon: Icons.home_outlined,
         //   text: 'Profile',
         //   value: 'profile',
         // ),
-        _buildPopupMenuItem(
-          icon: Icons.home_outlined,
-          text: 'Log Out',
-          value: 'logout',
-        ),
       ],
 
       // This is called when a user taps an item
@@ -242,84 +237,84 @@ class HomeTopBar extends StatelessWidget {
 
 // --- MODIFIED ---
 // Added GestureDetector to the "Products" button
-// class ButtonsGrid extends StatelessWidget {
-//   const ButtonsGrid({super.key});
+class ButtonsGrid extends StatelessWidget {
+  const ButtonsGrid({super.key});
   
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       children: [
-//         Row(
-//           mainAxisAlignment: MainAxisAlignment.center,
-//           children: [
-//             GridButton(Icons.store, 'Shop', isSelected: true),
-//             const SizedBox(width: 15),
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            GridButton(Icons.store, 'Shop', isSelected: true),
+            const SizedBox(width: 15),
             
-//             // --- THIS IS THE CHANGE ---
-//             // Wrap the button in a GestureDetector to make it tappable
-//             GestureDetector(
-//               onTap: () => Navigator.of(context).push(
-//                 MaterialPageRoute(builder: (context) => const ProductScreen())
-//               ),
-//               child: GridButton(Icons.local_shipping, 'Products')
-//             ),
-//             // --- END OF CHANGE ---
+            // --- THIS IS THE CHANGE ---
+            // Wrap the button in a GestureDetector to make it tappable
+            GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const ProductScreen())
+              ),
+              child: GridButton(Icons.local_shipping, 'Products')
+            ),
+            // --- END OF CHANGE ---
             
-//             const SizedBox(width: 15),
-//             GridButton(Icons.map, 'Vendor'),
-//           ],
-//         ),
-//       ],
-//     );
-//   }
-// }
+            const SizedBox(width: 15),
+            GridButton(Icons.map, 'Vendor'),
+          ],
+        ),
+      ],
+    );
+  }
+}
 
-// class GridButton extends StatelessWidget {
-//   // ... (No changes here) ...
-//   final IconData icon;
-//   final String label;
-//   final bool isSelected;
-//   // ... build implementation ...
-//   const GridButton(this.icon, this.label, {super.key, this.isSelected = false});
+class GridButton extends StatelessWidget {
+  // ... (No changes here) ...
+  final IconData icon;
+  final String label;
+  final bool isSelected;
+  // ... build implementation ...
+  const GridButton(this.icon, this.label, {super.key, this.isSelected = false});
 
-//   @override
-//   Widget build(BuildContext context) {
-//     return Container(
-//       width: 100,
-//       height: 70,
-//       decoration: BoxDecoration(
-//         color: isSelected ? const Color(0xFF6A5ACD) : Colors.white,
-//         borderRadius: BorderRadius.circular(15),
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.grey.withOpacity(0.2),
-//             spreadRadius: 2,
-//             blurRadius: 5,
-//             offset: const Offset(0, 3),
-//           ),
-//         ],
-//       ),
-//       child: Column(
-//         mainAxisAlignment: MainAxisAlignment.center,
-//         children: [
-//           Icon(
-//             icon,
-//             color: isSelected ? Colors.white : const Color(0xFF6A5ACD), 
-//           ),
-//           const SizedBox(height: 5),
-//           Text(
-//             label,
-//             style: TextStyle(
-//               color: isSelected ? Colors.white : Colors.black,
-//               fontSize: 12,
-//               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// }
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 100,
+      height: 70,
+      decoration: BoxDecoration(
+        color: isSelected ? const Color(0xFF6A5ACD) : Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? Colors.white : const Color(0xFF6A5ACD), 
+          ),
+          const SizedBox(height: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.black,
+              fontSize: 12,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 
 class CategoryTab extends StatelessWidget {

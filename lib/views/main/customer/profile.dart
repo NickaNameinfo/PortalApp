@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -40,7 +42,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   // fetch user credentials
   Future<void> _fetchUserDetails() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/auth/user/$_userId'));
+      final response = await http.get(
+        Uri.parse('https://nicknameinfo.net/api/auth/user/$_userId')
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Request timeout');
+        },
+      );
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
@@ -63,6 +72,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
           isLoading = false;
         });
       }
+    } on TimeoutException {
+      print('Request timeout while fetching user details');
+      setState(() {
+        isLoading = false;
+      });
+    } on SocketException {
+      print('No internet connection');
+      setState(() {
+        isLoading = false;
+      });
     } catch (e) {
       // Handle network or parsing errors
       print('An unexpected error occurred: $e');
@@ -183,16 +202,28 @@ void _logout(BuildContext context) async {
   @override
   Widget build(BuildContext context) {
     Size size = MediaQuery.of(context).size;
-
-    return isLoading
-        ? const Center(
-            child: Loading(
-              color: primaryColor,
-              kSize: 50,
-            ),
-          )
-        : CustomScrollView(
-            slivers: [
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'Profile',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: primaryColor,
+        iconTheme: const IconThemeData(color: Colors.white),
+        elevation: 0,
+      ),
+      body: isLoading
+          ? const Center(
+              child: Loading(
+                color: primaryColor,
+                kSize: 50,
+              ),
+            )
+          : CustomScrollView(
+              slivers: [
               // SliverAppBar(
               //   elevation: 0,
               //   automaticallyImplyLeading: false,
@@ -361,7 +392,7 @@ void _logout(BuildContext context) async {
                       // ),
                       const SizedBox(height: 20),
                       Container(
-                        height: size.height / 4,
+                        height: size.height / 2.5,
                         decoration: BoxDecoration(
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(15),
@@ -387,11 +418,16 @@ void _logout(BuildContext context) async {
                             //   padding: EdgeInsets.all(8.0),
                             //   child: Divider(thickness: 1),
                             // ),
-                            // KListTile(
-                            //   title: 'Delivery Address',
-                            //   subtitle: credential?['address'] ?? 'Not set yet',
-                            //   icon: Icons.location_pin,
-                            // ),
+                            KListTile(
+                              title: 'Support Email',
+                              subtitle: 'bussiness@nicknameinfotech.com',
+                              icon: Icons.support_agent,
+                            ),
+                            KListTile(
+                              title: 'Support Phone',
+                              subtitle: '+91 88078 34582',
+                              icon: Icons.phone,
+                            ),
                           ],
                         ),
                       ),
@@ -439,6 +475,7 @@ void _logout(BuildContext context) async {
                 ),
               )
             ],
-          );
+          ),
+    );
   }
 }

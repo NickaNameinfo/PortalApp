@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -233,7 +235,15 @@ class _HomeScreenState extends State<HomeScreen> {
   
   Future<List<dynamic>> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      final response = await http.get(
+        Uri.parse('https://nicknameinfo.net/api/category/getAllCategory')
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Category request timeout');
+        },
+      );
+      
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true) {
@@ -244,6 +254,10 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         throw Exception('Failed to load categories: HTTP error ${response.statusCode}');
       }
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check your internet connection.');
+    } on SocketException {
+      throw Exception('No internet connection.');
     } catch (e) {
       throw Exception('Failed to connect to the server: $e');
     }
@@ -278,16 +292,28 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Fetching URL: $url');
     }
 
-    final response = await http.get(Uri.parse(url));
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = json.decode(response.body);
-      if (data['success'] == true) {
-        return data['data'] ?? [];
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Request timeout');
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          return data['data'] ?? [];
+        } else {
+          throw Exception('Failed to load stores: API error');
+        }
       } else {
-        throw Exception('Failed to load stores: API error');
+        throw Exception('Failed to load stores: HTTP error ${response.statusCode}');
       }
-    } else {
-      throw Exception('Failed to load stores: HTTP error ${response.statusCode}');
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check your internet connection.');
+    } on SocketException {
+      throw Exception('No internet connection.');
     }
   }
 

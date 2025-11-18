@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/material.dart';
@@ -60,7 +62,12 @@ class _StoreDetailsState extends State<StoreDetails> {
     final url = Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId');
 
     try {
-      final response = await http.get(url);
+      final response = await http.get(url).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Request timeout');
+        },
+      );
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -89,6 +96,10 @@ class _StoreDetailsState extends State<StoreDetails> {
       } else {
         debugPrint("Failed to fetch cart list. Status: ${response.statusCode}");
       }
+    } on TimeoutException {
+      debugPrint("Cart quantities request timed out");
+    } on SocketException {
+      debugPrint("No internet connection while fetching cart quantities");
     } catch (e) {
       debugPrint("Error fetching cart quantities: $e");
     }
@@ -101,12 +112,33 @@ class _StoreDetailsState extends State<StoreDetails> {
       });
     }
     try {
-      final storeFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/list/${widget.storeId}'));
-      final productFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/product/getAllProductById/${widget.storeId}'));
-      final allStoresFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/list'));
+      // Add timeouts to all API calls to prevent infinite loading
+      final storeFuture = http.get(
+        Uri.parse('https://nicknameinfo.net/api/store/list/${widget.storeId}')
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Store request timeout');
+        },
+      );
+      
+      final productFuture = http.get(
+        Uri.parse('https://nicknameinfo.net/api/store/product/getAllProductById/${widget.storeId}')
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Product request timeout');
+        },
+      );
+      
+      final allStoresFuture = http.get(
+        Uri.parse('https://nicknameinfo.net/api/store/list')
+      ).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('All stores request timeout');
+        },
+      );
 
       final responses = await Future.wait([storeFuture, productFuture, allStoresFuture]);
       final storeResponse = responses[0];
@@ -126,7 +158,12 @@ class _StoreDetailsState extends State<StoreDetails> {
 
         if (storeSuccess && productSuccess && allStoresSuccess) {
            List<dynamic> fetchedStores = (allStoresJson['data'] as List<dynamic>?) ?? [];
-           int foundIndex = fetchedStores.indexWhere((s) => s['id'] == widget.storeId);
+           // Add null safety check when accessing store id
+           int foundIndex = fetchedStores.indexWhere((s) {
+             if (s == null || s is! Map) return false;
+             final storeId = s['id'];
+             return storeId != null && storeId == widget.storeId;
+           });
            
            // AWAITING THE CART FETCH HERE to ensure _cartQuantities is populated
            await _fetchCartQuantities();
@@ -154,29 +191,53 @@ class _StoreDetailsState extends State<StoreDetails> {
         if (allStoresResponse.statusCode != 200) errorMsg += 'All Stores fetch failed: ${allStoresResponse.statusCode}.';
         throw Exception(errorMsg.trim());
       }
+    } on TimeoutException catch (e) {
+      if (mounted) {
+        setState(() { isLoading = false; });
+        debugPrint("Timeout fetching store data: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Request timeout. Please check your internet connection and try again.')),
+        );
+      }
+    } on SocketException catch (e) {
+      if (mounted) {
+        setState(() { isLoading = false; });
+        debugPrint("No internet connection: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection. Please check your network.')),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() { isLoading = false; });
         debugPrint("Error fetching store data: $e");
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading store details: ${e.toString()}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading store details: ${e.toString()}')),
+        );
       }
     }
   }
 
   void _navigateToPreviousStore() {
-    if (currentIndex > 0) {
-      final previousStoreId = allStores[currentIndex - 1]['id'];
-      if (previousStoreId != null && mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => StoreDetails(storeId: previousStoreId as int)));
+    if (currentIndex > 0 && currentIndex - 1 < allStores.length) {
+      final previousStore = allStores[currentIndex - 1];
+      if (previousStore != null && previousStore is Map) {
+        final previousStoreId = previousStore['id'];
+        if (previousStoreId != null && mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => StoreDetails(storeId: previousStoreId as int)));
+        }
       }
     } else { debugPrint("Already at the first store."); }
   }
 
   void _navigateToNextStore() {
     if (currentIndex != -1 && currentIndex < allStores.length - 1) {
-      final nextStoreId = allStores[currentIndex + 1]['id'];
-      if (nextStoreId != null && mounted) {
-        Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => StoreDetails(storeId: nextStoreId as int)));
+      final nextStore = allStores[currentIndex + 1];
+      if (nextStore != null && nextStore is Map) {
+        final nextStoreId = nextStore['id'];
+        if (nextStoreId != null && mounted) {
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => StoreDetails(storeId: nextStoreId as int)));
+        }
       }
     } else { debugPrint("Already at the last store."); }
   }
@@ -422,10 +483,15 @@ Widget buildProductCard(Map<String, dynamic> item) {
           Stack( fit: StackFit.passthrough, children: [
               GestureDetector(
                 onTap: () {
+                  // Add storeId to product if not present (for NewProductDetailsScreen)
+                  final productWithStoreId = Map<String, dynamic>.from(product);
+                  if (!productWithStoreId.containsKey('storeId') && !productWithStoreId.containsKey('store')) {
+                    productWithStoreId['storeId'] = widget.storeId;
+                  }
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => NewProductDetailsScreen(product: product),
+                      builder: (context) => NewProductDetailsScreen(product: productWithStoreId),
                     ),
                   );
                 },
@@ -512,10 +578,15 @@ Widget buildProductCard(Map<String, dynamic> item) {
                       ),
                     GestureDetector(
                       onTap: () {
+                        // Add storeId to product if not present (for NewProductDetailsScreen)
+                        final productWithStoreId = Map<String, dynamic>.from(product);
+                        if (!productWithStoreId.containsKey('storeId') && !productWithStoreId.containsKey('store')) {
+                          productWithStoreId['storeId'] = widget.storeId;
+                        }
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => NewProductDetailsScreen(product: product),
+                            builder: (context) => NewProductDetailsScreen(product: productWithStoreId),
                           ),
                         );
                       },

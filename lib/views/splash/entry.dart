@@ -22,21 +22,21 @@ class EntryScreen extends StatefulWidget {
 
 class _EntryScreenState extends State<EntryScreen> {
   Future<void> _startRun() async {
+    // Remove fixed delay - check immediately for faster app startup
     bool ifr = await IsFirstRun.isFirstRun();
-    var duration = const Duration(seconds: 5);
+    
     if (!ifr) {
-      Timer(duration, _navigateToAuthOrHome);
+      // Navigate immediately if not first run
+      _navigateToAuthOrHome();
     } else {
-      Timer(duration, _navigateToSplash);
+      // Only show splash on first run
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil(
+          SplashScreen.routeName,
+          (route) => false,
+        );
+      }
     }
-  }
-
-  void _navigateToSplash() {
-    // Routing to Splash
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      SplashScreen.routeName,
-      (route) => false,
-    );
   }
 
   void _navigateToAuthOrHome() async {

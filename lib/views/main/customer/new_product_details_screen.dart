@@ -56,7 +56,7 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
       _fetchStoreData(); // Load store data after user ID is loaded
     }
   }
-
+int? storeId;
   // Fetch store and product data
   Future<void> _fetchStoreData() async {
     if (!isLoading) {
@@ -65,10 +65,24 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
       });
     }
     try {
+      // Safely get store ID - handle both nested store object and direct storeId
+      
+      if (widget.product['store'] != null && widget.product['store'] is Map) {
+        storeId = widget.product['store']['id'] as int?;
+      } else if (widget.product['storeId'] != null) {
+        storeId = widget.product['storeId'] is int 
+            ? widget.product['storeId'] as int
+            : int.tryParse(widget.product['storeId'].toString());
+      }
+      
+      if (storeId == null) {
+        throw Exception('Store ID not found in product data');
+      }
+      
       final storeFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/list/${widget.product['store']['id']}'));
+          'https://nicknameinfo.net/api/store/list/$storeId'));
       final productFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/product/getAllProductById/${widget.product['store']['id']}'));
+          'https://nicknameinfo.net/api/store/product/getAllProductById/$storeId'));
       final responses = await Future.wait([storeFuture, productFuture]);
       final storeResponse = responses[0];
       final productResponse = responses[1];
@@ -324,12 +338,18 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
         children: [
           GestureDetector(
             onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => StoreDetails(storeId: widget.product['store']?['id']),
-                ),
-              );
+              if (storeId != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StoreDetails(storeId: storeId!),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Store ID not available')),
+                );
+              }
             },
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -413,17 +433,23 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
                 child: _buildCircleIcon(Icons.location_on, Colors.purple)
               ),
               GestureDetector(
-                onTap: () { launchWebsite(storeWebsite ?? '', widget.product['store']?['id'] ?? 0); }, 
+                onTap: () { launchWebsite(storeWebsite ?? '', storeId ?? 0); }, 
                 child: _buildCircleIcon(Icons.language, Colors.red)
               ),
               GestureDetector(
                 onTap: () { 
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => StoreDetails(storeId: widget.product['store']?['id']),
-                    ),
-                  );
+                  if (storeId != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StoreDetails(storeId: storeId!),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Store ID not available')),
+                    );
+                  }
                 }, 
                 child: _buildCircleIcon(Icons.play_arrow_rounded, Colors.teal)
               ),
@@ -509,7 +535,7 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
       ),
       // Use DefaultTabController for the tabbed interface at the bottom
       body: DefaultTabController(
-        length: 3, // Description, Customization, and FeedBack
+        length: 2, // Description and FeedBack (Customization is commented out)
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

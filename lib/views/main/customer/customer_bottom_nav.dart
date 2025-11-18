@@ -64,6 +64,40 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
         break;
     }
   }
+  
+  // Handle back button/gesture
+  Future<bool> _onWillPop() async {
+    // First, check if the nested Navigator can pop (has routes in stack)
+    if (_navigatorKey.currentState?.canPop() ?? false) {
+      _navigatorKey.currentState?.pop();
+      return false; // Prevent default back behavior
+    }
+    
+    // If on a different tab (not home), navigate to home tab
+    if (currentPageIndex != 0) {
+      selectPage(0); // Navigate to home tab
+      return false; // Prevent default back behavior
+    }
+    
+    // If on home tab and no nested routes, show exit confirmation
+    return await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Exit App'),
+        content: const Text('Do you want to exit the app?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    ) ?? false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,84 +111,87 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
         statusBarBrightness: Brightness.dark,
       ),
     );
-    return Scaffold(
-      bottomNavigationBar: ConvexAppBar(
-        backgroundColor: primaryColor,
-        color: Colors.white70,
-        activeColor: Colors.white,
-        initialActiveIndex: currentPageIndex,
-        style: TabStyle.reactCircle,
-        items: [
-          TabItem(
-            icon: Icon(
-              Icons.store,
-              size: currentPageIndex == 0 ? 22 : 18,
-              color: currentPageIndex == 0 ? primaryColor : Colors.white70,
+    return WillPopScope(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        bottomNavigationBar: ConvexAppBar(
+          backgroundColor: primaryColor,
+          color: Colors.white70,
+          activeColor: Colors.white,
+          initialActiveIndex: currentPageIndex,
+          style: TabStyle.reactCircle,
+          items: [
+            TabItem(
+              icon: Icon(
+                Icons.store,
+                size: currentPageIndex == 0 ? 22 : 18,
+                color: currentPageIndex == 0 ? primaryColor : Colors.white70,
+              ),
             ),
-          ),
-          TabItem(
-            icon: Icon(
-              Icons.local_shipping,
-              size: currentPageIndex == 1 ? 22 : 18,
-              color: currentPageIndex == 1 ? primaryColor : Colors.white70,
+            TabItem(
+              icon: Icon(
+                Icons.local_shipping,
+                size: currentPageIndex == 1 ? 22 : 18,
+                color: currentPageIndex == 1 ? primaryColor : Colors.white70,
+              ),
             ),
-          ),
-          TabItem(
-            icon: Icon(
-              Icons.map,
-              size: currentPageIndex == 2 ? 22 : 18,
-              color: currentPageIndex == 2 ? primaryColor : Colors.white70,
+            TabItem(
+              icon: Icon(
+                Icons.dashboard_outlined,
+                size: currentPageIndex == 2 ? 22 : 18,
+                color: currentPageIndex == 2 ? primaryColor : Colors.white70,
+              ),
             ),
-          ),
-          TabItem(
-            icon: Icon(
-              Icons.shopping_bag_outlined,
-              size: currentPageIndex == 3 ? 22 : 18,
-              color: currentPageIndex == 3 ? primaryColor : Colors.white70,
+            TabItem(
+              icon: Icon(
+                Icons.shopping_bag_outlined,
+                size: currentPageIndex == 3 ? 22 : 18,
+                color: currentPageIndex == 3 ? primaryColor : Colors.white70,
+              ),
             ),
-          ),
-          // TabItem(
-          //   icon: Consumer<CartData>(
-          //     builder: (context, data, child) => badges_lib.Badge(
-          //       badgeContent: Text(
-          //         cartData.cartItemCount.toString(),
-          //         style: const TextStyle(color: primaryColor),
-          //       ),
-          //       showBadge: cartData.cartItems.isNotEmpty,
-          //       child: Icon(
-          //         Icons.shopping_bag_outlined,
-          //         size: currentPageIndex == 3 ? 22 : 18,
-          //         color: currentPageIndex == 3 ? primaryColor : Colors.white70,
-          //       ),
-          //     ),
-          //   ),
-          // ),
-          TabItem(
-            icon: Icon(
-              Icons.receipt_long,
-              size: currentPageIndex == 4 ? 22 : 18,
-              color: currentPageIndex == 4 ? primaryColor : Colors.white70,
+            // TabItem(
+            //   icon: Consumer<CartData>(
+            //     builder: (context, data, child) => badges_lib.Badge(
+            //       badgeContent: Text(
+            //         cartData.cartItemCount.toString(),
+            //         style: const TextStyle(color: primaryColor),
+            //       ),
+            //       showBadge: cartData.cartItems.isNotEmpty,
+            //       child: Icon(
+            //         Icons.shopping_bag_outlined,
+            //         size: currentPageIndex == 3 ? 22 : 18,
+            //         color: currentPageIndex == 3 ? primaryColor : Colors.white70,
+            //       ),
+            //     ),
+            //   ),
+            // ),
+            TabItem(
+              icon: Icon(
+                Icons.receipt_long,
+                size: currentPageIndex == 4 ? 22 : 18,
+                color: currentPageIndex == 4 ? primaryColor : Colors.white70,
+              ),
             ),
-          ),
-          TabItem(
-            icon: Icon(
-              Icons.person_outline,
-              size: currentPageIndex == 5 ? 22 : 18,
-              color: currentPageIndex == 5 ? primaryColor : Colors.white70,
+            TabItem(
+              icon: Icon(
+                Icons.person_outline,
+                size: currentPageIndex == 5 ? 22 : 18,
+                color: currentPageIndex == 5 ? primaryColor : Colors.white70,
+              ),
             ),
-          ),
-        ],
-        onTap: selectPage,
-      ),
-      backgroundColor: Colors.grey.shade200,
-      body: Navigator(
-        key: _navigatorKey,
-        initialRoute: '/',
-        onGenerateRoute: (settings) {
-          return MaterialPageRoute(
-            builder: _pages[settings.name!]!,
-          );
-        },
+          ],
+          onTap: selectPage,
+        ),
+        backgroundColor: Colors.grey.shade200,
+        body: Navigator(
+          key: _navigatorKey,
+          initialRoute: '/',
+          onGenerateRoute: (settings) {
+            return MaterialPageRoute(
+              builder: _pages[settings.name!]!,
+            );
+          },
+        ),
       ),
     );
   }

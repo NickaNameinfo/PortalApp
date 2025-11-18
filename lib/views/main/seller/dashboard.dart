@@ -28,9 +28,9 @@ class DashboardScreen extends StatelessWidget {
       'routeName': '/subscription-screen',
     },
     {
-      'title': 'Orders (Coming Soon)',
+      'title': 'Orders',
       'icon': Icons.shopping_bag_outlined, // Modern icon
-      // 'routeName': OrdersScreen.routeName,
+      'routeName': OrdersScreen.routeName,
     },
     {
       'title': 'Statistics (Coming Soon)',

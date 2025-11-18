@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -124,9 +126,16 @@ class _ProductScreenState extends State<ProductScreen> {
 
   // This function is for the CategoriesWidget
   Future<List<dynamic>> _fetchCategories() async {
-    // ... (This function is unchanged) ...
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      final response = await http.get(
+        Uri.parse('https://nicknameinfo.net/api/category/getAllCategory')
+      ).timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          throw TimeoutException('Category request timeout');
+        },
+      );
+      
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true) {
@@ -137,6 +146,10 @@ class _ProductScreenState extends State<ProductScreen> {
       } else {
         throw Exception('Failed to load categories: HTTP error ${response.statusCode}');
       }
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check your internet connection.');
+    } on SocketException {
+      throw Exception('No internet connection.');
     } catch (e) {
       throw Exception('Failed to connect to the server: $e');
     }
@@ -170,37 +183,48 @@ class _ProductScreenState extends State<ProductScreen> {
       url = 'https://nicknameinfo.net/api/product/getAllproductList';
     }
     
-    final response = await http.get(Uri.parse(url));
+    try {
+      final response = await http.get(Uri.parse(url)).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          throw TimeoutException('Request timeout');
+        },
+      );
 
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = json.decode(response.body);
-      if (data['success'] == true) {
-        
-        List<dynamic> responseData = data['data'] ?? [];
-        if (responseData.isEmpty) {
-          return []; // Return empty list if data is empty
-        }
-
-        // Check if the first item has a 'products' key (nested format)
-        if (responseData[0] is Map && responseData[0].containsKey('products')) {
-          // This is the nested format: List of sub-categories, each with a 'products' list
-          List<dynamic> allProducts = [];
-          for (var subCategory in responseData) {
-            if (subCategory is Map && subCategory['products'] is List) {
-              allProducts.addAll(subCategory['products'] as List<dynamic>);
-            }
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        if (data['success'] == true) {
+          
+          List<dynamic> responseData = data['data'] ?? [];
+          if (responseData.isEmpty) {
+            return []; // Return empty list if data is empty
           }
-          return allProducts;
-        } else {
-          // This is the old format: A flat list of products
-          return responseData;
-        }
 
+          // Check if the first item has a 'products' key (nested format)
+          if (responseData[0] is Map && responseData[0].containsKey('products')) {
+            // This is the nested format: List of sub-categories, each with a 'products' list
+            List<dynamic> allProducts = [];
+            for (var subCategory in responseData) {
+              if (subCategory is Map && subCategory['products'] is List) {
+                allProducts.addAll(subCategory['products'] as List<dynamic>);
+              }
+            }
+            return allProducts;
+          } else {
+            // This is the old format: A flat list of products
+            return responseData;
+          }
+
+        } else {
+          throw Exception('API returned an error');
+        }
       } else {
-        throw Exception('API returned an error');
+        throw Exception('Failed to load products');
       }
-    } else {
-      throw Exception('Failed to load products');
+    } on TimeoutException {
+      throw Exception('Request timeout. Please check your internet connection.');
+    } on SocketException {
+      throw Exception('No internet connection.');
     }
   }
 

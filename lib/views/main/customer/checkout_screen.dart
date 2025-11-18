@@ -292,7 +292,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
     // 2. Check payment method
     // Based on your new UI: 1 = Online, 2/3/4 = Offline
-    if (_selectedPaymentOption == 1 || _selectedPaymentOption == 3 || _selectedPaymentOption == 4) {
+    if (_selectedPaymentOption == 1 || _selectedPaymentOption == 2 || _selectedPaymentOption == 4) {
       // --- ONLINE PAYMENT FLOW (Razorpay) ---
       try {
         final paymentResult = await CheckoutApiHelper.createRazorpayOrder(grandTotal, _userId);
@@ -645,7 +645,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               },
             ),
             RadioListTile<int>(
-              title: const Text('Cash on Delivery'),
+              title: const Text('Pre Order'),
               value: 2,
               groupValue: _selectedPaymentOption,
               onChanged: (int? value) {
@@ -654,8 +654,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 });
               },
             ),
+
             RadioListTile<int>(
-              title: const Text('Pre Order'),
+              title: const Text('Cash on Delivery'),
               value: 3,
               groupValue: _selectedPaymentOption,
               onChanged: (int? value) {
