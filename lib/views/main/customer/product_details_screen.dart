@@ -56,26 +56,66 @@ Widget buildQuantitySelector({
   required VoidCallback onDecrement
 }) {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
     decoration: BoxDecoration(
       color: Colors.white, 
-      borderRadius: BorderRadius.circular(20), 
-      boxShadow: [BoxShadow( 
-        color: Colors.grey.withOpacity(0.2), 
-        blurRadius: 4, offset: const Offset(0, 2)
-      )], 
-      border: Border.all(color: Colors.grey.shade300, width: 1)
+      borderRadius: BorderRadius.circular(12), 
+      boxShadow: [
+        BoxShadow( 
+          color: Colors.black.withOpacity(0.08), 
+          blurRadius: 8, 
+          offset: const Offset(0, 2)
+        )
+      ], 
+      border: Border.all(color: primaryColor.withOpacity(0.3), width: 1.5)
     ),
-    child: Row( mainAxisSize: MainAxisSize.min, children: [
-        GestureDetector( onTap: onDecrement, child: Icon( 
-          Icons.remove, 
-          size: 20, 
-          color: quantity > 0 ? Colors.black54 : Colors.grey[300]
-        )),
-        const SizedBox(width: 10),
-        Text(quantity.toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(width: 10),
-        GestureDetector( onTap: onIncrement, child: const Icon(Icons.add, size: 20, color: Colors.black54)),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: onDecrement,
+            icon: Icon(
+              Icons.remove,
+              size: 18,
+              color: quantity > 0 ? primaryColor : Colors.grey[400],
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            quantity.toString(),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: primaryColor,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: onIncrement,
+            icon: Icon(Icons.add, size: 18, color: primaryColor),
+          ),
+        ),
       ],
     ),
   );
@@ -83,7 +123,23 @@ Widget buildQuantitySelector({
 // ----------------------------------------------------
 
 Widget _buildCircleIcon(IconData icon, Color color) {
-  return Container(width: 42, height: 42, decoration: BoxDecoration( color: color.withOpacity(0.15), shape: BoxShape.circle, boxShadow: [BoxShadow( color: color.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 3))]), child: Icon(icon, color: color, size: 20));
+  return Container(
+    width: 50,
+    height: 50,
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      shape: BoxShape.circle,
+      border: Border.all(color: color.withOpacity(0.3), width: 2),
+      boxShadow: [
+        BoxShadow(
+          color: color.withOpacity(0.2),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Icon(icon, color: color, size: 22),
+  );
 }
 
 Future<void> _fetchCartQuantities() async {
@@ -356,11 +412,30 @@ Widget buildStoreHeader() {
     final String totalProducts = storeData?['totalProducts']?.toString() ?? '0';
 
     return Scaffold(
-      backgroundColor: Colors.grey[200],
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
-        title: const Text('Store and Product Details'),
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.black,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                primaryColor,
+                primaryColor.withOpacity(0.8),
+              ],
+            ),
+          ),
+        ),
+        title: const Text(
+          'Product Details',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+          ),
+        ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -368,11 +443,20 @@ Widget buildStoreHeader() {
           child: Column(
             children: [
               // --- 1. Product Details Card ---
-              Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 15,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(20.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -402,31 +486,88 @@ Widget buildStoreHeader() {
                                 ),
                                 // 'Available' Badge
                                 Positioned(
-                                  top: 10, left: 10,
+                                  top: 12, left: 12,
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(color: Colors.green, borderRadius: BorderRadius.circular(5)),
-                                    child: const Text('Available', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [Colors.green[400]!, Colors.green[600]!],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.green.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: const Text(
+                                      'Available',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                      ),
+                                    ),
                                   ),
                                 ),
                                 // 'Online Order Not Available' Badge
                                 if (!isOnlineOrderAvailable && !isBooking)
                                   Positioned(
-                                    bottom: 10, left: 10,
+                                    bottom: 12, left: 12,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(5)),
-                                      child: const Text('Online Order Not Available', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [Colors.red[400]!, Colors.red[600]!],
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.red.withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Text(
+                                        'Online Order Not Available',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 // 'Booking Only' Badge
                                 if (isBooking)
                                   Positioned(
-                                    bottom: 10, right: 10,
+                                    bottom: 12, right: 12,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                      decoration: BoxDecoration(color: Colors.orange, borderRadius: BorderRadius.circular(5)),
-                                      child: const Text('Booking Only', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [Colors.orange[400]!, Colors.orange[600]!],
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.orange.withOpacity(0.3),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: const Text(
+                                        'Booking Only',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12,
+                                        ),
+                                      ),
                                     ),
                                   ),
                               ],
@@ -486,14 +627,37 @@ Widget buildStoreHeader() {
                                     onIncrement: () => _incrementQuantity(productId, product),
                                     onDecrement: () => _decrementQuantity(productId, product),
                                   )
-                                : ElevatedButton.icon(
-                                    onPressed: () => _addToCart(product),
-                                    icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
-                                    label: const Text('Add to Cart', style: TextStyle(color: Colors.white)),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.green,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                                : Container(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [Colors.green[400]!, Colors.green[600]!],
+                                      ),
+                                      borderRadius: BorderRadius.circular(12),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.green.withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: ElevatedButton.icon(
+                                      onPressed: () => _addToCart(product),
+                                      icon: const Icon(Icons.add_shopping_cart, color: Colors.white, size: 20),
+                                      label: const Text(
+                                        'Add to Cart',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.transparent,
+                                        shadowColor: Colors.transparent,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                                      ),
                                     ),
                                   ),
                       
@@ -505,35 +669,57 @@ Widget buildStoreHeader() {
                      const SizedBox(height: 10),
                      Row(mainAxisAlignment: MainAxisAlignment.spaceAround, children: [
                                   if (isBooking || available)
-                      ElevatedButton(
-                        onPressed: () {
-                          // Create a 'cart-like' item map that CheckoutScreen understands
-                          final checkoutProduct = {
-                            'productId': productId,
-                            'name': product['name'] ?? 'N/A',
-                            'price': double.tryParse(product['total']?.toString() ?? '0') ?? 0,
-                            'qty': 1, // Default quantity for "Buy Now"
-                            'storeId': storeData?['id'], // Pass the storeId
-                            'photo': product['photo'] ?? 'https://via.placeholder.com/150', // Pass photo for summary
-                            'isBooking': isBooking, // Pass booking status
-                          };
-                          
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CheckoutScreen(product: checkoutProduct),
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [primaryColor, primaryColor.withOpacity(0.8)],
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 4),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          onPressed: () {
+                            // Create a 'cart-like' item map that CheckoutScreen understands
+                            final checkoutProduct = {
+                              'productId': productId,
+                              'name': product['name'] ?? 'N/A',
+                              'price': double.tryParse(product['total']?.toString() ?? '0') ?? 0,
+                              'qty': 1, // Default quantity for "Buy Now"
+                              'storeId': storeData?['id'], // Pass the storeId
+                              'photo': product['photo'] ?? 'https://via.placeholder.com/150', // Pass photo for summary
+                              'isBooking': isBooking, // Pass booking status
+                            };
+                            
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => CheckoutScreen(product: checkoutProduct),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            isBooking ? 'Book Now' : 'Order Now',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
-                        child: isBooking ? const Text('Book Now') : const Text('Order Now'),
                       ),
                                   GestureDetector(
                                     onTap: () {

@@ -431,159 +431,275 @@ class _MapViewPageState extends State<MapViewPage> {
     required String location,
     required String distance,
   }) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 20),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      elevation: 5,
-      color: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(15),
-        child: Column(
-          children: [
-            Row(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => StoreDetails(storeId: storeId),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => StoreDetails(
-                          storeId: storeId,
-                        ),
-                      ),
-                    );
-                  },
-                  child: SizedBox(
-                    width: 120,
-                    child: Column(
-                      children: [
-                        Container(
-                          width: 120,
-                          height: 120,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(15),
-                            color: Colors.white,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Store Logo
+                    Container(
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.grey[100],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
                           ),
-                          child: logoUrl.startsWith('http')
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: logoUrl.startsWith('http')
                             ? Image.network(
                                 logoUrl,
-                                fit: BoxFit.contain,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const Icon(Icons.error, size: 120),
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) => Container(
+                                  color: Colors.grey[200],
+                                  child: Icon(
+                                    Icons.store,
+                                    size: 40,
+                                    color: Colors.grey[400],
+                                  ),
+                                ),
                               )
-                            : Image.asset('assets/placeholder.png', fit: BoxFit.contain),
-                        ),
-                      ],
+                            : Container(
+                                color: Colors.grey[200],
+                                child: Icon(
+                                  Icons.store,
+                                  size: 40,
+                                  color: Colors.grey[400],
+                                ),
+                              ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 15),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'Open : ',
-                            style: TextStyle(fontSize: 12, color: Colors.black),
-                          ),
+                          // Store Name
                           Text(
-                            openTime,
-                            style: const TextStyle(fontSize: 12, color: Colors.black54),
+                            title,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          const Icon(Icons.star, color: Colors.orange, size: 16),
-                          const SizedBox(width: 5),
-                          Text(rating.toString(), style: const TextStyle(fontSize: 14)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
+                          const SizedBox(height: 12),
+                          // Rating and Timing Badges Row
                           Row(
                             children: [
-                              GestureDetector(
-                                onTap: () {
-                                  if (phone != null) {
-                                    // Assumed utility function
-                                    makePhoneCall(phone);
-                                  }
-                                },
-                                child: const Icon(Icons.call, size: 20, color: Colors.deepPurple),
+                              // Rating Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.star, color: Colors.orange, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      rating.toString(),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.orange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const SizedBox(width: 15),
-                              GestureDetector(
-                                onTap: () {
-                                    launchWebsite(website ?? '', storeId);
-                                },
-                                child: const Icon(Icons.language, size: 20, color: Colors.deepPurple),
-                              ),
-                              const SizedBox(width: 15),
-                              GestureDetector(
-                                onTap: () {
-                                  if (location != 'N/A') { // Check against the default string
-                                    // Assumed utility function
-                                    openMap(location);
-                                  }
-                                },
-                                child: const Icon(Icons.location_on, size: 20, color: Colors.deepPurple),
+                              const SizedBox(width: 10),
+                              // Timing Badge
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.access_time, size: 14, color: Colors.green[700]),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          openTime,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.green[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           ),
-                          GestureDetector(
-                                onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (context) => StoreDetails(
-                                storeId:  storeId
+                          const SizedBox(height: 16),
+                          // Action Icons Row
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildActionIcon(
+                                icon: Icons.call_outlined,
+                                color: Colors.blue,
+                                onTap: () {
+                                  if (phone != null) {
+                                    makePhoneCall(phone);
+                                  }
+                                },
                               ),
-                            ),
+                              _buildActionIcon(
+                                icon: Icons.language_outlined,
+                                color: Colors.purple,
+                                onTap: () {
+                                  launchWebsite(website ?? '', storeId);
+                                },
+                              ),
+                              _buildActionIcon(
+                                icon: Icons.location_on_outlined,
+                                color: Colors.red,
+                                onTap: () {
+                                  if (location != 'N/A') {
+                                    openMap(location);
+                                  }
+                                },
+                              ),
+                              _buildActionIcon(
+                                icon: Icons.arrow_forward_ios,
+                                color: primaryColor,
+                                onTap: () {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (context) => StoreDetails(storeId: storeId),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
-                                child: const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.deepPurple),
-                              ),
                         ],
                       ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Bottom Info Row
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.inventory_2_outlined, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$products Products',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (distance != 'N/A')
+                        Row(
+                          children: [
+                            Icon(Icons.near_me_outlined, size: 16, color: primaryColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Near By : ${distance} km',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Products : $products',
-                  style: const TextStyle(fontSize: 14, color: Colors.black),
-                ),
-                Row(
-                  children: [
-                    const Text(
-                      'Near By : ',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                        '${distance} km', // <-- Now guaranteed to be a String
-                      style: const TextStyle(fontSize: 14, color: Colors.grey),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // Modern Action Icon Widget
+  Widget _buildActionIcon({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: color.withOpacity(0.2),
+            width: 1.5,
+          ),
+        ),
+        child: Icon(
+          icon,
+          size: 22,
+          color: color,
         ),
       ),
     );

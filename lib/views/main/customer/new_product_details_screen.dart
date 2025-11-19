@@ -303,20 +303,21 @@ int? storeId;
   // Helper method to build circle icon
   Widget _buildCircleIcon(IconData icon, Color color) {
     return Container(
-      width: 42, 
-      height: 42, 
+      width: 50,
+      height: 50,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15), 
-        shape: BoxShape.circle, 
+        color: color.withOpacity(0.1),
+        shape: BoxShape.circle,
+        border: Border.all(color: color.withOpacity(0.3), width: 2),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.3), 
-            blurRadius: 6, 
-            offset: const Offset(0, 3)
-          )
-        ]
-      ), 
-      child: Icon(icon, color: color, size: 20)
+            color: color.withOpacity(0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: color, size: 22),
     );
   }
 
@@ -324,138 +325,304 @@ int? storeId;
   Widget buildStoreHeader() {
     final String openTime = store?['openTime'] ?? 'N/A';
     final String closeTime = store?['closeTime'] ?? 'N/A';
-    final String openCloseTime = (openTime != 'N/A' && closeTime != 'N/A') ? 'Open : $openTime - $closeTime' : 'Timings not available';
+    final String openCloseTime = (openTime != 'N/A' && closeTime != 'N/A') ? '$openTime : $closeTime' : 'Timings not available';
     final String? storePhone = store?['phone'];
     final String? storeWebsite = store?['website'];
     final String storeName = store?['storename'] ?? 'This Store';
     final String? location = store?['location'] ?? store?['storeaddress'];
-    final String shareText = 'Check out $storeName! ${storeWebsite != null ? storeWebsite : ""}';
+    final double rating = double.tryParse(store?['rating']?.toString() ?? '4.2') ?? 4.2;
+    final String distance = store?['distance']?.toString() ?? 'N/A';
 
     return Container(
-      padding: const EdgeInsets.all(16.0),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () {
-              if (storeId != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => StoreDetails(storeId: storeId!),
-                  ),
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Store ID not available')),
-                );
-              }
-            },
-            child: Row(
+      margin: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            if (storeId != null) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StoreDetails(storeId: storeId!),
+                ),
+              );
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Store ID not available')),
+              );
+            }
+          },
+          borderRadius: BorderRadius.circular(20),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
-                    store?['storeImage'] ?? 'https://via.placeholder.com/100x100.png?text=Store', 
-                    width: 100, 
-                    height: 100, 
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      width: 100, 
-                      height: 100, 
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Store Logo
+                    Container(
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
-                        color: Colors.grey[200], 
-                        borderRadius: BorderRadius.circular(12)
-                      ), 
-                      child: Icon(Icons.storefront, color: Colors.grey[400], size: 40)
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start, 
-                    children: [
-                      Text(
-                        storeName, 
-                        style: const TextStyle(
-                          fontSize: 18, 
-                          fontWeight: FontWeight.w700, 
-                          color: Colors.black
-                        ), 
-                        maxLines: 2, 
-                        overflow: TextOverflow.ellipsis
+                        borderRadius: BorderRadius.circular(16),
+                        color: Colors.grey[100],
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 2),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Image.network(
+                          store?['storeImage'] ?? 'https://via.placeholder.com/100x100.png?text=Store',
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            color: Colors.grey[200],
+                            child: Icon(
+                              Icons.store,
+                              size: 40,
+                              color: Colors.grey[400],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    // Store Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Store Name
+                          Text(
+                            storeName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          // Rating and Timing Row
+                          Row(
+                            children: [
+                              // Rating Badge
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.star, color: Colors.orange, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      rating.toStringAsFixed(1),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.orange,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // Timing Badge
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.green.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.access_time, size: 14, color: Colors.green[700]),
+                                      const SizedBox(width: 4),
+                                      Flexible(
+                                        child: Text(
+                                          openCloseTime,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.green[700],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Action Buttons Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    // Call Button
+                    _buildActionButton(
+                      icon: Icons.call_outlined,
+                      color: Colors.blue,
+                      onTap: () {
+                        if (storePhone != null) {
+                          makePhoneCall(storePhone);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Phone number not available.')),
+                          );
+                        }
+                      },
+                    ),
+                    // Website Button
+                    _buildActionButton(
+                      icon: Icons.language_outlined,
+                      color: Colors.purple,
+                      onTap: () {
+                        launchWebsite(storeWebsite ?? '', storeId ?? 0);
+                      },
+                    ),
+                    // Location Button
+                    _buildActionButton(
+                      icon: Icons.location_on_outlined,
+                      color: Colors.red,
+                      onTap: () {
+                        if (location != null && location.isNotEmpty) {
+                          openMap(location);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Location not available.')),
+                          );
+                        }
+                      },
+                    ),
+                    // More Info Button
+                    _buildActionButton(
+                      icon: Icons.arrow_forward_ios,
+                      color: primaryColor,
+                      onTap: () {
+                        if (storeId != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => StoreDetails(storeId: storeId!),
+                            ),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Store ID not available')),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Bottom Info Row
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Products Count
                       Row(
                         children: [
-                          const Icon(Icons.star, color: Colors.amber, size: 16), 
-                          const SizedBox(width: 4), 
+                          Icon(Icons.inventory_2_outlined, size: 16, color: Colors.grey[600]),
+                          const SizedBox(width: 6),
                           Text(
-                            store?['rating']?.toString() ?? "4.2", 
-                            style: const TextStyle(color: Colors.black87, fontSize: 14)
-                          )
-                        ]
+                            '${products.length} Products',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(openCloseTime, style: const TextStyle(color: Colors.black87)),
-                      Text("Products : ${products.length}", style: const TextStyle(color: Colors.black87)),
+                      // Distance
+                      if (distance != 'N/A')
+                        Row(
+                          children: [
+                            Icon(Icons.near_me_outlined, size: 16, color: primaryColor),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Near By : ${distance} km',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround, 
-            children: [
-              GestureDetector(
-                onTap: () { 
-                  if (storePhone != null) launchWhatsApp(storePhone); 
-                  else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('WhatsApp number not available.'))); 
-                }, 
-                child: _buildCircleIcon(FontAwesomeIcons.whatsapp, Colors.green)
-              ),
-              GestureDetector(
-                onTap: () { 
-                  if (storePhone != null) makePhoneCall(storePhone); 
-                  else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Phone number not available.'))); 
-                }, 
-                child: _buildCircleIcon(Icons.phone, Colors.blue)
-              ),
-              GestureDetector(
-                onTap: () { 
-                  if (location != null && location.isNotEmpty) openMap(location); 
-                  else ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location not available.'))); 
-                }, 
-                child: _buildCircleIcon(Icons.location_on, Colors.purple)
-              ),
-              GestureDetector(
-                onTap: () { launchWebsite(storeWebsite ?? '', storeId ?? 0); }, 
-                child: _buildCircleIcon(Icons.language, Colors.red)
-              ),
-              GestureDetector(
-                onTap: () { 
-                  if (storeId != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => StoreDetails(storeId: storeId!),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Store ID not available')),
-                    );
-                  }
-                }, 
-                child: _buildCircleIcon(Icons.play_arrow_rounded, Colors.teal)
-              ),
-            ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to build action button
+  Widget _buildActionButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: color.withOpacity(0.3),
+            width: 1.5,
           ),
-        ],
+        ),
+        child: Icon(
+          icon,
+          color: color,
+          size: 22,
+        ),
       ),
     );
   }
@@ -467,24 +634,65 @@ int? storeId;
     required VoidCallback onDecrement,
   }) {
     return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+        border: Border.all(color: primaryColor.withOpacity(0.3), width: 1.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
-            icon: const Icon(Icons.remove, color: primaryColor, size: 16),
-            onPressed: onDecrement,
+          Container(
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: onDecrement,
+              icon: Icon(
+                Icons.remove,
+                size: 18,
+                color: quantity > 0 ? primaryColor : Colors.grey[400],
+              ),
+            ),
           ),
-          Text(
-            quantity.toString(),
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              quantity.toString(),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
+            ),
           ),
-          IconButton(
-            icon: const Icon(Icons.add, color: primaryColor, size: 16),
-            onPressed: onIncrement,
+          Container(
+            decoration: BoxDecoration(
+              color: primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: onIncrement,
+              icon: Icon(Icons.add, size: 18, color: primaryColor),
+            ),
           ),
         ],
       ),
@@ -497,8 +705,27 @@ int? storeId;
     if (isLoading) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Product Details', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          backgroundColor: primaryColor,
+          elevation: 0,
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primaryColor,
+                  primaryColor.withOpacity(0.8),
+                ],
+              ),
+            ),
+          ),
+          title: const Text(
+            'Product Details',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
+          ),
           iconTheme: const IconThemeData(color: Colors.white),
         ),
         body: const Center(
@@ -529,8 +756,27 @@ int? storeId;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Product Details', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        backgroundColor: primaryColor,
+        elevation: 0,
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                primaryColor,
+                primaryColor.withOpacity(0.8),
+              ],
+            ),
+          ),
+        ),
+        title: const Text(
+          'Product Details',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+          ),
+        ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
       // Use DefaultTabController for the tabbed interface at the bottom
@@ -543,13 +789,20 @@ int? storeId;
               // --- 1. Product Image & Main Info Card (Full Width) ---
               Padding(
                 padding: const EdgeInsets.all(16.0), 
-                child: Card(
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 15,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
                   ),
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(20.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -948,23 +1201,44 @@ int? storeId;
 
   // Helper widget for Description Card content
   Widget _buildDescriptionCard(String description) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15.0),
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Product Description',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: primaryColor
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.description, color: primaryColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Product Description',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             Expanded( // Use Expanded to ensure the text content fills the available height within the TabBarView/SizedBox
@@ -1023,23 +1297,44 @@ int? storeId;
   }
 
   Widget _buildFeedBackCard() {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15.0),
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Give Feed back to imporve our business',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: primaryColor
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.feedback, color: primaryColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Give Feedback',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
             // TextField(

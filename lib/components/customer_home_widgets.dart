@@ -88,28 +88,34 @@ void _logout(BuildContext context) async {
         }
       },
 
-      // This is your original button UI. It now acts as the
-      // 'child' that triggers the popup menu.
+      // Modern profile button with gradient
       child: Container(
         width: 50,
         height: 50,
-        decoration: const BoxDecoration(
-          color: Colors.orange,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              primaryColor,
+              primaryColor.withOpacity(0.8),
+            ],
+          ),
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: Colors.black12,
-              blurRadius: 5,
-              offset: Offset(0, 2),
+              color: primaryColor.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: const Icon(Icons.person, color: Colors.white),
+        child: const Icon(Icons.person, color: Colors.white, size: 24),
       ),
     );
   }
 
-  // Helper method to build the custom menu items from your screenshot
+  // Modern popup menu item with better styling
   PopupMenuItem<String> _buildPopupMenuItem({
     required IconData icon,
     required String text,
@@ -118,27 +124,51 @@ void _logout(BuildContext context) async {
   }) {
     return PopupMenuItem<String>(
       value: value,
-      child: Row(
-        children: [
-          // Icon from your screenshot
-          Icon(icon, color: Colors.green.shade400),
-          const SizedBox(width: 15),
-          
-          // Text
-          Expanded(
-            child: Text(text, style: const TextStyle(color: Colors.black87)),
-          ),
-          
-          // Badge (only shows if badgeCount is not null)
-          if (badgeCount != null)
-            Text(
-              badgeCount.toString(),
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, color: primaryColor, size: 20),
+            ),
+            const SizedBox(width: 12),
+            
+            // Text
+            Expanded(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
-        ],
+            
+            // Badge (only shows if badgeCount is not null)
+            if (badgeCount != null)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: primaryColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  badgeCount.toString(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -157,80 +187,88 @@ class HomeTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: litePrimary,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            primaryColor,
+            primaryColor.withOpacity(0.8),
+          ],
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const ProfileButton(),
-            Expanded(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 15),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 5,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: TextField(
-                  controller: searchController,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: onSearchSubmitted,
-                  decoration: InputDecoration(
-                    hintText: 'Search',
-                    hintStyle: const TextStyle(color: Colors.grey),
-                    border: InputBorder.none,
-                    icon: const Icon(Icons.search, color: Colors.grey),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    // Use ValueListenableBuilder to automatically update the suffixIcon visibility
-                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
-                        valueListenable: searchController,
-                        builder: (context, value, child) {
-                          if (value.text.isNotEmpty) {
-                            return IconButton(
-                              icon: const Icon(Icons.clear, color: Colors.grey),
-                              onPressed: () {
-                                searchController.clear();
-                                onSearchSubmitted(''); // Triggers search with empty string
-                              },
-                            );
-                          }
-                          return const SizedBox.shrink();
-                        }),
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const ProfileButton(),
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: TextField(
+                controller: searchController,
+                textInputAction: TextInputAction.search,
+                onSubmitted: onSearchSubmitted,
+                style: const TextStyle(fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'Search stores...',
+                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  border: InputBorder.none,
+                  icon: Icon(Icons.search, color: primaryColor, size: 22),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: searchController,
+                    builder: (context, value, child) {
+                      if (value.text.isNotEmpty) {
+                        return IconButton(
+                          icon: Icon(Icons.clear, color: Colors.grey[400], size: 20),
+                          onPressed: () {
+                            searchController.clear();
+                            onSearchSubmitted('');
+                          },
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
                   ),
                 ),
               ),
             ),
-            
-            GestureDetector(
-              onTap: () {
-                // This command finds the nearest Scaffold and opens its endDrawer
-                Scaffold.of(context).openEndDrawer();
-              },
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 5,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.tune, size: 20, color: Colors.black54),
+          ),
+          GestureDetector(
+            onTap: () {
+              Scaffold.of(context).openEndDrawer();
+            },
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
+              child: Icon(Icons.tune, size: 22, color: primaryColor),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -280,34 +318,55 @@ class GridButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100,
-      height: 70,
+      width: 110,
+      height: 80,
       decoration: BoxDecoration(
-        color: isSelected ? const Color(0xFF6A5ACD) : Colors.white,
-        borderRadius: BorderRadius.circular(15),
+        gradient: isSelected
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primaryColor,
+                  primaryColor.withOpacity(0.8),
+                ],
+              )
+            : null,
+        color: isSelected ? null : Colors.white,
+        borderRadius: BorderRadius.circular(18),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
-            spreadRadius: 2,
-            blurRadius: 5,
-            offset: const Offset(0, 3),
+            color: isSelected
+                ? primaryColor.withOpacity(0.3)
+                : Colors.black.withOpacity(0.08),
+            blurRadius: isSelected ? 12 : 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            color: isSelected ? Colors.white : const Color(0xFF6A5ACD), 
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? Colors.white.withOpacity(0.2)
+                  : primaryColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: isSelected ? Colors.white : primaryColor,
+              size: 26,
+            ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 8),
           Text(
             label,
             style: TextStyle(
-              color: isSelected ? Colors.white : Colors.black,
-              fontSize: 12,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              color: isSelected ? Colors.white : Colors.black87,
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
             ),
           ),
         ],
@@ -343,22 +402,51 @@ class CategoryTab extends StatelessWidget {
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 300),
-            margin: const EdgeInsets.symmetric(horizontal: 5),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+            curve: Curves.easeInOut,
+            margin: const EdgeInsets.symmetric(horizontal: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             decoration: BoxDecoration(
-              color: isSelected ? const Color(0xFF6A5ACD) : Colors.white,
-              borderRadius: BorderRadius.circular(30),
-              border: isSelected ? null : Border.all(color: Colors.grey.shade300),
-              boxShadow: isSelected
-                  ? const [BoxShadow(color: Colors.black26, blurRadius: 5, offset: Offset(0, 2))]
+              gradient: isSelected
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        primaryColor,
+                        primaryColor.withOpacity(0.8),
+                      ],
+                    )
                   : null,
+              color: isSelected ? null : Colors.white,
+              borderRadius: BorderRadius.circular(25),
+              border: isSelected
+                  ? null
+                  : Border.all(
+                      color: Colors.grey.shade300,
+                      width: 1.5,
+                    ),
+              boxShadow: isSelected
+                  ? [
+                      BoxShadow(
+                        color: primaryColor.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      ),
+                    ]
+                  : [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 5,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
             ),
             child: Center(
               child: Text(
                 text,
                 style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.black54,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? Colors.white : Colors.black87,
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                 ),
               ),
             ),
@@ -447,24 +535,55 @@ class HomeFilterDrawer extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Nickname Infotech',
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black,
+                      Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    Icons.filter_list,
+                                    color: primaryColor,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Filters',
+                                  style: TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.arrow_forward_ios, size: 18, color: Colors.black54),
-                            onPressed: () {
-                              Navigator.of(context).pop();
-                            },
-                          ),
-                        ],
+                            IconButton(
+                              icon: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.close,
+                                  size: 18,
+                                  color: Colors.black54,
+                                ),
+                              ),
+                              onPressed: () {
+                                Navigator.of(context).pop();
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 24),
         
@@ -558,42 +677,68 @@ class HomeFilterDrawer extends StatelessWidget {
     bool isActive = false,
     Widget? trailing,
   }) {
-    // ... (No changes here) ...
-    final Color bgColor = isActive 
-      ? const Color(0xFF5C6BC0) // Active blue/purple
-      : const Color(0xFFE6E6E6); // Disabled grey
-      
-    final Color fgColor = isActive 
-      ? Colors.white 
-      : Colors.black54;
-
-    return Material(
-      color: bgColor,
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: comingSoon ? null : onTap, // Disable tap if coming soon
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                text, 
-                style: TextStyle(
-                  color: fgColor, 
-                  fontSize: 16, 
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.w500
-                )
-              ),
-              if (comingSoon)
-                const Text(
-                  'coming soon', 
-                  style: TextStyle(color: Colors.grey, fontSize: 12)
-                )
-              else if (trailing != null)
-                trailing,
-            ],
+    return Container(
+      decoration: BoxDecoration(
+        gradient: isActive
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primaryColor,
+                  primaryColor.withOpacity(0.8),
+                ],
+              )
+            : null,
+        color: isActive ? null : Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: comingSoon ? null : onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  text,
+                  style: TextStyle(
+                    color: isActive ? Colors.white : Colors.black87,
+                    fontSize: 15,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+                  ),
+                ),
+                if (comingSoon)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[400],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Text(
+                      'Soon',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  )
+                else if (trailing != null)
+                  trailing,
+              ],
+            ),
           ),
         ),
       ),
@@ -605,23 +750,86 @@ class HomeFilterDrawer extends StatelessWidget {
     required VoidCallback onTap,
     bool isActive = false,
   }) {
-    // ... (No changes here) ...
-    return Material(
-      color: isActive ? const Color(0xFF5C6BC0) : Colors.white, 
-      borderRadius: BorderRadius.circular(10),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Text(
-            text, 
-            style: TextStyle(
-              color: isActive ? Colors.white : Colors.black87, 
-              fontSize: 16, 
-              fontWeight: isActive ? FontWeight.bold : FontWeight.w500,
-            )
+    return Container(
+      decoration: BoxDecoration(
+        gradient: isActive
+            ? LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primaryColor,
+                  primaryColor.withOpacity(0.8),
+                ],
+              )
+            : null,
+        color: isActive ? null : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: isActive
+            ? null
+            : Border.all(
+                color: Colors.grey[300]!,
+                width: 1,
+              ),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: primaryColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 5,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            child: Row(
+              children: [
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isActive
+                        ? Colors.white
+                        : Colors.grey[300],
+                    border: Border.all(
+                      color: isActive ? Colors.white : Colors.grey[400]!,
+                      width: 2,
+                    ),
+                  ),
+                  child: isActive
+                      ? const Icon(
+                          Icons.check,
+                          size: 12,
+                          color: primaryColor,
+                        )
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: TextStyle(
+                      color: isActive ? Colors.white : Colors.black87,
+                      fontSize: 15,
+                      fontWeight: isActive ? FontWeight.bold : FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -717,32 +925,67 @@ class _CategoriesExpansionFilterState extends State<CategoriesExpansionFilter> {
   Widget build(BuildContext context) {
     return Consumer<CategoryFilterData>(
       builder: (context, filterData, child) {
-        return ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: ExpansionTile(
-            backgroundColor: const Color(0xFF5C6BC0), 
-            collapsedBackgroundColor: const Color(0xFF5C6BC0), 
-            iconColor: Colors.white,
-            collapsedIconColor: Colors.white,
-            
-            trailing: Icon(
-              _isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
-              color: Colors.white,
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                primaryColor,
+                primaryColor.withOpacity(0.8),
+              ],
             ),
-            onExpansionChanged: (bool expanded) {
-              setState(() {
-                _isExpanded = expanded;
-              });
-            },
-            
-            title: const Text(
-              'Categories',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: primaryColor.withOpacity(0.3),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
-            ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: ExpansionTile(
+              backgroundColor: Colors.transparent,
+              collapsedBackgroundColor: Colors.transparent,
+              iconColor: Colors.white,
+              collapsedIconColor: Colors.white,
+              trailing: Icon(
+                _isExpanded ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_right,
+                color: Colors.white,
+                size: 24,
+              ),
+              onExpansionChanged: (bool expanded) {
+                setState(() {
+                  _isExpanded = expanded;
+                });
+              },
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.category,
+                      color: Colors.white,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    'Categories',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             
             children: [
               FutureBuilder<List<dynamic>>(
@@ -770,12 +1013,21 @@ class _CategoriesExpansionFilterState extends State<CategoriesExpansionFilter> {
                   final categories = snapshot.data!;
                   
                   return Container(
-                    color: const Color(0xFF5C6BC0), 
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          primaryColor.withOpacity(0.9),
+                          primaryColor.withOpacity(0.7),
+                        ],
+                      ),
+                    ),
                     constraints: BoxConstraints(
                       maxHeight: MediaQuery.of(context).size.height * 0.3,
                     ),
                     child: ListView.builder(
-                      padding: EdgeInsets.zero,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
                       shrinkWrap: true,
                       itemCount: categories.length,
                       itemBuilder: (context, index) {
@@ -787,18 +1039,32 @@ class _CategoriesExpansionFilterState extends State<CategoriesExpansionFilter> {
                             (filterData.selectedCategoryIds ?? <int>{})
                                 .contains(categoryId);
 
-                        return CheckboxListTile(
-                          title: Text(categoryName, style: const TextStyle(color: Colors.white)),
-                          value: isSelected,
-                          onChanged: (bool? value) {
-                            filterData.toggleCategory(categoryId);
-                          },
-                          activeColor: Colors.white, 
-                          checkColor: const Color(0xFF5C6BC0),
-                          
-                          secondary: const Icon(Icons.circle, color: Color(0xFFFBC02D), size: 10), 
-                          
-                          controlAffinity: ListTileControlAffinity.trailing, 
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.white.withOpacity(0.2)
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: CheckboxListTile(
+                            title: Text(
+                              categoryName,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            value: isSelected,
+                            onChanged: (bool? value) {
+                              filterData.toggleCategory(categoryId);
+                            },
+                            activeColor: Colors.white,
+                            checkColor: primaryColor,
+                            controlAffinity: ListTileControlAffinity.trailing,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                          ),
                         );
                       },
                     ),
@@ -807,6 +1073,7 @@ class _CategoriesExpansionFilterState extends State<CategoriesExpansionFilter> {
               ),
             ],
           ),
+        ),
         );
       },
     );

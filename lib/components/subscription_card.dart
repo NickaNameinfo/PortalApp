@@ -46,6 +46,7 @@ Map<String, Map<String, dynamic>> planStyleMap = {
   "Standard": {"chipColor": AppColors.primary, "buttonColor": AppColors.primary, "borderColor": AppColors.primary},
   "Premium": {"chipColor": AppColors.secondary, "buttonColor": AppColors.secondary, "borderColor": AppColors.secondary},
   "Customized": {"chipColor": AppColors.textLight, "buttonColor": AppColors.textLight, "borderColor": AppColors.borderColor},
+  "PremiumPlusWithBilling": {"chipColor":  AppColors.warning, "buttonColor": AppColors.warning, "borderColor": AppColors.warning},
 };
 
 class SubscriptionCard extends StatefulWidget {
@@ -71,7 +72,7 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
   late int _itemCount;
   late Razorpay _razorpay;
 
-  bool get _isItemBased => widget.item.key == "PL1_004";
+  bool get _isItemBased => widget.item.key == "PL1_004" || widget.item.key == "PL1_005" ;
   bool get _isFixedPlan => widget.item.key == "PL1_002" || widget.item.key == "PL1_003";
 
   @override
@@ -177,7 +178,7 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
       subscriptionCount = 100;
     } else if (widget.item.key == 'PL1_003') {
       subscriptionCount = 200;
-    } else if (widget.item.key == 'PL1_004') {
+    } else if (widget.item.key == 'PL1_004' || widget.item.key == 'PL1_005') {
       subscriptionCount = _itemCount + 200;
     } else {
       subscriptionCount = _itemCount;
@@ -237,25 +238,32 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
   Widget _buildProductRangeDisplay() {
     String range = '';
     if (widget.item.key == "PL1_002") {
-      range = ' (1 - 100 Products)';
+      range = '(1 - 100 Products)';
     } else if (widget.item.key == "PL1_003") {
-      range = ' (1 - 200 Products)';
-    } else if (widget.item.key == "PL1_004") {
-      range = ' (Above 200 Products)';
+      range = '(1 - 200 Products)';
+    } else if (widget.item.key == "PL1_004" || widget.item.key == "PL1_005") {
+      range = '(Above 200 Products)';
     }
     return range.isNotEmpty
-        ? Text(range, style: const TextStyle(color: AppColors.error, fontSize: 14))
+        ? Padding(
+            padding: const EdgeInsets.only(top: 4.0),
+            child: Text(range, style: const TextStyle(color: AppColors.error, fontSize: 14)),
+          )
         : const SizedBox.shrink();
   }
   
   // Replicating the feature list structure from the React component
   Widget _buildFeatureList() {
+    final features = widget.item.key == 'PL1_005'
+        ? const ['Unlimited Offline Products', 'No Commission', 'Delivery Partner', 'Order Support', 'Store Branding', 'Unlimited Orders', 'Unlimited Billing', 'Unlimited Barcodes']
+        : const ['Unlimited Offline Products', 'No Commission', 'Delivery Partner', 'Order Support', 'Store Branding', 'Unlimited Orders'];
+    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Key Features:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        for (var feature in const ['Unlimited Offline Products', 'No Commission', 'Delivery Partner', 'Order Support', 'Store Branding', 'Unlimited Orders'])
+        for (var feature in features)
           Padding(
             padding: const EdgeInsets.only(bottom: 4.0),
             child: Row(
@@ -272,7 +280,18 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
 
   @override
   Widget build(BuildContext context) {
-    final planStyles = planStyleMap[widget.item.name] ?? planStyleMap["Customized"]!;
+    // Determine the correct plan style based on key
+    final String planStyleKey = widget.item.key == 'PL1_005' 
+        ? 'PremiumPlusWithBilling' 
+        : widget.item.name;
+    
+    final planStyles = planStyleMap[planStyleKey] ?? planStyleMap["Customized"]!;
+    
+    // Determine the display name
+    final String displayName = widget.item.key == 'PL1_005' 
+        ? 'Premium Plus with Billing' 
+        : widget.item.name;
+    
     final isCurrentPlan = widget.currentSubscriptionDetails?.subscriptionPlan == widget.item.key;
     final totalPrice = _calculateTotalPrice();
 
@@ -316,16 +335,23 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
                           ),
                         const SizedBox(height: 8),
                         Row(
-                          crossAxisAlignment: CrossAxisAlignment.baseline,
-                          textBaseline: TextBaseline.alphabetic,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              widget.item.name,
-                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    displayName,
+                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                  ),
+                                  _buildProductRangeDisplay(),
+                                ],
+                              ),
                             ),
-                            _buildProductRangeDisplay(),
                           ],
                         ),
+                        const SizedBox(height: 4),
                         const Text('Billed Annually (Yearly)', style: TextStyle(fontSize: 12, color: AppColors.textLight)),
                         if (isCurrentPlan)
                           Text('Current Plan Items : ${widget.currentSubscriptionDetails!.subscriptionCount}',

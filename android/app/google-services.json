@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "389193918702",
+    "project_id": "nickname-portal",
+    "storage_bucket": "nickname-portal.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:389193918702:android:a778c7fbbba695b4482bff",
+        "android_client_info": {
+          "package_name": "nickname.infotech.portal"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC65P2_xsX2HTHrxMETPWc6GSiZJ5XCCXI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

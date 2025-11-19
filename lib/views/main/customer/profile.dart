@@ -187,6 +187,136 @@ void _logout(BuildContext context) async {
       arguments: true,
     );
   }
+
+  // Modern Card Widget
+  Widget _buildModernCard({required Widget child}) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+
+  // Modern Info Tile Widget
+  Widget _buildInfoTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 24,
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Modern Action Tile Widget
+  Widget _buildActionTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey[400],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Modern Divider Widget
+  Widget _buildDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: Colors.grey[200],
+      ),
+    );
+  }
   
   // This method is no longer needed as the fetch is handled in initState()
   // and the call to refresh is made in the .then() of _editProfile().
@@ -222,260 +352,173 @@ void _logout(BuildContext context) async {
                 kSize: 50,
               ),
             )
-          : CustomScrollView(
-              slivers: [
-              // SliverAppBar(
-              //   elevation: 0,
-              //   automaticallyImplyLeading: false,
-              //   expandedHeight: 130,
-              //   backgroundColor: primaryColor,
-              //   flexibleSpace: LayoutBuilder(
-              //     builder: (context, constraints) {
-              //       return FlexibleSpaceBar(
-              //         titlePadding: const EdgeInsets.symmetric(
-              //           horizontal: 18,
-              //           vertical: 10,
-              //         ),
-              //         title: AnimatedOpacity(
-              //           opacity: constraints.biggest.height <= 120 ? 1 : 0,
-              //           duration: const Duration(
-              //             milliseconds: 300,
-              //           ),
-              //           child: Wrap(
-              //               crossAxisAlignment: WrapCrossAlignment.center,
-              //               children: [
-              //                 const CircleAvatar(
-              //                   radius: 20,
-              //                   backgroundColor: primaryColor,
-              //                   backgroundImage: NetworkImage(
-              //                     // Placeholder image as the API response doesn't contain a user image
-              //                     'https://via.placeholder.com/150',
-              //                   ),
-              //                 ),
-              //                 const SizedBox(width: 10),
-              //                 Text(
-              //                   credential?['firstName'] ?? 'N/A',
-              //                   style: const TextStyle(
-              //                     fontSize: 12,
-              //                     color: Colors.white,
-              //                     fontWeight: FontWeight.w600,
-              //                   ),
-              //                 ),
-              //               ]),
-              //         ),
-              //         background: Container(
-              //           decoration: const BoxDecoration(
-              //             gradient: LinearGradient(
-              //               colors: [
-              //                 primaryColor,
-              //                 Colors.black26,
-              //               ],
-              //               stops: [0.1, 1],
-              //               end: Alignment.topRight,
-              //             ),
-              //           ),
-              //           child: Column(
-              //             mainAxisAlignment: MainAxisAlignment.center,
-              //             children: [
-              //               const CircleAvatar(
-              //                 radius: 65,
-              //                 backgroundColor: primaryColor,
-              //                 backgroundImage: NetworkImage(
-              //                   // Placeholder image as the API response doesn't contain a user image
-              //                   'https://via.placeholder.com/150',
-              //                 ),
-              //               ),
-              //               Text(
-              //                 credential?['firstName'] ?? 'N/A',
-              //                 style: const TextStyle(
-              //                   fontSize: 18,
-              //                   color: Colors.white,
-              //                   fontWeight: FontWeight.w600,
-              //                 ),
-              //               ),
-              //             ],
-              //           ),
-              //         ),
-              //       );
-              //     },
-              //   ),
-              // ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10.0),
-                  child: Column(
-                    children: [
-                      // Container(
-                      //   height: 60,
-                      //   width: size.width / 0.9,
-                      //   decoration: BoxDecoration(
-                      //     color: Colors.white,
-                      //     borderRadius: BorderRadius.circular(30),
-                      //   ),
-                      //   child: Padding(
-                      //     padding: const EdgeInsets.all(8.0),
-                      //     child: Row(
-                      //       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      //       children: [
-                      //         ElevatedButton(
-                      //           style: ElevatedButton.styleFrom(
-                      //             padding: const EdgeInsets.symmetric(
-                      //               horizontal: 20,
-                      //               vertical: 10,
-                      //             ),
-                      //             backgroundColor: bWhite,
-                      //             shape: const RoundedRectangleBorder(
-                      //               borderRadius: BorderRadius.only(
-                      //                 topLeft: Radius.circular(30),
-                      //                 bottomLeft: Radius.circular(30),
-                      //               ),
-                      //             ),
-                      //           ),
-                      //           onPressed: () {},
-                      //           child: const Text(
-                      //             'Orders',
-                      //             style: TextStyle(
-                      //               fontWeight: FontWeight.bold,
-                      //               fontSize: 22,
-                      //               color: primaryColor,
-                      //             ),
-                      //           ),
-                      //         ),
-                      //         ElevatedButton(
-                      //           style: ElevatedButton.styleFrom(
-                      //             padding: const EdgeInsets.symmetric(
-                      //               horizontal: 20,
-                      //               vertical: 10,
-                      //             ),
-                      //             backgroundColor: primaryColor,
-                      //             shape: RoundedRectangleBorder(
-                      //               borderRadius: BorderRadius.circular(5),
-                      //             ),
-                      //           ),
-                      //           onPressed: () {},
-                      //           child: const Text(
-                      //             'Wishlist',
-                      //             style: TextStyle(
-                      //               fontWeight: FontWeight.bold,
-                      //               fontSize: 22,
-                      //               color: Colors.white,
-                      //             ),
-                      //           ),
-                      //         ),
-                      //         ElevatedButton(
-                      //           style: ElevatedButton.styleFrom(
-                      //             padding: const EdgeInsets.symmetric(
-                      //               horizontal: 20,
-                      //               vertical: 10,
-                      //             ),
-                      //             backgroundColor: bWhite,
-                      //             shape: const RoundedRectangleBorder(
-                      //               borderRadius: BorderRadius.only(
-                      //                 topRight: Radius.circular(30),
-                      //                 bottomRight: Radius.circular(30),
-                      //               ),
-                      //             ),
-                      //           ),
-                      //           onPressed: () {},
-                      //           child: const Text(
-                      //             'Cart',
-                      //             style: TextStyle(
-                      //               fontWeight: FontWeight.bold,
-                      //               fontSize: 22,
-                      //               color: primaryColor,
-                      //             ),
-                      //           ),
-                      //         ),
-                      //       ],
-                      //     ),
-                      //   ),
-                      // ),
-                      const SizedBox(height: 20),
-                      Container(
-                        height: size.height / 2.5,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: ListView(
-                          padding: EdgeInsets.zero,
-                          children: [
-                            KListTile(
-                              title: 'Email Address',
-                              subtitle: credential?['email'] ?? 'N/A',
-                              icon: Icons.email,
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.all(8.0),
-                              child: Divider(thickness: 1),
-                            ),
-                            KListTile(
-                              title: 'Phone Number',
-                              subtitle: credential?['phone'] ?? 'Not set yet',
-                              icon: Icons.phone,
-                            ),
-                            // const Padding(
-                            //   padding: EdgeInsets.all(8.0),
-                            //   child: Divider(thickness: 1),
-                            // ),
-                            KListTile(
-                              title: 'Support Email',
-                              subtitle: 'bussiness@nicknameinfotech.com',
-                              icon: Icons.support_agent,
-                            ),
-                            KListTile(
-                              title: 'Support Phone',
-                              subtitle: '+91 88078 34582',
-                              icon: Icons.phone,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Container(
-                        height: size.height / 15,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-                        child: ListView(
-                          padding: EdgeInsets.zero,
-                          children: [
-                            // KListTile(
-                            //   title: 'Edit Profile',
-                            //   icon: Icons.edit_note,
-                            //   onTapHandler: _editProfile,
-                            //   showSubtitle: false,
-                            // ),
-                            // const Padding(
-                            //   padding: EdgeInsets.all(8.0),
-                            //   child: Divider(thickness: 1),
-                            // ),
-                            // KListTile(
-                            //   title: 'Change Password',
-                            //   icon: Icons.key,
-                            //   onTapHandler: _changePassword,
-                            //   showSubtitle: false,
-                            // ),
-                            // const Padding(
-                            //   padding: EdgeInsets.all(8.0),
-                            //   child: Divider(thickness: 1),
-                            // ),
-                            KListTile(
-                              title: 'Logout',
-                              icon: Icons.logout,
-                              onTapHandler: showLogoutOptions,
-                              showSubtitle: false,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
+          : Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    primaryColor.withOpacity(0.1),
+                    Colors.white,
+                  ],
                 ),
-              )
-            ],
-          ),
+              ),
+              child: CustomScrollView(
+                slivers: [
+                  // Profile Header Section
+                  SliverToBoxAdapter(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            primaryColor,
+                            primaryColor.withOpacity(0.8),
+                          ],
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          bottomLeft: Radius.circular(30),
+                          bottomRight: Radius.circular(30),
+                        ),
+                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 10),
+                          // Profile Avatar
+                          Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 4,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.2),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: CircleAvatar(
+                              radius: 50,
+                              backgroundColor: Colors.white,
+                              child: Icon(
+                                Icons.person,
+                                size: 50,
+                                color: primaryColor,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          // User Name
+                          Text(
+                            credential?['firstName'] ?? 'User',
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // User Email
+                          Text(
+                            credential?['email'] ?? 'N/A',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Content Section
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Contact Information Card
+                          _buildModernCard(
+                            child: Column(
+                              children: [
+                                _buildInfoTile(
+                                  icon: Icons.email_outlined,
+                                  iconColor: Colors.blue,
+                                  title: 'Email Address',
+                                  subtitle: credential?['email'] ?? 'N/A',
+                                ),
+                                _buildDivider(),
+                                _buildInfoTile(
+                                  icon: Icons.phone_outlined,
+                                  iconColor: Colors.green,
+                                  title: 'Phone Number',
+                                  subtitle: credential?['phone'] ?? 'Not set yet',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // Support Information Card
+                          _buildModernCard(
+                            child: Column(
+                              children: [
+                                _buildInfoTile(
+                                  icon: Icons.support_agent_outlined,
+                                  iconColor: Colors.orange,
+                                  title: 'Support Email',
+                                  subtitle: 'bussiness@nicknameinfotech.com',
+                                ),
+                                _buildDivider(),
+                                _buildInfoTile(
+                                  icon: Icons.phone_outlined,
+                                  iconColor: Colors.purple,
+                                  title: 'Support Phone',
+                                  subtitle: '+91 88078 34582',
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          // Actions Card
+                          _buildModernCard(
+                            child: Column(
+                              children: [
+                                // _buildActionTile(
+                                //   icon: Icons.edit_outlined,
+                                //   iconColor: primaryColor,
+                                //   title: 'Edit Profile',
+                                //   onTap: _editProfile,
+                                // ),
+                                // _buildDivider(),
+                                // _buildActionTile(
+                                //   icon: Icons.lock_outline,
+                                //   iconColor: Colors.amber,
+                                //   title: 'Change Password',
+                                //   onTap: _changePassword,
+                                // ),
+                                _buildDivider(),
+                                _buildActionTile(
+                                  icon: Icons.logout,
+                                  iconColor: Colors.red,
+                                  title: 'Logout',
+                                  onTap: showLogoutOptions,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 30),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
     );
   }
 }

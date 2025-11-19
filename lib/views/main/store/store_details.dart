@@ -14,8 +14,7 @@ import 'package:nickname_portal/views/main/customer/cart.dart';
 import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 
-// Assuming constants/colors.dart defines primaryColor or similar
-// import '../../../constants/colors.dart';
+import '../../../constants/colors.dart';
 
 class StoreDetails extends StatefulWidget {
   final int storeId;
@@ -391,7 +390,23 @@ class _StoreDetailsState extends State<StoreDetails> {
   }
 
 Widget _buildCircleIcon(IconData icon, Color color) {
-  return Container(width: 42, height: 42, decoration: BoxDecoration( color: color.withOpacity(0.15), shape: BoxShape.circle, boxShadow: [BoxShadow( color: color.withOpacity(0.3), blurRadius: 6, offset: const Offset(0, 3))]), child: Icon(icon, color: color, size: 20));
+  return Container(
+    width: 50,
+    height: 50,
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      shape: BoxShape.circle,
+      border: Border.all(color: color.withOpacity(0.3), width: 2),
+      boxShadow: [
+        BoxShadow(
+          color: color.withOpacity(0.2),
+          blurRadius: 8,
+          offset: const Offset(0, 4),
+        ),
+      ],
+    ),
+    child: Icon(icon, color: color, size: 22),
+  );
 }
 
 Widget _buildBottomButton(IconData icon, {Color? color}) {
@@ -400,14 +415,66 @@ Widget _buildBottomButton(IconData icon, {Color? color}) {
 
 Widget _buildQuantitySelector({ required int quantity, required VoidCallback onIncrement, required VoidCallback onDecrement}) {
   return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-    decoration: BoxDecoration( color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow( color: Colors.grey.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2))], border: Border.all(color: Colors.grey.shade300, width: 1)),
-    child: Row( mainAxisSize: MainAxisSize.min, children: [
-        GestureDetector( onTap: onDecrement, child: Icon( Icons.remove, size: 20, color: quantity > 0 ? Colors.black54 : Colors.grey[300])),
-        const SizedBox(width: 10),
-        Text(quantity.toString(), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        const SizedBox(width: 10),
-        GestureDetector( onTap: onIncrement, child: const Icon(Icons.add, size: 20, color: Colors.black54)),
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.08),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+      border: Border.all(color: primaryColor.withOpacity(0.3), width: 1.5),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: onDecrement,
+            icon: Icon(
+              Icons.remove,
+              size: 18,
+              color: quantity > 0 ? primaryColor : Colors.grey[400],
+            ),
+          ),
+        ),
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            quantity.toString(),
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: primaryColor,
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            onPressed: onIncrement,
+            icon: Icon(Icons.add, size: 18, color: primaryColor),
+          ),
+        ),
       ],
     ),
   );
@@ -656,16 +723,32 @@ Widget buildProductCard(Map<String, dynamic> item) {
         backgroundColor: Colors.transparent,
         appBar: AppBar(
           elevation: 0,
-          backgroundColor: const Color(0xFF6A5ACD),
+          flexibleSpace: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  primaryColor,
+                  primaryColor.withOpacity(0.8),
+                ],
+              ),
+            ),
+          ),
           leading: IconButton(
-            icon: const Icon(Icons.chevron_left, color: Colors.black, size: 30),
+            icon: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
             onPressed: () => Navigator.pop(context),
           ),
           title: const Text(
             "Store Details",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 22,
+            ),
           ),
           centerTitle: true,
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
         body: isLoading
             ? Center(child: CircularProgressIndicator(color: Theme.of(context).primaryColor))

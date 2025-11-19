@@ -276,19 +276,35 @@ class _ProductScreenState extends State<ProductScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Image.asset(
-                              'assets/images/sad.png',
-                              width: 150,
-                              errorBuilder: (context, error, stackTrace) => 
-                                const Icon(Icons.sentiment_dissatisfied, size: 100, color: Colors.grey),
-                            ),
-                            const SizedBox(height: 10),
-                            const Text(
-                              'No products available!',
-                              style: TextStyle(
-                                color: primaryColor,
+                            Container(
+                              padding: const EdgeInsets.all(40),
+                              decoration: BoxDecoration(
+                                color: primaryColor.withOpacity(0.1),
+                                shape: BoxShape.circle,
                               ),
-                            )
+                              child: Icon(
+                                Icons.inventory_2_outlined,
+                                size: 80,
+                                color: primaryColor.withOpacity(0.5),
+                              ),
+                            ),
+                            const SizedBox(height: 24),
+                            Text(
+                              'No products available',
+                              style: TextStyle(
+                                color: Colors.grey[800],
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Try adjusting your filters',
+                              style: TextStyle(
+                                color: Colors.grey[600],
+                                fontSize: 14,
+                              ),
+                            ),
                           ],
                         ),
                       );
@@ -314,10 +330,17 @@ class _ProductScreenState extends State<ProductScreen> {
                               ),
                              );
                           },
-                          child: Card(
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(15.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.08),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: Stack(
                               children: [
@@ -326,8 +349,8 @@ class _ProductScreenState extends State<ProductScreen> {
                                   children: [
                                     ClipRRect(
                                       borderRadius: const BorderRadius.only(
-                                        topLeft: Radius.circular(15.0),
-                                        topRight: Radius.circular(15.0),
+                                        topLeft: Radius.circular(18),
+                                        topRight: Radius.circular(18),
                                       ),
                                       child: Image.network(
                                         product['photo'] ?? 'https://via.placeholder.com/150',
@@ -335,14 +358,20 @@ class _ProductScreenState extends State<ProductScreen> {
                                         fit: BoxFit.cover,
                                         errorBuilder: (context, error, stackTrace) => 
                                           Container(
-                                            height: 150, 
-                                            color: Colors.grey[200], 
+                                            height: 150,
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[100],
+                                              borderRadius: const BorderRadius.only(
+                                                topLeft: Radius.circular(18),
+                                                topRight: Radius.circular(18),
+                                              ),
+                                            ),
                                             child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 50)
                                           ),
                                       ),
                                     ),
                                     Padding(
-                                      padding: const EdgeInsets.all(8.0),
+                                      padding: const EdgeInsets.all(12.0),
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
@@ -350,27 +379,35 @@ class _ProductScreenState extends State<ProductScreen> {
                                             product['name'] ?? 'N/A',
                                             style: const TextStyle(
                                               fontWeight: FontWeight.bold,
-                                              fontSize: 16,
+                                              fontSize: 15,
+                                              color: Colors.black87,
                                             ),
                                             overflow: TextOverflow.ellipsis,
-                                            maxLines: 1,
+                                            maxLines: 2,
                                           ),
-                                          const SizedBox(height: 5),
-                                          Text(
-                                            '₹${product['discountPer']}',
-                                            style: const TextStyle(
-                                              decoration: TextDecoration.lineThrough,
-                                              color: Colors.grey,
-                                              fontSize: 14,
-                                          ),
-                                          ),
-                                          Text(
-                                            '₹${product['total']}',
-                                            style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14,
-                                              color: primaryColor,
-                                            ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            children: [
+                                              if (product['discountPer'] != null)
+                                                Text(
+                                                  '₹${product['discountPer']}',
+                                                  style: TextStyle(
+                                                    decoration: TextDecoration.lineThrough,
+                                                    color: Colors.grey[500],
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              if (product['discountPer'] != null)
+                                                const SizedBox(width: 6),
+                                              Text(
+                                                '₹${product['total']}',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16,
+                                                  color: primaryColor,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ],
                                       ),
@@ -378,17 +415,30 @@ class _ProductScreenState extends State<ProductScreen> {
                                   ],
                                 ),
                                 Positioned(
-                                  top: 8,
-                                  left: 8,
+                                  top: 10,
+                                  left: 10,
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: Colors.black.withOpacity(0.5),
-                                      borderRadius: BorderRadius.circular(5),
+                                      gradient: LinearGradient(
+                                        colors: [Colors.red[400]!, Colors.red[600]!],
+                                      ),
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.red.withOpacity(0.3),
+                                          blurRadius: 6,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
                                     ),
                                     child: Text(
-                                      '${product['discount'] ?? 0}%',
-                                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10),
+                                      '${product['discount'] ?? 0}% OFF',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                      ),
                                     ),
                                   ),
                                 ),

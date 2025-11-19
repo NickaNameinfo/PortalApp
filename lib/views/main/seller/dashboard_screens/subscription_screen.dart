@@ -15,6 +15,7 @@ final List<SubscriptionCategory> subscriptionData = [
       SubscriptionPlan(name: "Standard", key: "PL1_002", price: 2799.0, defaultValue: 100, saveLabel: 'Save 10%'),
       SubscriptionPlan(name: "Premium", key: "PL1_003", price: 3799.0, defaultValue: 200, oldPrice: '4500.0', saveLabel: 'Most Popular'),
       SubscriptionPlan(name: "Customized", key: "PL1_004", price: 17.0, basePrice: 3799.0, defaultValue: 1),
+      SubscriptionPlan(name: "Premium Plus with Billing", key: "PL1_005", price: 17.0, basePrice: 9999.0, defaultValue: 1),
     ],
   ),
   SubscriptionCategory(
