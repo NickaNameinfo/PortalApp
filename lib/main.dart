@@ -47,7 +47,7 @@ class _MultiVendorState extends State<MultiVendor> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'MultiVendor App',
+      title: 'Nickname Portal',
       theme: ThemeData(
         fontFamily: 'Roboto',
         primaryColor: primaryColor,

@@ -28,8 +28,16 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
   bool isLoading = false;
   // Cart state management
   final Map<int, int> _cartQuantities = {};
+  final Map<int, String?> _cartSizes = {}; // Store size from cart for each product
   final Set<int> _cartLoadingIds = {};
   late String _userId = ''; // Initialize with an empty string
+  
+  // Size selection state
+  String? _selectedSize;
+  String? _selectedWeight;
+  double _currentPrice = 0.0;
+  int _currentStock = 0;
+  Map<String, dynamic>? _sizeUnitSizeMap;
 
   // Helper to safely access dynamic product fields
   String _safeGet(String key, String fallback) {
@@ -53,7 +61,57 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
       setState(() {
         _userId = userId;
       });
+      // Don't initialize size data here - it will be initialized after cart is loaded
       _fetchStoreData(); // Load store data after user ID is loaded
+    }
+  }
+  
+  // Initialize size data from product
+  void _initializeSizeData() {
+    try {
+      final sizeUnitSizeMapStr = widget.product['sizeUnitSizeMap'];
+      if (sizeUnitSizeMapStr != null && sizeUnitSizeMapStr is String) {
+        _sizeUnitSizeMap = json.decode(sizeUnitSizeMapStr) as Map<String, dynamic>?;
+      } else if (sizeUnitSizeMapStr is Map) {
+        _sizeUnitSizeMap = Map<String, dynamic>.from(sizeUnitSizeMapStr);
+      }
+      
+      // Set default size (first available or from cart)
+      if (_sizeUnitSizeMap != null && _sizeUnitSizeMap!.isNotEmpty) {
+        final productId = widget.product['id'] as int?;
+        // Check cart for existing size (prioritize cart size)
+        final cartSize = productId != null 
+            ? (_cartSizes[productId] ?? widget.product['size']?.toString())
+            : widget.product['size']?.toString();
+        if (cartSize != null && _sizeUnitSizeMap!.containsKey(cartSize)) {
+          _selectedSize = cartSize;
+        } else {
+          _selectedSize = _sizeUnitSizeMap!.keys.first;
+        }
+        _updatePriceAndStock();
+      }
+    } catch (e) {
+      debugPrint('Error initializing size data: $e');
+    }
+  }
+  
+  // Update price and stock based on selected size
+  void _updatePriceAndStock() {
+    if (_selectedSize != null && _sizeUnitSizeMap != null) {
+      final sizeData = _sizeUnitSizeMap![_selectedSize];
+      if (sizeData is Map) {
+        _currentPrice = double.tryParse(sizeData['price']?.toString() ?? 
+                                        sizeData['total']?.toString() ?? 
+                                        sizeData['grandTotal']?.toString() ?? 
+                                        widget.product['total']?.toString() ?? 
+                                        widget.product['price']?.toString() ?? '0') ?? 0.0;
+        _currentStock = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
+      }
+    } else {
+      // Fallback to default product price and stock
+      _currentPrice = double.tryParse(widget.product['total']?.toString() ?? 
+                                     widget.product['price']?.toString() ?? '0') ?? 0.0;
+      _currentStock = int.tryParse(widget.product['unitSize']?.toString() ?? '0') ?? 0;
     }
   }
 int? storeId;
@@ -136,14 +194,21 @@ int? storeId;
           if (mounted) {
             setState(() {
               _cartQuantities.clear();
+              _cartSizes.clear();
               for (var item in cartItems) {
                 final productId = item['productId'] as int?;
                 final quantity = item['qty'] as int?;
+                final size = item['size']?.toString();
                 if (productId != null && quantity != null) {
                   _cartQuantities[productId] = quantity;
+                  if (size != null && size.isNotEmpty) {
+                    _cartSizes[productId] = size;
+                  }
                 }
               }
             });
+            // Re-initialize size data after cart is loaded to use cart size
+            _initializeSizeData();
           }
         }
       }
@@ -155,16 +220,61 @@ int? storeId;
   Future<void> _addToCart(Map<String, dynamic> productData) async {
     final productId = productData['id'] as int;
     final currentQuantity = _cartQuantities[productId] ?? 0;
+    
+    // Stock validation
+    final availableStock = _selectedSize != null && _sizeUnitSizeMap != null
+        ? _currentStock
+        : int.tryParse(productData['unitSize']?.toString() ?? '0') ?? 0;
+    
+    if (currentQuantity >= availableStock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Only $availableStock items available in stock')),
+      );
+      return;
+    }
+    
     final newQuantity = currentQuantity + 1;
+    
+    // Include size and weight in product data
+    final productWithSize = Map<String, dynamic>.from(productData);
+    if (_selectedSize != null) {
+      productWithSize['size'] = _selectedSize;
+      productWithSize['price'] = _currentPrice;
+      productWithSize['total'] = _currentPrice;
+    }
+    if (_selectedWeight != null) {
+      productWithSize['weight'] = _selectedWeight;
+    }
 
-    await _updateCart(productId, newQuantity, productData, isAdd: true);
+    await _updateCart(productId, newQuantity, productWithSize, isAdd: true);
   }
 
   Future<void> _incrementQuantity(int productId, Map<String, dynamic> productData) async {
     final currentQuantity = _cartQuantities[productId] ?? 0;
+    
+    // Stock validation
+    final availableStock = _selectedSize != null && _sizeUnitSizeMap != null
+        ? _currentStock
+        : int.tryParse(productData['unitSize']?.toString() ?? '0') ?? 0;
+    
+    if (currentQuantity >= availableStock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Only $availableStock items available in stock')),
+      );
+      return;
+    }
+    
     final newQuantity = currentQuantity + 1;
+    
+    // Include size in product data
+    final productWithSize = Map<String, dynamic>.from(productData);
+    if (_selectedSize != null) {
+      productWithSize['size'] = _selectedSize;
+      productWithSize['price'] = _currentPrice;
+      productWithSize['total'] = _currentPrice;
+    }
 
-    await _updateCart(productId, newQuantity, productData, isAdd: false);
+    await _updateCart(productId, newQuantity, productWithSize, isAdd: false);
   }
 
   Future<void> _decrementQuantity(int productId, Map<String, dynamic> productData) async {
@@ -172,8 +282,19 @@ int? storeId;
     if (currentQuantity <= 0) return;
     
     final newQuantity = currentQuantity - 1;
+    
+    // Include size in product data
+    final productWithSize = Map<String, dynamic>.from(productData);
+    if (_selectedSize != null) {
+      productWithSize['size'] = _selectedSize;
+      productWithSize['price'] = _currentPrice;
+      productWithSize['total'] = _currentPrice;
+    }
+    if (_selectedWeight != null) {
+      productWithSize['weight'] = _selectedWeight;
+    }
 
-    await _updateCart(productId, newQuantity, productData, isAdd: false);
+    await _updateCart(productId, newQuantity, productWithSize, isAdd: false);
   }
 
   Future<void> _removeFromCart(int productId) async {
@@ -318,6 +439,26 @@ int? storeId;
         ],
       ),
       child: Icon(icon, color: color, size: 22),
+    );
+  }
+
+  // Show full-screen image viewer
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        fullscreenDialog: true,
+        opaque: false,
+        barrierColor: Colors.black,
+        pageBuilder: (context, animation, secondaryAnimation) => _FullScreenImageViewer(
+          imageUrl: imageUrl,
+        ),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          return FadeTransition(
+            opacity: animation,
+            child: child,
+          );
+        },
+      ),
     );
   }
 
@@ -806,19 +947,52 @@ int? storeId;
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Product Image
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: Image.network(
-                            _safeGet('photo', 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image'),
-                            height: 180,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) => Container(
-                              height: 180,
-                              color: Colors.grey.shade200,
-                              child: const Center(child: Text('Image Failed to Load')),
-                            ),
+                        // Product Image - Tappable for full view
+                        GestureDetector(
+                          onTap: () => _showFullScreenImage(context, _safeGet('photo', 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image')),
+                          child: Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Container(
+                                  color: Colors.grey.shade100,
+                                  child: Image.network(
+                                    _safeGet('photo', 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image'),
+                                    height: 200,
+                                    width: double.infinity,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (context, error, stackTrace) => Container(
+                                      height: 200,
+                                      color: Colors.grey.shade200,
+                                      child: const Center(child: Text('Image Failed to Load')),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              Positioned(
+                                top: 8,
+                                right: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.6),
+                                    borderRadius: BorderRadius.circular(20),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.2),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.zoom_in,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 20),
@@ -838,9 +1012,9 @@ int? storeId;
                           children: [
                             Row(
                               children: [
-                                // Discounted Price
+                                // Discounted Price (dynamic based on size)
                                 Text(
-                                  '₹${discountedPrice.toStringAsFixed(0)}',
+                                  '₹${(_currentPrice > 0 ? _currentPrice : discountedPrice).toStringAsFixed(0)}',
                                   style: const TextStyle(
                                     fontSize: 22,
                                     fontWeight: FontWeight.bold,
@@ -849,22 +1023,23 @@ int? storeId;
                                 ),
                                 const SizedBox(width: 8),
                                 // Original Price
-                                Text(
-                                  '₹${price.toStringAsFixed(0)}',
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    color: Colors.grey,
-                                    decoration: TextDecoration.lineThrough,
+                                if (_currentPrice > 0 && _currentPrice < price)
+                                  Text(
+                                    '₹${price.toStringAsFixed(0)}',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey,
+                                      decoration: TextDecoration.lineThrough,
+                                    ),
                                   ),
-                                ),
                               ],
                             ),
-                            // Stock Indicator
+                            // Stock Indicator (dynamic based on size)
                             Text(
-                              isBooking ? 'Booking Only' : (stockQty > 0 ? '($stockQty) Stocks' : 'Out of Stock'),
+                              isBooking ? 'Booking Only' : ((_currentStock > 0 || stockQty > 0) ? '(${_currentStock > 0 ? _currentStock : stockQty}) Stocks' : 'Out of Stock'),
                               style: TextStyle(
                                 fontSize: 16,
-                                color: isBooking ? Colors.orange.shade600 : (stockQty > 0 ? Colors.green.shade600 : Colors.red.shade600),
+                                color: isBooking ? Colors.orange.shade600 : ((_currentStock > 0 || stockQty > 0) ? Colors.green.shade600 : Colors.red.shade600),
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -889,6 +1064,60 @@ int? storeId;
                               ),
                           ],
                         ),
+                        
+                        // Size Selection UI
+                        if (_sizeUnitSizeMap != null && _sizeUnitSizeMap!.isNotEmpty) ...[
+                          const SizedBox(height: 20),
+                          const Divider(),
+                          const SizedBox(height: 10),
+                          const Text(
+                            'Size:',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 10,
+                            children: _sizeUnitSizeMap!.keys.map((size) {
+                              final sizeData = _sizeUnitSizeMap![size];
+                              final isSelected = _selectedSize == size;
+                              final unitSize = sizeData is Map 
+                                  ? sizeData['unitSize']?.toString() ?? ''
+                                  : '';
+                              
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _selectedSize = size;
+                                    _updatePriceAndStock();
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? primaryColor : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: isSelected ? primaryColor : Colors.grey.shade300,
+                                      width: isSelected ? 2 : 1,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    unitSize.isNotEmpty ? '$size: $unitSize' : size,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                      color: isSelected ? Colors.white : Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
 
                         const SizedBox(height: 20),
                         const Divider(),
@@ -997,12 +1226,14 @@ int? storeId;
                                                         final checkoutProduct = {
                                                           'productId': widget.product['id'] ?? '',
                                                           'name': _safeGet('name', 'Product Name'),
-                                                          'price': discountedPrice.toString(),
+                                                          'price': (_currentPrice > 0 ? _currentPrice : discountedPrice).toString(),
                                                           'qty': 1, // Default quantity for "Buy Now"
                                                           'storeId': widget.product['storeId'] ?? '',
                                                           'photo': _safeGet('photo', ''),
                                                           'isBooking': isBooking, // Pass booking status
-                                                          'total': discountedPrice.toString(),
+                                                          'total': (_currentPrice > 0 ? _currentPrice : discountedPrice).toString(),
+                                                          if (_selectedSize != null) 'size': _selectedSize,
+                                                          if (_selectedWeight != null) 'weight': _selectedWeight,
                                                         };
 
                                                         Navigator.push(
@@ -1357,6 +1588,175 @@ int? storeId;
                 fontSize: 16,
                 color: Colors.grey,
                 fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Full-screen image viewer widget
+class _FullScreenImageViewer extends StatefulWidget {
+  final String imageUrl;
+
+  const _FullScreenImageViewer({
+    required this.imageUrl,
+  });
+
+  @override
+  State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
+}
+
+class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
+  final TransformationController _transformationController = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
+
+  void _handleDoubleTapDown(TapDownDetails details) {
+    _doubleTapDetails = details;
+  }
+
+  void _handleDoubleTap() {
+    if (_transformationController.value != Matrix4.identity()) {
+      // Reset zoom with animation
+      _transformationController.value = Matrix4.identity();
+    } else {
+      // Zoom in to 2.5x for better clarity
+      final position = _doubleTapDetails!.localPosition;
+      final double scale = 2.5;
+      _transformationController.value = Matrix4.identity()
+        ..translate(-position.dx * (scale - 1), -position.dy * (scale - 1))
+        ..scale(scale);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      extendBodyBehindAppBar: true,
+      body: SafeArea(
+        top: false,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Image with pinch-to-zoom and pan
+            GestureDetector(
+              onDoubleTapDown: _handleDoubleTapDown,
+              onDoubleTap: _handleDoubleTap,
+              child: InteractiveViewer(
+                transformationController: _transformationController,
+                minScale: 0.5,
+                maxScale: 5.0,
+                panEnabled: true,
+                scaleEnabled: true,
+                child: Container(
+                  color: Colors.black,
+                  child: Center(
+                    child: Image.network(
+                      widget.imageUrl,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) {
+                          return child;
+                        }
+                        return Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
+                                    : null,
+                                color: Colors.white,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'Loading image...',
+                                style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) => const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline, color: Colors.white, size: 48),
+                            SizedBox(height: 16),
+                            Text(
+                              'Failed to load image',
+                              style: TextStyle(color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Close button
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 16,
+              right: 16,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                  onPressed: () => Navigator.of(context).pop(),
+                  tooltip: 'Close',
+                ),
+              ),
+            ),
+            // Instructions
+            Positioned(
+              bottom: 48,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.3),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Text(
+                    'Pinch to zoom • Double tap to zoom in/out',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
               ),
             ),
           ],

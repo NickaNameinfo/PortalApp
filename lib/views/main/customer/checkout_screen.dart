@@ -145,17 +145,23 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _addAddress() async {
+    if (!_validateAddressForm()) {
+      setState(() {}); // Update UI to show errors
+      showErrorMessage(context, 'Please fill all required fields correctly.');
+      return;
+    }
+    
     final newAddress = Address(
       id: DateTime.now().millisecondsSinceEpoch.toString(), // Temp ID
-      fullname: _nameController.text,
-      phone: _phoneNumberController.text,
-      discrict: _districtController.text,
-      city: _cityController.text,
-      states: _postalCodeController.text,
-      area: _addressLine2Controller.text,
-      shipping: _addressLine1Controller.text,
+      fullname: _nameController.text.trim(),
+      phone: _phoneNumberController.text.trim(),
+      discrict: _districtController.text.trim(),
+      city: _cityController.text.trim(),
+      states: _postalCodeController.text.trim(),
+      area: _addressLine2Controller.text.trim(),
+      shipping: _addressLine1Controller.text.trim(),
       orderId: _userId,
-      cusId: _userId,
+      custId: _userId,
     );
 
     try {
@@ -163,6 +169,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       await _addressService.createAddress(newAddress);
       await _fetchAddresses(); // Refresh list
       showSuccessMessage(context, 'Address added successfully!');
+      _addressErrors.clear();
+      setState(() {}); // Clear errors
     } catch (e) {
       print('Error adding address: $e');
       showErrorMessage(context, 'Failed to add address.');
@@ -176,18 +184,24 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       showErrorMessage(context, 'Please select an address to update.');
       return;
     }
+    
+    if (!_validateAddressForm()) {
+      setState(() {}); // Update UI to show errors
+      showErrorMessage(context, 'Please fill all required fields correctly.');
+      return;
+    }
 
     final updatedAddress = Address(
       id: _selectedAddress!.id,
-      fullname: _nameController.text,
-      phone: _phoneNumberController.text,
-      discrict: _districtController.text,
-      city: _cityController.text,
-      states: _postalCodeController.text,
-      area: _addressLine2Controller.text,
-      shipping: _addressLine1Controller.text,
+      fullname: _nameController.text.trim(),
+      phone: _phoneNumberController.text.trim(),
+      discrict: _districtController.text.trim(),
+      city: _cityController.text.trim(),
+      states: _postalCodeController.text.trim(),
+      area: _addressLine2Controller.text.trim(),
+      shipping: _addressLine1Controller.text.trim(),
       orderId: _userId,
-      cusId: _userId,
+      custId: _userId,
     );
 
     try {
@@ -195,6 +209,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       await _addressService.updateAddress(updatedAddress);
       await _fetchAddresses(); // Refresh list
       showSuccessMessage(context, 'Address updated successfully!');
+      _addressErrors.clear();
+      setState(() {}); // Clear errors
     } catch (e) {
       print('Error updating address: $e');
       showErrorMessage(context, 'Failed to update address.');
@@ -231,13 +247,109 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // --- REPLACED _placeOrder with _handlePlaceOrder ---
   // This is the implementation of the JavaScript 'handleAddOrder' logic
   
-  Future<void> _handlePlaceOrder() async {
-    if (_selectedAddress == null) {
-      showErrorMessage(context, 'Please select or add a delivery address.');
-      return;
+  // Address validation
+  Map<String, String> _addressErrors = {};
+  
+  bool _validateAddressForm() {
+    _addressErrors.clear();
+    bool isValid = true;
+    
+    // Full Name validation
+    if (_nameController.text.trim().isEmpty) {
+      _addressErrors['fullname'] = 'Full name is required';
+      isValid = false;
+    } else if (_nameController.text.trim().length < 2) {
+      _addressErrors['fullname'] = 'Full name must be at least 2 characters';
+      isValid = false;
+    } else if (!RegExp(r'^[a-zA-Z\s]+$').hasMatch(_nameController.text.trim())) {
+      _addressErrors['fullname'] = 'Full name should contain only letters';
+      isValid = false;
     }
+    
+    // Phone validation
+    if (_phoneNumberController.text.trim().isEmpty) {
+      _addressErrors['phone'] = 'Phone number is required';
+      isValid = false;
+    } else if (!RegExp(r'^\d{10}$').hasMatch(_phoneNumberController.text.trim())) {
+      _addressErrors['phone'] = 'Phone number must be exactly 10 digits';
+      isValid = false;
+    }
+    
+    // District validation
+    if (_districtController.text.trim().isEmpty) {
+      _addressErrors['district'] = 'District is required';
+      isValid = false;
+    } else if (_districtController.text.trim().length < 2) {
+      _addressErrors['district'] = 'District must be at least 2 characters';
+      isValid = false;
+    }
+    
+    // City validation
+    if (_cityController.text.trim().isEmpty) {
+      _addressErrors['city'] = 'City is required';
+      isValid = false;
+    } else if (_cityController.text.trim().length < 2) {
+      _addressErrors['city'] = 'City must be at least 2 characters';
+      isValid = false;
+    }
+    
+    // State validation
+    if (_postalCodeController.text.trim().isEmpty) {
+      _addressErrors['states'] = 'State is required';
+      isValid = false;
+    } else if (_postalCodeController.text.trim().length < 2) {
+      _addressErrors['states'] = 'State must be at least 2 characters';
+      isValid = false;
+    }
+    
+    // Area validation
+    if (_addressLine2Controller.text.trim().isEmpty) {
+      _addressErrors['area'] = 'Area is required';
+      isValid = false;
+    } else if (_addressLine2Controller.text.trim().length < 2) {
+      _addressErrors['area'] = 'Area must be at least 2 characters';
+      isValid = false;
+    }
+    
+    // Shipping address validation
+    if (_addressLine1Controller.text.trim().isEmpty) {
+      _addressErrors['shipping'] = 'Shipping address is required';
+      isValid = false;
+    } else if (_addressLine1Controller.text.trim().length < 5) {
+      _addressErrors['shipping'] = 'Shipping address must be at least 5 characters';
+      isValid = false;
+    }
+    
+    return isValid;
+  }
+  
+  Future<void> _handlePlaceOrder() async {
+    // Cart validation
     if (_cartItems.isEmpty) {
       showErrorMessage(context, 'Your cart is empty.');
+      return;
+    }
+    
+    // Address validation
+    if (_selectedAddress == null) {
+      // Validate form fields
+      if (!_validateAddressForm()) {
+        showErrorMessage(context, 'Please fill all required address fields correctly.');
+        setState(() {}); // Update UI to show errors
+        return;
+      }
+    } else {
+      // Validate selected address
+      if (!_validateAddressForm()) {
+        showErrorMessage(context, 'Please update address fields correctly.');
+        setState(() {}); // Update UI to show errors
+        return;
+      }
+    }
+    
+    // Payment method validation
+    if (_selectedPaymentOption == null) {
+      showErrorMessage(context, 'Please select a payment method.');
       return;
     }
     
@@ -245,6 +357,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     if (_selectedPaymentOption == 4 && _selectedDeliveryDate == null) {
       showErrorMessage(context, 'Please select a delivery date.');
       return;
+    }
+    
+    // Stock validation for all cart items
+    for (var item in _cartItems) {
+      final int productId = (item['productId'] is num) ? (item['productId'] as num).toInt() : (int.tryParse(item['productId']?.toString() ?? '0') ?? 0);
+      final int qty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
+      
+      try {
+        final productResponse = await http.get(
+          Uri.parse('https://nicknameinfo.net/api/product/getProductById/$productId'),
+          headers: {'Content-Type': 'application/json'},
+        ).timeout(const Duration(seconds: 10));
+        
+        if (productResponse.statusCode == 200) {
+          final productData = jsonDecode(productResponse.body);
+          final int availableStock = int.tryParse(productData['data']?['unitSize']?.toString() ?? '0') ?? 0;
+          
+          if (qty > availableStock) {
+            showErrorMessage(context, '${item['name'] ?? 'Product'} - Only $availableStock items available in stock');
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error checking stock for product $productId: $e');
+        // Continue with order if stock check fails
+      }
     }
 
     setState(() { _isLoading = true; });
@@ -272,7 +410,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         "states": _selectedAddress!.states,
         "area": _selectedAddress!.area,
         "shipping": _selectedAddress!.shipping,
-        "cusId": _selectedAddress!.cusId,
+        "custId": _selectedAddress!.custId,
         "orderId": _selectedAddress!.orderId,
       };
     }
@@ -360,6 +498,139 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   // This helper function creates individual orders, used by both online and offline flows
+  Future<void> _updateProductUnitSize(int productId, int quantity, {String? size}) async {
+    try {
+      final productResponse = await http.get(
+        Uri.parse('https://nicknameinfo.net/api/product/getProductById/$productId'),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 15));
+
+      if (productResponse.statusCode == 200) {
+        final productData = jsonDecode(productResponse.body);
+        final product = productData['data'];
+        
+        // Check if product has sizeUnitSizeMap and size is provided
+        if (size != null && size.isNotEmpty && product['sizeUnitSizeMap'] != null) {
+          // Update size-specific unitSize
+          try {
+            Map<String, dynamic> sizeUnitSizeMap;
+            if (product['sizeUnitSizeMap'] is String) {
+              sizeUnitSizeMap = jsonDecode(product['sizeUnitSizeMap']) as Map<String, dynamic>;
+            } else {
+              sizeUnitSizeMap = Map<String, dynamic>.from(product['sizeUnitSizeMap']);
+            }
+            
+            // Check if the size exists in the map (case-insensitive matching)
+            String? matchingSizeKey;
+            for (var key in sizeUnitSizeMap.keys) {
+              if (key.toString().toLowerCase() == size.toLowerCase()) {
+                matchingSizeKey = key.toString();
+                break;
+              }
+            }
+            
+            if (matchingSizeKey != null) {
+              final sizeData = sizeUnitSizeMap[matchingSizeKey];
+              int currentSizeUnitSize = 0;
+              
+              if (sizeData is Map) {
+                currentSizeUnitSize = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
+              } else if (sizeData is String) {
+                currentSizeUnitSize = int.tryParse(sizeData) ?? 0;
+              }
+              
+              if (currentSizeUnitSize > 0) {
+                final newSizeUnitSize = currentSizeUnitSize - quantity;
+                
+                // Skip if new unit size is negative
+                if (newSizeUnitSize < 0) {
+                  print('⚠️ Size $size stock would be negative, skipping update');
+                  return;
+                }
+                
+                // Update the size-specific unitSize in the map
+                if (sizeData is Map) {
+                  // Create a new map with updated unitSize
+                  final updatedSizeData = Map<String, dynamic>.from(sizeData);
+                  updatedSizeData['unitSize'] = newSizeUnitSize.toString();
+                  sizeUnitSizeMap[matchingSizeKey] = updatedSizeData;
+                } else {
+                  // If sizeData is not a Map, create a new structure
+                  sizeUnitSizeMap[matchingSizeKey] = {
+                    'unitSize': newSizeUnitSize.toString(),
+                    'price': '',
+                    'qty': '',
+                    'discount': '',
+                    'discountPer': '',
+                    'total': '',
+                    'grandTotal': '',
+                  };
+                }
+                
+                // Update the product with modified sizeUnitSizeMap
+                final updateData = {
+                  'id': productId,
+                  'sizeUnitSizeMap': jsonEncode(sizeUnitSizeMap),
+                };
+
+                final response = await http.post(
+                  Uri.parse('https://nicknameinfo.net/api/product/update'),
+                  headers: {'Content-Type': 'application/json'},
+                  body: jsonEncode(updateData),
+                ).timeout(const Duration(seconds: 15));
+                
+                if (response.statusCode == 200) {
+                  print('✅ Successfully updated product $productId size $size unitSize to $newSizeUnitSize');
+                } else {
+                  print('⚠️ Failed to update product $productId size $size unitSize. Status: ${response.statusCode}');
+                }
+                return; // Exit early since we updated size-specific stock
+              }
+            }
+          } catch (e) {
+            print('⚠️ Error parsing sizeUnitSizeMap for product $productId: $e');
+            // Fall through to default flow
+          }
+        }
+        
+        // Default flow: Update main product unitSize (if no size or sizeUnitSizeMap doesn't exist)
+        final currentUnitSize = int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
+        
+        if (currentUnitSize <= 0) {
+          return;
+        }
+
+        final newUnitSize = currentUnitSize - quantity;
+        
+        // Skip if new unit size is negative
+        if (newUnitSize < 0) {
+          return;
+        }
+
+        final updateData = {
+          'id': productId,
+          'unitSize': newUnitSize.toString(),
+        };
+
+        final response = await http.post(
+          Uri.parse('https://nicknameinfo.net/api/product/update'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(updateData),
+        ).timeout(const Duration(seconds: 15));
+        
+        if (response.statusCode == 200) {
+          print('✅ Successfully updated product $productId unit size to $newUnitSize');
+        } else {
+          print('⚠️ Failed to update product $productId unitSize. Status: ${response.statusCode}');
+        }
+      }
+    } catch (e, stackTrace) {
+      print('❌ Error updating product unitSize: $e');
+      print('Stack trace: $stackTrace');
+      // Don't throw error as order was successful
+    }
+  }
+
   Future<void> _placeIndividualOrders(Map<String, dynamic> baseApiParams) async {
     final List<Future<void>> orderPromises = [];
     
@@ -367,33 +638,51 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     // Check if this is a direct buy (widget.product is not null) or from the cart
     final bool isDirectBuy = widget.product != null;
     // --- ⭐️ END: MODIFICATION ---
-    
+        
     for (final item in _cartItems) {
       final double itemPrice = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
       final int itemQty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
+      final int productId = (item['productId'] is num) ? (item['productId'] as num).toInt() : (int.tryParse(item['productId']?.toString() ?? '0') ?? 0);
+
 
       final itemApiParams = {
         ...baseApiParams,
         "grandTotal": itemPrice * itemQty,
         "productIds": item['productId'],
         "qty": item['qty'],
-        "orderType": item["isBooking"] ? "Service" : "Product"
+        "orderType": (item["isBooking"] == true) ? "Service" : "Product"
       };
       
+      // Include size if available
+      if (item['size'] != null && item['size'].toString().isNotEmpty) {
+        itemApiParams['size'] = item['size'].toString();
+      }
+      
+      // Include weight if available
+      if (item['weight'] != null && item['weight'].toString().isNotEmpty) {
+        itemApiParams['weight'] = item['weight'].toString();
+      }
+      
+      // Get size from item if available
+      final String? itemSize = item['size']?.toString();
+      
       orderPromises.add(
-        CheckoutApiHelper.createOrder(itemApiParams).then((_) {
-          // --- ⭐️ START: MODIFICATION ---
-          // ONLY delete from cart if it was NOT a direct buy
+        CheckoutApiHelper.createOrder(itemApiParams).then((_) async {
+          // Pass size to update function so it can update size-specific stock
+          await _updateProductUnitSize(productId, itemQty, size: itemSize);
+          
           if (!isDirectBuy) {
             return CheckoutApiHelper.deleteCartItem(_userId, item['productId']);
           } else {
-            // If it's a direct buy, do nothing with the cart
             return Future.value(null);
           }
-          // --- ⭐️ END: MODIFICATION ---
+        }).catchError((error) {
+          print('❌ Error processing order for Product ID $productId: $error');
+          throw error;
         })
       );
     }
+    
     
     await Future.wait(orderPromises);
   }
@@ -537,42 +826,51 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               controller: _nameController,
               label: 'Full Name',
               icon: Icons.person_outline,
+              fieldKey: 'fullname',
             ),
             const SizedBox(height: 12),
             _buildModernTextField(
               controller: _phoneNumberController,
               label: 'Phone Number',
               icon: Icons.phone_outlined,
+              fieldKey: 'phone',
+              keyboardType: TextInputType.phone,
+              maxLength: 10,
             ),
             const SizedBox(height: 12),
             _buildModernTextField(
               controller: _districtController,
               label: 'District',
               icon: Icons.location_city_outlined,
+              fieldKey: 'district',
             ),
             const SizedBox(height: 12),
             _buildModernTextField(
               controller: _addressLine1Controller,
               label: 'Shipping Address',
               icon: Icons.home_outlined,
+              fieldKey: 'shipping',
             ),
             const SizedBox(height: 12),
             _buildModernTextField(
               controller: _addressLine2Controller,
               label: 'Area',
               icon: Icons.place_outlined,
+              fieldKey: 'area',
             ),
             const SizedBox(height: 12),
             _buildModernTextField(
               controller: _cityController,
               label: 'City',
               icon: Icons.apartment_outlined,
+              fieldKey: 'city',
             ),
             const SizedBox(height: 12),
             _buildModernTextField(
               controller: _postalCodeController,
               label: 'States',
               icon: Icons.map_outlined,
+              fieldKey: 'states',
             ),
             const SizedBox(height: 20),
             Row(
@@ -621,28 +919,48 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     required TextEditingController controller,
     required String label,
     required IconData icon,
+    String? fieldKey,
+    TextInputType? keyboardType,
+    int? maxLength,
   }) {
-    return TextField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: primaryColor),
-        filled: true,
-        fillColor: Colors.grey[50],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
+    final hasError = fieldKey != null && _addressErrors.containsKey(fieldKey);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLength: maxLength,
+          decoration: InputDecoration(
+            labelText: '$label${fieldKey != null ? ' *' : ''}',
+            prefixIcon: Icon(icon, color: hasError ? Colors.red : primaryColor),
+            filled: true,
+            fillColor: Colors.grey[50],
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: hasError ? Colors.red : Colors.grey[300]!),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: hasError ? Colors.red : Colors.grey[300]!),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: hasError ? Colors.red : primaryColor, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            errorText: hasError ? _addressErrors[fieldKey] : null,
+            errorMaxLines: 2,
+          ),
+          onChanged: (value) {
+            if (fieldKey != null && _addressErrors.containsKey(fieldKey)) {
+              _addressErrors.remove(fieldKey);
+              setState(() {});
+            }
+          },
         ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey[300]!),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor, width: 2),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      ),
+      ],
     );
   }
 
@@ -696,13 +1014,55 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ..._cartItems.map((item) {
                  final double price = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
                  final int qty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
+                 final String? size = item['size']?.toString();
+                 final String? weight = item['weight']?.toString();
                 return Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('${item['name']} (x${item['qty']})'),
-                      Text('Rs: ${(price * qty).toStringAsFixed(2)}'),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('${item['name']} (x${item['qty']})'),
+                                if (size != null && size.isNotEmpty) ...[
+                                  const SizedBox(height: 2),
+                                  Row(
+                                    children: [
+                                      Icon(Icons.straighten, size: 12, color: Colors.grey[600]),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Size: $size',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.grey[600],
+                                        ),
+                                      ),
+                                      if (weight != null && weight.isNotEmpty) ...[
+                                        const SizedBox(width: 12),
+                                        Icon(Icons.scale, size: 12, color: Colors.grey[600]),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          'Weight: $weight',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                          Text('Rs: ${(price * qty).toStringAsFixed(2)}'),
+                        ],
+                      ),
                     ],
                   ),
                 );

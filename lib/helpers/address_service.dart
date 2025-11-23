@@ -11,7 +11,7 @@ class Address {
   final String area;
   final String shipping;
   final String orderId;
-  final String cusId;
+  final String custId;
 
   Address({
     required this.id,
@@ -23,7 +23,7 @@ class Address {
     required this.area,
     required this.shipping,
     required this.orderId,
-    required this.cusId,
+    required this.custId,
   });
 
   factory Address.fromJson(Map<String, dynamic> json) {
@@ -37,7 +37,7 @@ class Address {
       area: json['area'],
       shipping: json['shipping'],
       orderId: json['orderId'].toString(),
-      cusId: json['cusId'].toString(),
+      custId: json['custId'].toString(),
     );
   }
 
@@ -52,7 +52,7 @@ class Address {
       'area': area,
       'shipping': shipping,
       'orderId': orderId,
-      'cusId': cusId,
+      'custId': custId,
     };
   }
 }

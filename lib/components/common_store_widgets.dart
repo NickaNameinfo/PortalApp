@@ -153,7 +153,7 @@ Widget buildProductCard(
                 photoUrl ?? 'https://via.placeholder.com/300x200.png?text=Product',
                 height: 160,
                 width: double.infinity,
-                fit: BoxFit.cover,
+                fit: BoxFit.contain,
                 errorBuilder: (context, error, stackTrace) => Container(
                   height: 160,
                   width: double.infinity,

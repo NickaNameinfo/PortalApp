@@ -30,9 +30,17 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
 
   // State for Cart
   Map<int, int> _cartQuantities = {};
+  Map<int, String?> _cartSizes = {}; // Store size from cart for each product
   Set<int> _cartLoadingIds = {};
   late String _userId = ''; // Initialize with an empty string
   // The cart API endpoint for listing is 'https://nicknameinfo.net/api/cart/list/$_userId'
+  
+  // Size selection state
+  String? _selectedSize;
+  String? _selectedWeight;
+  double _currentPrice = 0.0;
+  int _currentStock = 0;
+  Map<String, dynamic>? _sizeUnitSizeMap;
 
   @override
   void initState() {
@@ -45,8 +53,58 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _userId = prefs.getString('userId') ?? '0'; // Default to "0" or handle as needed
-      _fetchCartQuantities(); // Call _fetchCartQuantities after _userId is loaded
     });
+    // Fetch cart first, then initialize size data (so cart size can be used)
+    await _fetchCartQuantities(); // Call _fetchCartQuantities after _userId is loaded
+  }
+  
+  // Initialize size data from product
+  void _initializeSizeData() {
+    try {
+      final sizeUnitSizeMapStr = widget.product['sizeUnitSizeMap'];
+      if (sizeUnitSizeMapStr != null && sizeUnitSizeMapStr is String) {
+        _sizeUnitSizeMap = json.decode(sizeUnitSizeMapStr) as Map<String, dynamic>?;
+      } else if (sizeUnitSizeMapStr is Map) {
+        _sizeUnitSizeMap = Map<String, dynamic>.from(sizeUnitSizeMapStr);
+      }
+      
+      // Set default size (first available or from cart)
+      if (_sizeUnitSizeMap != null && _sizeUnitSizeMap!.isNotEmpty) {
+        final productId = widget.product['id'] as int?;
+        // Check cart for existing size (prioritize cart size)
+        final cartSize = productId != null 
+            ? (_cartSizes[productId] ?? widget.product['size']?.toString())
+            : widget.product['size']?.toString();
+        if (cartSize != null && _sizeUnitSizeMap!.containsKey(cartSize)) {
+          _selectedSize = cartSize;
+        } else {
+          _selectedSize = _sizeUnitSizeMap!.keys.first;
+        }
+        _updatePriceAndStock();
+      }
+    } catch (e) {
+      debugPrint('Error initializing size data: $e');
+    }
+  }
+  
+  // Update price and stock based on selected size
+  void _updatePriceAndStock() {
+    if (_selectedSize != null && _sizeUnitSizeMap != null) {
+      final sizeData = _sizeUnitSizeMap![_selectedSize];
+      if (sizeData is Map) {
+        _currentPrice = double.tryParse(sizeData['price']?.toString() ?? 
+                                        sizeData['total']?.toString() ?? 
+                                        sizeData['grandTotal']?.toString() ?? 
+                                        widget.product['total']?.toString() ?? 
+                                        widget.product['price']?.toString() ?? '0') ?? 0.0;
+        _currentStock = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
+      }
+    } else {
+      // Fallback to default product price and stock
+      _currentPrice = double.tryParse(widget.product['total']?.toString() ?? 
+                                     widget.product['price']?.toString() ?? '0') ?? 0.0;
+      _currentStock = int.tryParse(widget.product['unitSize']?.toString() ?? '0') ?? 0;
+    }
   }
   
 // Global/Top-Level Quantity Selector Widget (Defined here for scope)
@@ -153,21 +211,29 @@ Future<void> _fetchCartQuantities() async {
         if (responseData['success'] == true && responseData['data'] is List) {
           final List<dynamic> cartItems = responseData['data'];
           final Map<int, int> fetchedQuantities = {};
+          final Map<int, String?> fetchedSizes = {};
 
           for (var item in cartItems) {
             final int? productId = item['productId'] as int?;
             final int? quantity = item['qty'] as int?;
+            final String? size = item['size']?.toString();
 
             if (productId != null && quantity != null && quantity > 0) {
               fetchedQuantities[productId] = quantity;
+              if (size != null && size.isNotEmpty) {
+                fetchedSizes[productId] = size;
+              }
             }
           }
 
           if (mounted) {
-            // Update the cart quantities state
+            // Update the cart quantities and sizes state
             setState(() {
               _cartQuantities = fetchedQuantities;
+              _cartSizes = fetchedSizes;
             });
+            // Re-initialize size data after cart is loaded to use cart size
+            _initializeSizeData();
           }
         } else {
           debugPrint("Cart list API returned success: false or invalid data structure.");
@@ -287,15 +353,61 @@ Future<void> _fetchStoreData() async {
     }
     final int productId = productIdRaw;
     final int currentQuantity = _cartQuantities[productId] ?? 0;
+    
+    // Stock validation
+    final availableStock = _selectedSize != null && _sizeUnitSizeMap != null
+        ? _currentStock
+        : int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
+    
+    if (currentQuantity >= availableStock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Only $availableStock items available in stock')),
+      );
+      return;
+    }
+    
     final int newQuantity = currentQuantity + 1;
+    
+    // Include size and weight in product data
+    final productWithSize = Map<String, dynamic>.from(product);
+    if (_selectedSize != null) {
+      productWithSize['size'] = _selectedSize;
+      productWithSize['price'] = _currentPrice;
+      productWithSize['total'] = _currentPrice;
+    }
+    if (_selectedWeight != null) {
+      productWithSize['weight'] = _selectedWeight;
+    }
 
-    await _updateCart(productId, newQuantity, product, isAdd: true);
+    await _updateCart(productId, newQuantity, productWithSize, isAdd: true);
   }
 
   Future<void> _incrementQuantity(int productId, Map<String, dynamic> productData) async {
      final int currentQuantity = _cartQuantities[productId] ?? 0;
+     
+     // Stock validation
+     final availableStock = _selectedSize != null && _sizeUnitSizeMap != null
+         ? _currentStock
+         : int.tryParse(productData['unitSize']?.toString() ?? '0') ?? 0;
+     
+     if (currentQuantity >= availableStock) {
+       ScaffoldMessenger.of(context).showSnackBar(
+         SnackBar(content: Text('Only $availableStock items available in stock')),
+       );
+       return;
+     }
+     
      final int newQuantity = currentQuantity + 1;
-     await _updateCart(productId, newQuantity, productData, isAdd: false);
+     
+     // Include size in product data
+     final productWithSize = Map<String, dynamic>.from(productData);
+     if (_selectedSize != null) {
+       productWithSize['size'] = _selectedSize;
+       productWithSize['price'] = _currentPrice;
+       productWithSize['total'] = _currentPrice;
+     }
+     
+     await _updateCart(productId, newQuantity, productWithSize, isAdd: false);
   }
 
   Future<void> _decrementQuantity(int productId, Map<String, dynamic> productData) async {
@@ -303,7 +415,18 @@ Future<void> _fetchStoreData() async {
      if (currentQuantity <= 0) return;
      final int newQuantity = currentQuantity - 1;
      
-     await _updateCart(productId, newQuantity, productData, isAdd: false);
+     // Include size in product data
+     final productWithSize = Map<String, dynamic>.from(productData);
+     if (_selectedSize != null) {
+       productWithSize['size'] = _selectedSize;
+       productWithSize['price'] = _currentPrice;
+       productWithSize['total'] = _currentPrice;
+     }
+     if (_selectedWeight != null) {
+       productWithSize['weight'] = _selectedWeight;
+     }
+     
+     await _updateCart(productId, newQuantity, productWithSize, isAdd: false);
   }
 
   // Helper method to build a store action icon button (placeholder logic)
@@ -346,7 +469,7 @@ Widget buildStoreHeader() {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(12),
-                    child: Image.network( store?['storeImage'] ?? 'https://via.placeholder.com/100x100.png?text=Store', width: 100, height: 100, fit: BoxFit.cover,
+                    child: Image.network( store?['storeImage'] ?? 'https://via.placeholder.com/100x100.png?text=Store', width: 100, height: 100, fit: BoxFit.contain,
                       errorBuilder: (context, error, stackTrace) => Container(width: 100, height: 100, decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(12)), child: Icon(Icons.storefront, color: Colors.grey[400], size: 40)),
                     ),
                   ),
@@ -481,7 +604,7 @@ Widget buildStoreHeader() {
                                     product['photo'] ?? 'https://via.placeholder.com/150',
                                     height: 200,
                                     width: double.infinity,
-                                    fit: BoxFit.cover,
+                                    fit: BoxFit.contain,
                                   ),
                                 ),
                                 // 'Available' Badge
@@ -596,7 +719,7 @@ Widget buildStoreHeader() {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "$stockQty Stocks",
+                            int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "${_currentStock > 0 ? _currentStock : stockQty} Stocks",
                             style: TextStyle(
                               fontSize: 16, 
                               fontWeight: FontWeight.bold, 
@@ -604,11 +727,65 @@ Widget buildStoreHeader() {
                             ),
                           ),
                           Text(
-                            'Rs : ${product['total'] ?? 0}',
+                            'Rs : ${_currentPrice > 0 ? _currentPrice.toStringAsFixed(0) : (product['total'] ?? 0)}',
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor),
                           ),
                         ],
                       ),
+                      
+                      // Size Selection UI
+                      if (_sizeUnitSizeMap != null && _sizeUnitSizeMap!.isNotEmpty) ...[
+                        const SizedBox(height: 15),
+                        const Divider(),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Size:',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
+                          children: _sizeUnitSizeMap!.keys.map((size) {
+                            final sizeData = _sizeUnitSizeMap![size];
+                            final isSelected = _selectedSize == size;
+                            final unitSize = sizeData is Map 
+                                ? sizeData['unitSize']?.toString() ?? ''
+                                : '';
+                            
+                            return GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _selectedSize = size;
+                                  _updatePriceAndStock();
+                                });
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                decoration: BoxDecoration(
+                                  color: isSelected ? primaryColor : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                    color: isSelected ? primaryColor : Colors.grey.shade300,
+                                    width: isSelected ? 2 : 1,
+                                  ),
+                                ),
+                                child: Text(
+                                  unitSize.isNotEmpty ? '$size: $unitSize' : size,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                    color: isSelected ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
                       
                       const SizedBox(height: 15),
                       // --- Quantity Selector / Add to Cart ---
@@ -689,11 +866,13 @@ Widget buildStoreHeader() {
                             final checkoutProduct = {
                               'productId': productId,
                               'name': product['name'] ?? 'N/A',
-                              'price': double.tryParse(product['total']?.toString() ?? '0') ?? 0,
+                              'price': (_currentPrice > 0 ? _currentPrice : (double.tryParse(product['total']?.toString() ?? '0') ?? 0)),
                               'qty': 1, // Default quantity for "Buy Now"
                               'storeId': storeData?['id'], // Pass the storeId
                               'photo': product['photo'] ?? 'https://via.placeholder.com/150', // Pass photo for summary
                               'isBooking': isBooking, // Pass booking status
+                              if (_selectedSize != null) 'size': _selectedSize,
+                              if (_selectedWeight != null) 'weight': _selectedWeight,
                             };
                             
                             Navigator.push(

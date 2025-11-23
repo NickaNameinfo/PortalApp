@@ -284,6 +284,8 @@ class _CartScreenState extends State<CartScreen> {
     final double productPrice = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
     final int quantity = item['qty'] ?? 0;
     final double totalPrice = productPrice * quantity;
+    final String? size = item['size']?.toString();
+    final String? weight = item['weight']?.toString();
 
     return Dismissible(
       onDismissed: (direction) => _removeFromCart(productId, productName),
@@ -416,6 +418,36 @@ class _CartScreenState extends State<CartScreen> {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (size != null && size.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.straighten, size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Size: $size',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[700],
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            if (weight != null && weight.isNotEmpty) ...[
+                              const SizedBox(width: 12),
+                              Icon(Icons.scale, size: 14, color: Colors.grey[600]),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Weight: $weight',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[700],
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       Text(
                         '\₹${productPrice.toStringAsFixed(2)}',

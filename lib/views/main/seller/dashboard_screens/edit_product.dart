@@ -25,6 +25,9 @@ enum ProductStatus { active, inactive }
 // New: Enum for Payment Type
 enum PaymentType { perOrder, onlinePayment, cashOnDelivery }
 
+// New: Enum for Service Type
+enum ServiceType { product, service }
+
 class EditProduct extends StatefulWidget {
   static const routeName = '/edit_product';
   // Use nullable Map<String, dynamic>? to safely represent optional product data
@@ -81,11 +84,35 @@ class _EditProductState extends State<EditProduct> {
   var currentStatus = ProductStatus.active; 
   var isEcommerceEnabled = false; 
   var isCustomizeEnabled = false; 
+  var isBookingEnabled = false; // For Book Service subscription (Plan3)
+  var currentServiceType = ServiceType.product; // Default to product
   
   // Payment Mode states
   bool isPerOrderEnabled = false;
   bool isOnlinePaymentEnabled = false;
   bool isCashOnDeliveryEnabled = false;
+  
+  // Size Management states
+  bool enableSizeManagement = false;
+  Map<String, Map<String, dynamic>> sizeUnitSizeMap = {}; // Map<size, {unitSize, qty, price, discount, discountPer, total, grandTotal}>
+  List<Map<String, dynamic>> sizeEntries = []; // List of size entries for display
+  String? selectedSize; // Currently selected size (nullable to avoid dropdown errors)
+  final List<String> availableSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL'];
+  
+  // Helper to normalize size (case-insensitive matching)
+  String? _normalizeSize(String? size) {
+    if (size == null || size.isEmpty) return null;
+    final upperSize = size.toUpperCase();
+    return availableSizes.firstWhere(
+      (s) => s.toUpperCase() == upperSize,
+      orElse: () => availableSizes.first, // Default to first if not found
+    );
+  }
+  
+  // Controllers for size management
+  final _sizeUnitSizeController = TextEditingController();
+  final _sizePriceController = TextEditingController();
+  final _sizeDiscountController = TextEditingController();
 
   var isLoading = false;
   var isImagePicked = false; 
@@ -98,6 +125,7 @@ class _EditProductState extends State<EditProduct> {
   String? _customerId;
   late Future<SubscriptionPlan?> _plan1SubscriptionFuture;
   late Future<SubscriptionPlan?> _plan2SubscriptionFuture;
+  late Future<SubscriptionPlan?> _plan3SubscriptionFuture;
 
   Future<void> _loadCustomerId() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -107,14 +135,16 @@ class _EditProductState extends State<EditProduct> {
       setState(() {
         _customerId = loadedCustomerId; 
         if (_customerId != null) {
-          // Fetch subscriptions for Plan1 and Plan2 keys
+          // Fetch subscriptions for Plan1, Plan2, and Plan3 keys
           _plan1SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan1");
           _plan2SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan2");
+          _plan3SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan3");
         } else {
           // Handle case where customerId is missing
           final errorFuture = Future<SubscriptionPlan?>.error('Customer ID not found.');
           _plan1SubscriptionFuture = errorFuture;
           _plan2SubscriptionFuture = errorFuture;
+          _plan3SubscriptionFuture = errorFuture;
         }
       });
     }
@@ -134,6 +164,11 @@ class _EditProductState extends State<EditProduct> {
     _grandTotalController.text = '';
     _descriptionController.text = '';
     _brandController.text = '';
+    
+    // Initialize selectedSize to first available size
+    if (selectedSize == null && availableSizes.isNotEmpty) {
+      selectedSize = availableSizes.first;
+    }
     
     _loadSupplierId();
     _loadCustomerId(); // Call _loadCustomerId here
@@ -278,6 +313,12 @@ class _EditProductState extends State<EditProduct> {
           productImages = List<dynamic>.from(productData['productphotos'] ?? []);
           isEcommerceEnabled = (productData['isEnableEcommerce'] == "1");
           isCustomizeEnabled = (productData['isEnableCustomize'] == 1);
+          isBookingEnabled = (productData['isBooking'] == "1");
+          
+          // Service Type
+          final String? serviceType = productData['serviceType']?.toString();
+          currentServiceType = (serviceType == "Service") ? ServiceType.service : ServiceType.product;
+          
           if (productImages.isNotEmpty) {
             isImagePicked = true;
           }
@@ -299,6 +340,75 @@ class _EditProductState extends State<EditProduct> {
           isPerOrderEnabled = paymentMode.contains('1');
           isOnlinePaymentEnabled = paymentMode.contains('2');
           isCashOnDeliveryEnabled = paymentMode.contains('3');
+          
+          // Size Management
+          if (productData['sizeUnitSizeMap'] != null) {
+            try {
+              Map<String, dynamic> parsedMap;
+              if (productData['sizeUnitSizeMap'] is String) {
+                parsedMap = Map<String, dynamic>.from(jsonDecode(productData['sizeUnitSizeMap']));
+              } else {
+                parsedMap = Map<String, dynamic>.from(productData['sizeUnitSizeMap']);
+              }
+              
+              if (parsedMap.isNotEmpty) {
+                enableSizeManagement = true;
+                sizeUnitSizeMap = {};
+                sizeEntries = [];
+                
+                parsedMap.forEach((size, data) {
+                  // Normalize size to match availableSizes (case-insensitive)
+                  final normalizedSize = _normalizeSize(size);
+                  if (normalizedSize == null) return; // Skip invalid sizes
+                  
+                  Map<String, dynamic> sizeData;
+                  if (data is Map) {
+                    sizeData = Map<String, dynamic>.from(data);
+                  } else {
+                    sizeData = {
+                      'unitSize': data?.toString() ?? '0',
+                      'qty': data?.toString() ?? '0',
+                      'price': '0',
+                      'discount': '0',
+                      'discountPer': '0',
+                      'total': '0',
+                      'grandTotal': '0',
+                    };
+                  }
+                  
+                  // Calculate missing values with null safety
+                  final price = double.tryParse(sizeData['price']?.toString() ?? '0') ?? 0.0;
+                  final discount = double.tryParse(sizeData['discount']?.toString() ?? '0') ?? 0.0;
+                  final discountAmount = (price * discount) / 100;
+                  final discountedPrice = price - discountAmount;
+                  final qty = double.tryParse(sizeData['qty']?.toString() ?? sizeData['unitSize']?.toString() ?? '0') ?? 0.0;
+                  final total = discountedPrice * qty;
+                  
+                  sizeData['price'] = price.toString();
+                  sizeData['discount'] = discount.toString();
+                  sizeData['discountPer'] = discountAmount.toStringAsFixed(2);
+                  sizeData['total'] = total.toStringAsFixed(2);
+                  sizeData['grandTotal'] = total.toStringAsFixed(2);
+                  sizeData['qty'] = qty.toString();
+                  sizeData['unitSize'] = sizeData['unitSize']?.toString() ?? qty.toString();
+                  
+                  sizeUnitSizeMap[normalizedSize] = sizeData;
+                  sizeEntries.add({
+                    'size': normalizedSize,
+                    'id': normalizedSize, // Use normalized size as ID
+                    ...sizeData,
+                  });
+                });
+                
+                // Set initial selectedSize to first available size if not set
+                if (selectedSize == null || !availableSizes.contains(selectedSize)) {
+                  selectedSize = availableSizes.isNotEmpty ? availableSizes.first : null;
+                }
+              }
+            } catch (e) {
+              debugPrint('Error parsing sizeUnitSizeMap: $e');
+            }
+          }
         });
       }
     }
@@ -316,6 +426,9 @@ class _EditProductState extends State<EditProduct> {
     _grandTotalController.dispose();
     _brandController.dispose();
     _descriptionController.dispose();
+    _sizeUnitSizeController.dispose();
+    _sizePriceController.dispose();
+    _sizeDiscountController.dispose();
     _priceController.removeListener(_calculateTotals);
     _discountController.removeListener(_calculateTotals);
     _discountPriceController.removeListener(_calculateTotals);
@@ -535,14 +648,10 @@ class _EditProductState extends State<EditProduct> {
           switch (field) {
             case Field.title:
               return 'Title can not be empty';
-            case Field.price:
-              return 'Price is not valid';
             case Field.quantity:
               return 'Quantity is not valid';
             case Field.description:
               return 'Description is not valid';
-            case Field.unit:
-              return 'Unit cannot be empty';
             case Field.discountPer:
             case Field.discount:
               if (value!.isNotEmpty && double.tryParse(value) == null) {
@@ -666,8 +775,25 @@ class _EditProductState extends State<EditProduct> {
         paymentModeString = paymentModeString.substring(0, paymentModeString.length - 1);
       }
       
+      // Calculate unitSize and default price based on size management
+      String unitSizeForSize;
+      String defaultPrice;
+      
+      if (enableSizeManagement && sizeEntries.isNotEmpty) {
+        // Calculate total unitSize from all size entries
+        double totalUnitSize = 0.0;
+        for (var entry in sizeEntries) {
+          totalUnitSize += double.tryParse(entry['unitSize']?.toString() ?? '0') ?? 0.0;
+        }
+        unitSizeForSize = totalUnitSize > 0 ? totalUnitSize.toString() : _unitController.text;
+        defaultPrice = sizeEntries[0]['price']?.toString() ?? _priceController.text;
+      } else {
+        unitSizeForSize = _unitController.text;
+        defaultPrice = _priceController.text;
+      }
+      
       // Safely parse numerical values or default to 0.0 or 0
-      final price = _priceController.text.isEmpty ? 0.0 : double.tryParse(_priceController.text) ?? 0.0;
+      final price = defaultPrice.isEmpty ? 0.0 : double.tryParse(defaultPrice) ?? 0.0;
       final qty = _quantityController.text.isEmpty ? 0 : int.tryParse(_quantityController.text) ?? 0;
       final discountPer = _discountPriceController.text.isEmpty ? 0.0 : double.tryParse(_discountPriceController.text) ?? 0.0;
       final discount = _discountController.text.isEmpty ? 0.0 : double.tryParse(_discountController.text) ?? 0.0;
@@ -682,7 +808,7 @@ class _EditProductState extends State<EditProduct> {
         "name": _titleController.text,
         "slug": isUpdating ? widget.productData!['slug'] : _titleController.text.toLowerCase().replaceAll(RegExp(r'\s+'), '-'), 
         "brand": _brandController.text, 
-        "unitSize": _unitController.text,
+        "unitSize": unitSizeForSize,
         "status": currentStatus == ProductStatus.active ? "1" : "0",
         "buyerPrice": isUpdating ? widget.productData!['buyerPrice'] : null, 
         "price": price,
@@ -696,12 +822,15 @@ class _EditProductState extends State<EditProduct> {
         "createdId": _supplierId, 
         "createdType": "Store", 
         "isEnableEcommerce": isEcommerceEnabled ? "1" : "0", 
-        "isEnableCustomize": isCustomizeEnabled ? "1" : "0", 
+        "isEnableCustomize": isCustomizeEnabled ? "1" : "0",
+        "isBooking": isBookingEnabled ? "1" : "0",
+        "serviceType": currentServiceType == ServiceType.product ? "Product" : "Service", 
         if (isUpdating) "createdAt": widget.productData!['createdAt'],
         "updatedAt": DateTime.now().toIso8601String(),
         "photo": imageDownloadLinks.isNotEmpty ? imageDownloadLinks.first : null, 
         "productphotos": imageDownloadLinks, 
         "grand_total": grandTotal,
+        "sizeUnitSizeMap": enableSizeManagement ? jsonEncode(sizeUnitSizeMap) : "", // Store size map as JSON string
       };
 
       debugPrint('Request Body: $requestBody');
@@ -724,7 +853,7 @@ class _EditProductState extends State<EditProduct> {
             final storeProductAddPayload = {
               "supplierId": _supplierId,
               "productId": productId,
-              "unitSize": _unitController.text,
+              "unitSize": unitSizeForSize,
               "buyerPrice": price,
             };
             
@@ -802,6 +931,81 @@ class _EditProductState extends State<EditProduct> {
         ),
       ],
     );
+  }
+
+  // Size Management Helper Functions
+  void _addOrUpdateSizeEntry() {
+    if (selectedSize == null || selectedSize!.isEmpty || _sizeUnitSizeController.text.isEmpty || _sizePriceController.text.isEmpty) {
+      showSnackBar('Please fill all required fields (Size, Unit Size, Price)');
+      return;
+    }
+    
+    final unitSize = _sizeUnitSizeController.text;
+    final price = double.tryParse(_sizePriceController.text) ?? 0.0;
+    final discount = double.tryParse(_sizeDiscountController.text) ?? 0.0;
+    final discountAmount = (price * discount) / 100;
+    final discountedPrice = price - discountAmount;
+    final qty = double.tryParse(unitSize) ?? 0.0;
+    final total = discountedPrice * qty;
+    
+    final sizeData = {
+      'unitSize': unitSize,
+      'qty': qty.toString(),
+      'price': price.toString(),
+      'discount': discount.toString(),
+      'discountPer': discountAmount.toStringAsFixed(2),
+      'total': total.toStringAsFixed(2),
+      'grandTotal': total.toStringAsFixed(2),
+    };
+    
+    setState(() {
+      // Check if size already exists
+      final existingIndex = sizeEntries.indexWhere((e) => e['size']?.toString() == selectedSize);
+      
+      if (existingIndex >= 0) {
+        // Update existing entry
+        sizeEntries[existingIndex] = {
+          'size': selectedSize!,
+          'id': selectedSize!,
+          ...sizeData,
+        };
+      } else {
+        // Add new entry
+        sizeEntries.add({
+          'size': selectedSize!,
+          'id': selectedSize!,
+          ...sizeData,
+        });
+      }
+      
+      // Update map
+      sizeUnitSizeMap[selectedSize!] = sizeData;
+      
+      // Clear input fields
+      _sizeUnitSizeController.clear();
+      _sizePriceController.clear();
+      _sizeDiscountController.clear();
+    });
+  }
+  
+  void _deleteSizeEntry(String? size) {
+    if (size == null || size.isEmpty) return;
+    setState(() {
+      sizeEntries.removeWhere((e) => e['size']?.toString() == size);
+      sizeUnitSizeMap.remove(size);
+    });
+  }
+  
+  void _editSizeEntry(Map<String, dynamic> entry) {
+    final entrySize = entry['size']?.toString();
+    final normalizedSize = _normalizeSize(entrySize);
+    
+    setState(() {
+      selectedSize = normalizedSize ?? availableSizes.first;
+      _sizeUnitSizeController.text = entry['unitSize']?.toString() ?? '';
+      _sizePriceController.text = entry['price']?.toString() ?? '';
+      _sizeDiscountController.text = entry['discount']?.toString() ?? '';
+    });
   }
 
   // New: Widget for Subscription Toggle
@@ -1037,6 +1241,15 @@ class _EditProductState extends State<EditProduct> {
                           print('Customize Subscription tapped');
                         },
                       ),
+                      _SubscriptionPill(
+                        color: Colors.green,
+                        title: 'Total Book Service Subscription',
+                        planFuture: _plan3SubscriptionFuture,
+                        onTap: () {
+                          // Handle tap for Plan3
+                          print('Book Service Subscription tapped');
+                        },
+                      ),
                     ],
                   ),
                   const SizedBox(height: 25),
@@ -1215,67 +1428,68 @@ class _EditProductState extends State<EditProduct> {
                         ),
                         const SizedBox(height: 20),
 
+                        // Show regular fields only if size management is disabled
+                        if (!enableSizeManagement) ...[
+                          // Row 5: Quantity & Discount (%)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Flexible(
+                                flex: 1,
+                                child: kTextField(
+                                  _quantityController,
+                                  '1',
+                                  'Quantity *',
+                                  Field.quantity,
+                                  1,
+                                ),
+                              ),
+                              const SizedBox(width: 15),
+                              Flexible(
+                                flex: 1,
+                                child: kTextField(
+                                  _discountController,
+                                  '2',
+                                  'Discont(%) *',
+                                  Field.discount,
+                                  1,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          // Row 6: Discount Price & Total
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Flexible(
+                                flex: 1,
+                                child: kTextField(
+                                  _discountPriceController,
+                                  '900',
+                                  'Discount Price *',
+                                  Field.discountPer,
+                                  1,
+                                ),
+                              ),
+                              const SizedBox(width: 15),
+                              Flexible(
+                                flex: 1,
+                                child: kTextField(
+                                  _totalController,
+                                  '44100',
+                                  'Total',
+                                  Field.price, 
+                                  1,
+                                  readOnly: true, 
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
 
-                        // Row 5: Quantity & Discount (%)
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Flexible(
-                              flex: 1,
-                              child: kTextField(
-                                _quantityController,
-                                '1',
-                                'Quantity *',
-                                Field.quantity,
-                                1,
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Flexible(
-                              flex: 1,
-                              child: kTextField(
-                                _discountController,
-                                '2',
-                                'Discont(%) *',
-                                Field.discount,
-                                1,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-                        
-                        // Row 6: Discount Price & Total
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Flexible(
-                              flex: 1,
-                              child: kTextField(
-                                _discountPriceController,
-                                '900',
-                                'Discount Price *',
-                                Field.discountPer,
-                                1,
-                              ),
-                            ),
-                            const SizedBox(width: 15),
-                            Flexible(
-                              flex: 1,
-                              child: kTextField(
-                                _totalController,
-                                '44100',
-                                'Total',
-                                Field.price, 
-                                1,
-                                readOnly: true, 
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-
-                        // Row 7: Grand Total & Image Upload Button
+                          // Row 7: Grand Total & Image Upload Button
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1310,10 +1524,542 @@ class _EditProductState extends State<EditProduct> {
                                   ),
                                   const SizedBox(height: 5),
                                   const Text('No file selected', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const SizedBox(height: 3),
+                                  const Text('Max image upload size: 500KB', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w500)),
                                 ],
                               ),
                             ),
                           ],
+                        ),
+                        ] else ...[
+                          // Image Upload Button when size management is enabled
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    ElevatedButton(
+                                      onPressed: () => _selectPhoto(),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: Colors.grey.shade200,
+                                        minimumSize: const Size(double.infinity, 50),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(20),
+                                          side: BorderSide(color: Colors.grey.shade400)
+                                        ),
+                                      ),
+                                      child: const Text('Choose File', style: TextStyle(color: Colors.black)),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    const Text('No file selected', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                    const SizedBox(height: 3),
+                                    const Text('Max image upload size: 500KB', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w500)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 30),
+
+                        // Row 7.5: Service Type Selection
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'What would you like to offer?',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: primaryColor,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    currentServiceType = ServiceType.product;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: currentServiceType == ServiceType.product 
+                                        ? primaryColor.withOpacity(0.1) 
+                                        : Colors.white,
+                                    border: Border.all(
+                                      color: currentServiceType == ServiceType.product 
+                                          ? primaryColor 
+                                          : Colors.grey.shade300,
+                                      width: currentServiceType == ServiceType.product ? 2 : 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Radio<ServiceType>(
+                                        value: ServiceType.product,
+                                        groupValue: currentServiceType,
+                                        activeColor: primaryColor,
+                                        onChanged: (ServiceType? value) {
+                                          setState(() {
+                                            currentServiceType = value ?? ServiceType.product;
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Online selling product',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Sell physical or digital products directly through your online platform',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    currentServiceType = ServiceType.service;
+                                  });
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: currentServiceType == ServiceType.service 
+                                        ? primaryColor.withOpacity(0.1) 
+                                        : Colors.white,
+                                    border: Border.all(
+                                      color: currentServiceType == ServiceType.service 
+                                          ? primaryColor 
+                                          : Colors.grey.shade300,
+                                      width: currentServiceType == ServiceType.service ? 2 : 1,
+                                    ),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Radio<ServiceType>(
+                                        value: ServiceType.service,
+                                        groupValue: currentServiceType,
+                                        activeColor: primaryColor,
+                                        onChanged: (ServiceType? value) {
+                                          setState(() {
+                                            currentServiceType = value ?? ServiceType.product;
+                                          });
+                                        },
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const Text(
+                                              'Providing service',
+                                              style: TextStyle(
+                                                fontSize: 15,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Offer a range of services, such as consulting, training, or support',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey.shade600,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 30),
+                        
+                        // Size Management Section
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Checkbox(
+                                    value: enableSizeManagement,
+                                    onChanged: (bool? newValue) {
+                                      setState(() {
+                                        enableSizeManagement = newValue ?? false;
+                                        if (!enableSizeManagement) {
+                                          // Clear size entries when disabled
+                                          sizeEntries.clear();
+                                          sizeUnitSizeMap.clear();
+                                          _sizeUnitSizeController.clear();
+                                          _sizePriceController.clear();
+                                          _sizeDiscountController.clear();
+                                          selectedSize = availableSizes.isNotEmpty ? availableSizes.first : null;
+                                        } else {
+                                          // Initialize selectedSize when enabling
+                                          if (selectedSize == null || !availableSizes.contains(selectedSize)) {
+                                            selectedSize = availableSizes.isNotEmpty ? availableSizes.first : null;
+                                          }
+                                        }
+                                      });
+                                    },
+                                    activeColor: primaryColor,
+                                  ),
+                                  const Text(
+                                    'Enable Multiple Size Management',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              
+                              if (enableSizeManagement) ...[
+                                const SizedBox(height: 20),
+                                Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: primaryColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: primaryColor.withOpacity(0.3)),
+                                  ),
+                                  child: const Row(
+                                    children: [
+                                      Icon(Icons.info_outline, color: primaryColor, size: 20),
+                                      SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Size, Unit Size & Price Management',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: primaryColor,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                
+                                // Size Selection and Input Fields - Improved Layout
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Row 1: Size Selection
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 8),
+                                      child: DropdownButtonFormField<String>(
+                                        decoration: InputDecoration(
+                                          labelText: 'Select Size *',
+                                          labelStyle: const TextStyle(color: primaryColor, fontWeight: FontWeight.w600),
+                                          hintText: 'Choose a size',
+                                          filled: true,
+                                          fillColor: Colors.grey.shade50,
+                                          focusedBorder: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                            borderSide: const BorderSide(
+                                              width: 2,
+                                              color: primaryColor,
+                                            ),
+                                          ),
+                                          border: OutlineInputBorder(
+                                            borderRadius: BorderRadius.circular(12),
+                                            borderSide: BorderSide(
+                                              width: 1,
+                                              color: Colors.grey.shade300,
+                                            ),
+                                          ),
+                                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                        ),
+                                        value: selectedSize != null && availableSizes.contains(selectedSize) 
+                                            ? selectedSize 
+                                            : (availableSizes.isNotEmpty ? availableSizes.first : null),
+                                        items: availableSizes.map((size) {
+                                          return DropdownMenuItem<String>(
+                                            value: size,
+                                            child: Text(
+                                              size,
+                                              style: const TextStyle(fontSize: 16),
+                                            ),
+                                          );
+                                        }).toList(),
+                                        onChanged: (String? newValue) {
+                                          setState(() {
+                                            selectedSize = newValue ?? (availableSizes.isNotEmpty ? availableSizes.first : null);
+                                          });
+                                        },
+                                        isExpanded: true,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    
+                                    // Row 2: Unit Size and Price
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade50,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: kTextField(
+                                              _sizeUnitSizeController,
+                                              '10',
+                                              'Unit Size *',
+                                              Field.unit,
+                                              1,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade50,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: kTextField(
+                                              _sizePriceController,
+                                              '1000',
+                                              'Price (₹) *',
+                                              Field.price,
+                                              1,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    
+                                    // Row 3: Discount and Add Button
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade50,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: kTextField(
+                                              _sizeDiscountController,
+                                              '5',
+                                              'Discount (%)',
+                                              Field.discount,
+                                              1,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          flex: 1,
+                                          child: ElevatedButton(
+                                            onPressed: _addOrUpdateSizeEntry,
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: primaryColor,
+                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              elevation: 2,
+                                            ),
+                                            child: const Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(Icons.add_circle_outline, color: Colors.white, size: 20),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  'Add/Update',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                
+                                // Size Entries Table
+                                if (sizeEntries.isNotEmpty) ...[
+                                  const SizedBox(height: 20),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.green.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.green.withOpacity(0.3)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+                                        const SizedBox(width: 8),
+                                        Text(
+                                          'Size Entries (${sizeEntries.length})',
+                                          style: const TextStyle(
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.green,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  SingleChildScrollView(
+                                    scrollDirection: Axis.horizontal,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(color: Colors.grey.shade300),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: DataTable(
+                                        headingRowColor: MaterialStateProperty.all(primaryColor),
+                                        headingTextStyle: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                        ),
+                                        dataRowMinHeight: 50,
+                                        dataRowMaxHeight: 60,
+                                        columns: const [
+                                          DataColumn(label: Text('Size')),
+                                          DataColumn(label: Text('Unit Size')),
+                                          DataColumn(label: Text('Qty')),
+                                          DataColumn(label: Text('Price (₹)')),
+                                          DataColumn(label: Text('Discount %')),
+                                          DataColumn(label: Text('Discount Amt')),
+                                          DataColumn(label: Text('Total (₹)')),
+                                          DataColumn(label: Text('Actions')),
+                                        ],
+                                      rows: sizeEntries.map((entry) {
+                                        final entrySize = entry['size']?.toString() ?? '';
+                                        final price = double.tryParse(entry['price']?.toString() ?? '0') ?? 0.0;
+                                        final discount = double.tryParse(entry['discount']?.toString() ?? '0') ?? 0.0;
+                                        final discountAmount = (price * discount) / 100;
+                                        final total = double.tryParse(entry['total']?.toString() ?? '0') ?? 0.0;
+                                        
+                                        return DataRow(
+                                          cells: [
+                                            DataCell(
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: primaryColor.withOpacity(0.1),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  entrySize,
+                                                  style: const TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 14,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            DataCell(Text(
+                                              entry['unitSize']?.toString() ?? '0',
+                                              style: const TextStyle(fontSize: 14),
+                                            )),
+                                            DataCell(Text(
+                                              entry['qty']?.toString() ?? '0',
+                                              style: const TextStyle(fontSize: 14),
+                                            )),
+                                            DataCell(Text(
+                                              '₹${price.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            )),
+                                            DataCell(Text(
+                                              '${discount.toStringAsFixed(2)}%',
+                                              style: const TextStyle(fontSize: 14),
+                                            )),
+                                            DataCell(Text(
+                                              '₹${discountAmount.toStringAsFixed(2)}',
+                                              style: const TextStyle(fontSize: 14),
+                                            )),
+                                            DataCell(Text(
+                                              '₹${total.toStringAsFixed(2)}',
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.green,
+                                              ),
+                                            )),
+                                            DataCell(
+                                              Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  IconButton(
+                                                    icon: const Icon(Icons.edit, color: primaryColor, size: 20),
+                                                    onPressed: () => _editSizeEntry(entry),
+                                                    tooltip: 'Edit',
+                                                  ),
+                                                  IconButton(
+                                                    icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                                    onPressed: () => _deleteSizeEntry(entrySize),
+                                                    tooltip: 'Delete',
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
+                                  ),
+                                ],
+                              ],
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 30),
 
@@ -1337,7 +2083,7 @@ class _EditProductState extends State<EditProduct> {
                                   ),
                                   _buildPaymentCheckbox(PaymentType.perOrder, isPerOrderEnabled, 'Per Order'),
                                   _buildPaymentCheckbox(PaymentType.onlinePayment, isOnlinePaymentEnabled, 'Online Payment'),
-                                  _buildPaymentCheckbox(PaymentType.cashOnDelivery, isCashOnDeliveryEnabled, 'Cash on Delivery'),
+                                  _buildPaymentCheckbox(PaymentType.cashOnDelivery, isCashOnDeliveryEnabled, 'Cash'),
                                 ],
                               ),
                             ),
@@ -1397,6 +2143,28 @@ class _EditProductState extends State<EditProduct> {
                                         },
                                         subscriptionPlan: plan,
                                         initialEnabledState: widget.productData?['isEnableCustomize'] == 1,
+                                      );
+                                    },
+                                  ),
+                                  FutureBuilder<SubscriptionPlan?>(
+                                    future: _plan3SubscriptionFuture,
+                                    builder: (context, snapshot) {
+                                      SubscriptionPlan? plan;
+                                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
+                                        plan = snapshot.data;
+                                      }
+                                      return _buildSubscriptionToggle(
+                                        isBookingEnabled,
+                                        'Enable Booking',
+                                        (newValue) {
+                                          if (mounted) {
+                                            setState(() {
+                                              isBookingEnabled = newValue ?? false;
+                                            });
+                                          }
+                                        },
+                                        subscriptionPlan: plan,
+                                        initialEnabledState: widget.productData?['isBooking'] == "1",
                                       );
                                     },
                                   ),

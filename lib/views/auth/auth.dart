@@ -164,22 +164,27 @@ class _AuthState extends State<Auth> {
     setState(() {
       isLoading = true;
     });
-    final prefs = await SharedPreferences.getInstance();
-    final userRole = prefs.getString('userRole');
+    if(isLogin){
+      final prefs = await SharedPreferences.getInstance();
+          final userRole = prefs.getString('userRole');
 
-    if (userRole == "3") {
-      // seller account
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        SellerBottomNav.routeName,
-        (route) => false,
-      );
-    } else {
-      // customer account
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        CustomerBottomNav.routeName,
-        (route) => false,
-      );
+          if (userRole == "3") {
+            // seller account
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              SellerBottomNav.routeName,
+              (route) => false,
+            );
+          } else {
+            // customer account
+            Navigator.of(context).pushNamedAndRemoveUntil(
+              CustomerBottomNav.routeName,
+              (route) => false,
+            );
+          }
+    }else {
+      _switchLog();
     }
+    
   }
 
   // handle sign in and  sign up
@@ -247,31 +252,8 @@ class _AuthState extends State<Auth> {
         }
       } else {
         print(_phoneController);
-        // Custom Registration API with timeout
-        final url = Uri.parse('https://nicknameinfo.net/api/auth/register');
-        final response = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({
-            'role': widget.isSellerReg ? "3" : "1",
-            'firstName': _fullnameController.text.trim(),
-            'email': _emailController.text.trim(),
-            'phoneNo': _phoneController.text.trim(),
-            'password': _passwordController.text.trim(),
-            'verify': 1,
-          }),
-        ).timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            throw TimeoutException('Registration request timed out. Please check your internet connection.');
-          },
-        );
 
-        if (response.statusCode == 200) {
-          showSnackBar('Registration successful!');
-          
-          // If this is a seller registration, create the store
-          if (widget.isSellerReg) {
+        if (widget.isSellerReg) {
             try {
               final storeUrl = Uri.parse('https://nicknameinfo.net/api/store/create');
               final storeResponse = await http.post(
@@ -294,7 +276,36 @@ class _AuthState extends State<Auth> {
               );
 
               if (storeResponse.statusCode == 200) {
-                showSnackBar('Store created successfully!');
+                // Parse the store response to get the store ID
+                final storeData = json.decode(storeResponse.body);
+                final storeId = storeData['data']['id'];
+                
+                // Custom Registration API with timeout
+                final url = Uri.parse('https://nicknameinfo.net/api/auth/register');
+                final response = await http.post(
+                  url,
+                  headers: {'Content-Type': 'application/json'},
+                  body: json.encode({
+                    'role': "3",
+                    'firstName': _fullnameController.text.trim(),
+                    'email': _emailController.text.trim(),
+                    'phoneNo': _phoneController.text.trim(),
+                    'password': _passwordController.text.trim(),
+                    'verify': 1,
+                    'storeId': storeId.toString(),
+                  }),
+                ).timeout(
+                  const Duration(seconds: 15),
+                  onTimeout: () {
+                    throw TimeoutException('Registration request timed out. Please check your internet connection.');
+                  },
+                );
+                if (response.statusCode == 200) {
+                  showSnackBar('Registration successful!');
+                  isLoadingFnc();
+                } else {
+                  showSnackBar('Registration failed: ${response.body}');
+                }
               } else {
                 showSnackBar('Store creation failed: ${storeResponse.body}');
               }
@@ -303,11 +314,32 @@ class _AuthState extends State<Auth> {
             } catch (storeError) {
               showSnackBar('Store creation error: $storeError');
             }
-          }
-          
-          isLoadingFnc();
         } else {
-          showSnackBar('Registration failed: ${response.body}');
+          // Custom Registration API with timeout
+            final url = Uri.parse('https://nicknameinfo.net/api/auth/register');
+            final response = await http.post(
+              url,
+              headers: {'Content-Type': 'application/json'},
+              body: json.encode({
+                'role': "1",
+                'firstName': _fullnameController.text.trim(),
+                'email': _emailController.text.trim(),
+                'phoneNo': _phoneController.text.trim(),
+                'password': _passwordController.text.trim(),
+                'verify': 1,
+              }),
+            ).timeout(
+              const Duration(seconds: 15),
+              onTimeout: () {
+                throw TimeoutException('Registration request timed out. Please check your internet connection.');
+              },
+            );
+            if (response.statusCode == 200) {
+              showSnackBar('Registration successful!');
+              isLoadingFnc();
+            } else {
+              showSnackBar('Registration failed: ${response.body}');
+            }
         }
       }
     } on TimeoutException catch (e) {

@@ -33,6 +33,7 @@ class _StoreDetailsState extends State<StoreDetails> {
 
   // State for Cart
   Map<int, int> _cartQuantities = {}; 
+  Map<int, String?> _cartSizes = {}; // Store size from cart for each product
   Set<int> _cartLoadingIds = {};
   late String _userId = ''; // Initialize with an empty string
   // The cart API endpoint for listing is 'https://nicknameinfo.net/api/cart/list/$_userId'
@@ -41,6 +42,12 @@ class _StoreDetailsState extends State<StoreDetails> {
   bool isPerOrder = false;
   bool isOnline = false;
   bool isCOD = false;
+  
+  // Size selection state - Map of productId to selected size
+  Map<int, String?> _selectedSizes = {};
+  Map<int, double> _currentPrices = {};
+  Map<int, int> _currentStocks = {};
+  Map<int, Map<String, dynamic>?> _sizeUnitSizeMaps = {};
 
   @override
   void initState() {
@@ -73,20 +80,26 @@ class _StoreDetailsState extends State<StoreDetails> {
         if (responseData['success'] == true && responseData['data'] is List) {
           final List<dynamic> cartItems = responseData['data'];
           final Map<int, int> fetchedQuantities = {};
+          final Map<int, String?> fetchedSizes = {};
 
           for (var item in cartItems) {
             final int? productId = item['productId'] as int?;
             final int? quantity = item['qty'] as int?;
+            final String? size = item['size']?.toString();
 
             if (productId != null && quantity != null && quantity > 0) {
               fetchedQuantities[productId] = quantity;
+              if (size != null && size.isNotEmpty) {
+                fetchedSizes[productId] = size;
+              }
             }
           }
 
           if (mounted) {
-            // Update the cart quantities state
+            // Update the cart quantities and sizes state
             setState(() {
               _cartQuantities = fetchedQuantities;
+              _cartSizes = fetchedSizes;
             });
           }
         } else {
@@ -175,6 +188,8 @@ class _StoreDetailsState extends State<StoreDetails> {
                currentIndex = foundIndex;
                isLoading = false;
              });
+             // Initialize size data for all products (after cart is loaded to use cart sizes)
+             _initializeSizeDataForProducts();
            }
         } else {
            String errorMsg = '';
@@ -282,6 +297,72 @@ class _StoreDetailsState extends State<StoreDetails> {
     }
   }
 
+  // Initialize size data for all products
+  void _initializeSizeDataForProducts() {
+    for (var item in products) {
+      if (item['product'] != null && item['product'] is Map) {
+        final product = item['product'] as Map<String, dynamic>;
+        final productId = product['id'] as int?;
+        if (productId != null) {
+          try {
+            final sizeUnitSizeMapStr = product['sizeUnitSizeMap'];
+            Map<String, dynamic>? sizeMap;
+            
+            if (sizeUnitSizeMapStr != null && sizeUnitSizeMapStr is String) {
+              sizeMap = json.decode(sizeUnitSizeMapStr) as Map<String, dynamic>?;
+            } else if (sizeUnitSizeMapStr is Map) {
+              sizeMap = Map<String, dynamic>.from(sizeUnitSizeMapStr);
+            }
+            
+            _sizeUnitSizeMaps[productId] = sizeMap;
+            
+            // Set default size (first available or from cart)
+            if (sizeMap != null && sizeMap.isNotEmpty) {
+              // Check cart for existing size (prioritize cart size)
+              final cartSize = _cartSizes[productId] ?? product['size']?.toString();
+              if (cartSize != null && sizeMap.containsKey(cartSize)) {
+                _selectedSizes[productId] = cartSize;
+              } else {
+                _selectedSizes[productId] = sizeMap.keys.first;
+              }
+              _updatePriceAndStockForProduct(productId, product);
+            } else {
+              // Fallback to default product price and stock
+              _currentPrices[productId] = double.tryParse(product['total']?.toString() ?? 
+                                                          product['price']?.toString() ?? '0') ?? 0.0;
+              _currentStocks[productId] = int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
+            }
+          } catch (e) {
+            debugPrint('Error initializing size data for product $productId: $e');
+          }
+        }
+      }
+    }
+  }
+  
+  // Update price and stock based on selected size for a product
+  void _updatePriceAndStockForProduct(int productId, Map<String, dynamic> product) {
+    final selectedSize = _selectedSizes[productId];
+    final sizeMap = _sizeUnitSizeMaps[productId];
+    
+    if (selectedSize != null && sizeMap != null) {
+      final sizeData = sizeMap[selectedSize];
+      if (sizeData is Map) {
+        _currentPrices[productId] = double.tryParse(sizeData['price']?.toString() ?? 
+                                                    sizeData['total']?.toString() ?? 
+                                                    sizeData['grandTotal']?.toString() ?? 
+                                                    product['total']?.toString() ?? 
+                                                    product['price']?.toString() ?? '0') ?? 0.0;
+        _currentStocks[productId] = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
+      }
+    } else {
+      // Fallback to default product price and stock
+      _currentPrices[productId] = double.tryParse(product['total']?.toString() ?? 
+                                                 product['price']?.toString() ?? '0') ?? 0.0;
+      _currentStocks[productId] = int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
+    }
+  }
+
   Future<void> _addToCart(Map<String, dynamic> product) async {
     final int? productIdRaw = product['id'] as int?;
     if (productIdRaw == null) {
@@ -291,9 +372,29 @@ class _StoreDetailsState extends State<StoreDetails> {
     }
     final int productId = productIdRaw;
     final int currentQuantity = _cartQuantities[productId] ?? 0;
+    
+    // Stock validation
+    final availableStock = _currentStocks[productId] ?? int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
+    
+    if (currentQuantity >= availableStock) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Only $availableStock items available in stock')),
+      );
+      return;
+    }
+    
     final int newQuantity = currentQuantity + 1;
+    
+    // Include size in product data
+    final productWithSize = Map<String, dynamic>.from(product);
+    final selectedSize = _selectedSizes[productId];
+    if (selectedSize != null) {
+      productWithSize['size'] = selectedSize;
+      productWithSize['price'] = _currentPrices[productId] ?? double.tryParse(product['total']?.toString() ?? product['price']?.toString() ?? '0') ?? 0.0;
+      productWithSize['total'] = _currentPrices[productId] ?? double.tryParse(product['total']?.toString() ?? product['price']?.toString() ?? '0') ?? 0.0;
+    }
 
-    await _updateCart(productId, newQuantity, product, isAdd: true);
+    await _updateCart(productId, newQuantity, productWithSize, isAdd: true);
   }
 
   Future<void> _incrementQuantity(int productId) async {
@@ -302,8 +403,29 @@ class _StoreDetailsState extends State<StoreDetails> {
 
      if(productData != null) {
        final int currentQuantity = _cartQuantities[productId] ?? 0;
+       
+       // Stock validation
+       final availableStock = _currentStocks[productId] ?? int.tryParse(productData['unitSize']?.toString() ?? '0') ?? 0;
+       
+       if (currentQuantity >= availableStock) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Only $availableStock items available in stock')),
+         );
+         return;
+       }
+       
        final int newQuantity = currentQuantity + 1;
-       await _updateCart(productId, newQuantity, productData, isAdd: false);
+       
+       // Include size in product data
+       final productWithSize = Map<String, dynamic>.from(productData);
+       final selectedSize = _selectedSizes[productId];
+       if (selectedSize != null) {
+         productWithSize['size'] = selectedSize;
+         productWithSize['price'] = _currentPrices[productId] ?? double.tryParse(productData['total']?.toString() ?? productData['price']?.toString() ?? '0') ?? 0.0;
+         productWithSize['total'] = _currentPrices[productId] ?? double.tryParse(productData['total']?.toString() ?? productData['price']?.toString() ?? '0') ?? 0.0;
+       }
+       
+       await _updateCart(productId, newQuantity, productWithSize, isAdd: false);
      } else {
         debugPrint("Could not find product data to increment quantity for ID: $productId");
      }
@@ -321,7 +443,17 @@ class _StoreDetailsState extends State<StoreDetails> {
        debugPrint("Could not find product data to decrement quantity for ID: $productId");
        return;
      }
-     await _updateCart(productId, newQuantity, productData, isAdd: false);
+     
+     // Include size in product data
+     final productWithSize = Map<String, dynamic>.from(productData);
+     final selectedSize = _selectedSizes[productId];
+     if (selectedSize != null) {
+       productWithSize['size'] = selectedSize;
+       productWithSize['price'] = _currentPrices[productId] ?? double.tryParse(productData['total']?.toString() ?? productData['price']?.toString() ?? '0') ?? 0.0;
+       productWithSize['total'] = _currentPrices[productId] ?? double.tryParse(productData['total']?.toString() ?? productData['price']?.toString() ?? '0') ?? 0.0;
+     }
+     
+     await _updateCart(productId, newQuantity, productWithSize, isAdd: false);
   }
 
   Widget buildStoreHeader() {
@@ -564,7 +696,7 @@ Widget buildProductCard(Map<String, dynamic> item) {
                 },
                 child: ClipRRect( /* ... Image ... */
                   borderRadius: const BorderRadius.only( topRight: Radius.circular(16), topLeft: Radius.circular(16)),
-                  child: Image.network( photoUrl ?? 'https://via.placeholder.com/300x200.png?text=Product', height: 160, width: double.infinity, fit: BoxFit.cover,
+                  child: Image.network( photoUrl ?? 'https://via.placeholder.com/300x200.png?text=Product', height: 200, width: double.infinity, fit: BoxFit.contain,
                     errorBuilder: (context, error, stackTrace) => Container( height: 160, width: double.infinity, decoration: BoxDecoration( color: Colors.grey[200], borderRadius: const BorderRadius.only( topRight: Radius.circular(16), topLeft: Radius.circular(16))), child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 50)),
                   ),
                 ),
@@ -579,13 +711,74 @@ Widget buildProductCard(Map<String, dynamic> item) {
                 Text(productName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
                 Row( /* ... Price and Stock ... */ crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text("₹$priceDisplay", style: const TextStyle(color: Colors.blue, fontSize: 14, fontWeight: FontWeight.bold)),
+                    Text("₹${(_currentPrices[productId] ?? finalPrice).toStringAsFixed(0)}", style: const TextStyle(color: Colors.blue, fontSize: 14, fontWeight: FontWeight.bold)),
                      const SizedBox(width: 8),
-                    if (priceString != totalString) Text("₹$discount", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough)),
+                    Builder(
+                      builder: (context) {
+                        final currentPrice = _currentPrices[productId] ?? finalPrice;
+                        final originalPrice = double.tryParse(priceString) ?? 0.0;
+                        if (priceString != totalString && currentPrice < originalPrice) {
+                          return Text("₹$priceString", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough));
+                        }
+                        return const SizedBox.shrink();
+                      },
+                    ),
                     const Spacer(),
-                    Text( int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "$stockQty Stocks", style: TextStyle( color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
+                    Text( int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "${_currentStocks[productId] ?? int.tryParse(stockQty) ?? 0} Stocks", style: TextStyle( color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
                   ],
                 ),
+                
+                // Size Selection UI
+                if (_sizeUnitSizeMaps[productId] != null && _sizeUnitSizeMaps[productId]!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Size:',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _sizeUnitSizeMaps[productId]!.keys.map((size) {
+                      final sizeData = _sizeUnitSizeMaps[productId]![size];
+                      final isSelected = _selectedSizes[productId] == size;
+                      final unitSize = sizeData is Map 
+                          ? sizeData['unitSize']?.toString() ?? ''
+                          : '';
+                      
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _selectedSizes[productId] = size;
+                            _updatePriceAndStockForProduct(productId, product);
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: isSelected ? primaryColor : Colors.transparent,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: isSelected ? primaryColor : Colors.grey.shade300,
+                              width: isSelected ? 2 : 1,
+                            ),
+                          ),
+                          child: Text(
+                            unitSize.isNotEmpty ? '$size: $unitSize' : size,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                              color: isSelected ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Row( /* ... Payment/Order Info & Quantity/Add Button ... */ mainAxisAlignment: MainAxisAlignment.spaceBetween, crossAxisAlignment: CrossAxisAlignment.start, children: [
                      Column(
@@ -618,11 +811,12 @@ Widget buildProductCard(Map<String, dynamic> item) {
                           final checkoutProduct = {
                             'productId': productIdRaw,
                             'name': productName,
-                            'price': finalPrice, // Use the parsed numeric price
+                            'price': (_currentPrices[productId] ?? finalPrice), // Use size-based price if available
                             'qty': 1, // Default quantity for "Buy Now"
                             'storeId': widget.storeId, // Pass the storeId
                             'photo': photoUrl, // Pass photo for summary
                             'isBooking': isBooking, // Pass booking status
+                            if (_selectedSizes[productId] != null) 'size': _selectedSizes[productId],
                           };
                           // --- ⭐️ END: MODIFICATION ---
                           

@@ -5,6 +5,55 @@ import 'package:nickname_portal/models/subscription_model.dart';
 import 'package:nickname_portal/helpers/subscription_service.dart'; // Assumed service for fetching data
 import 'package:nickname_portal/components/subscription_card.dart' hide SubscriptionService;
 
+// Helper function to build Book Service features widget
+Widget _buildBookServiceFeatures() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      const Text(
+        'Key Features:',
+        style: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: Colors.black87,
+        ),
+      ),
+      const SizedBox(height: 8),
+      _buildFeatureItem('Unlimited Service Booking'),
+      _buildFeatureItem('No Commission'),
+      _buildFeatureItem('Booking Support'),
+      _buildFeatureItem('Store Branding'),
+    ],
+  );
+}
+
+// Helper function to build individual feature items
+Widget _buildFeatureItem(String text) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8.0),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Icon(
+          Icons.check_circle,
+          color: Colors.green,
+          size: 18,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 13,
+              color: Colors.black87,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 final List<SubscriptionCategory> subscriptionData = [
   SubscriptionCategory(
     key: "Plan1",
@@ -18,6 +67,7 @@ final List<SubscriptionCategory> subscriptionData = [
       SubscriptionPlan(name: "Premium Plus with Billing", key: "PL1_005", price: 17.0, basePrice: 9999.0, defaultValue: 1),
     ],
   ),
+  
   SubscriptionCategory(
     key: "Plan2",
     name: "Product Customization",
@@ -28,12 +78,17 @@ final List<SubscriptionCategory> subscriptionData = [
   ),
   SubscriptionCategory(
     key: "Plan3",
-    name: "Add's (Advertisements)",
-    commingSoon: true,
+    name: "Book Service",
+    commingSoon: false,
     plans: [
-      SubscriptionPlan(name: "Weekly", key: "PL3_001", price: 40.0, defaultValue: 1),
-      SubscriptionPlan(name: "Monthly", key: "PL3_002", price: 140.0, defaultValue: 1),
-      SubscriptionPlan(name: "Yearly", key: "PL3_003", price: 1780.0, defaultValue: 1),
+      SubscriptionPlan(
+        name: "Starter", 
+        key: "PL3_001", 
+        price: 1999.0, 
+        defaultValue: 1,
+        label: "Enter number of item",
+        discription: _buildBookServiceFeatures(),
+      ),
     ],
   ),
   SubscriptionCategory(key: "five", name: "Customer Support for Product", commingSoon: true),
@@ -88,6 +143,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           _subscriptionFutures = {
             'Plan1': errorFuture,
             'Plan2': errorFuture,
+            'Plan3': errorFuture,
           };
         }
       });
@@ -157,7 +213,6 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           padding: const EdgeInsets.only(top: 8.0),
           child: ExpansionTile(
             title: Text(subscription.name),
-            initiallyExpanded: subscription.key == 'Plan1',
             collapsedBackgroundColor: AppColors.cardBackground,
             backgroundColor: AppColors.cardBackground,
             childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),

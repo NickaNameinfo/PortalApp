@@ -119,11 +119,15 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                         itemBuilder: (context, index) {
                           var item = snapshot.data![index];
                           return GestureDetector(
-                            onTap: () => Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (context) => DetailsScreen(product: item['product']),
-                              ),
-                            ),
+                            onTap: () {
+                              if (item['product'] != null) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => DetailsScreen(product: item['product']),
+                                  ),
+                                );
+                              }
+                            },
                             child: Dismissible(
                               onDismissed: (direction) => removeProduct(item['id'].toString()),
                               direction: DismissDirection.endToStart,
@@ -144,9 +148,9 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                               confirmDismiss: (direction) => showDialog(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  title: Text('Remove ${item['product']['name']}'),
+                                  title: Text('Remove ${item['product']?['name']?.toString() ?? 'Product'}'),
                                   content: Text(
-                                    'Are you sure you want to remove ${item['product']['name']} from your products?',
+                                    'Are you sure you want to remove ${item['product']?['name']?.toString() ?? 'this product'} from your products?',
                                   ),
                                   actions: [
                                     ElevatedButton(
@@ -195,15 +199,20 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                                   leading: CircleAvatar(
                                     backgroundColor: primaryColor,
                                     radius: 35,
-                                    backgroundImage: NetworkImage(item['product']['photo']),
+                                    backgroundImage: item['product']?['photo'] != null && item['product']['photo'].toString().isNotEmpty
+                                        ? NetworkImage(item['product']['photo'].toString())
+                                        : null,
+                                    child: item['product']?['photo'] == null || item['product']['photo'].toString().isEmpty
+                                        ? const Icon(Icons.image, color: Colors.white)
+                                        : null,
                                   ),
                                   title: Text(
-                                    item['product']['name'],
+                                    item['product']?['name']?.toString() ?? 'Unnamed Product',
                                     style: const TextStyle(
                                       fontSize: 16,
                                     ),
                                   ),
-                                  subtitle: Text('\RS: ${item['product']['price']}'),
+                                  subtitle: Text('RS: ${item['product']?['price']?.toString() ?? '0'}'),
                                   trailing: IconButton(
                                     onPressed: () => Navigator.of(context).push(
                                       MaterialPageRoute(

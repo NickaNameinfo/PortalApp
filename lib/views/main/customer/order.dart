@@ -20,6 +20,10 @@ class CustomerOrderScreen extends StatefulWidget {
 class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
   Future<List<dynamic>>? _ordersFuture;
   late String _userId = '';
+  String? _selectedStatus;
+  DateTime? _startDate;
+  DateTime? _endDate;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -46,6 +50,66 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
       }
     }
     return [];
+  }
+  
+  List<dynamic> _filterOrders(List<dynamic> orders) {
+    var filtered = orders;
+    
+    // Status filter
+    if (_selectedStatus != null && _selectedStatus!.isNotEmpty && _selectedStatus != 'All') {
+      filtered = filtered.where((order) {
+        final status = order['status']?.toString().toLowerCase() ?? '';
+        return status == _selectedStatus!.toLowerCase();
+      }).toList();
+    }
+    
+    // Date filter
+    if (_startDate != null) {
+      filtered = filtered.where((order) {
+        try {
+          final orderDate = DateTime.parse(order['createdAt'] ?? order['deliverydate'] ?? '');
+          return orderDate.isAfter(_startDate!.subtract(const Duration(days: 1))) ||
+                 orderDate.isAtSameMomentAs(_startDate!);
+        } catch (e) {
+          return false;
+        }
+      }).toList();
+    }
+    
+    if (_endDate != null) {
+      filtered = filtered.where((order) {
+        try {
+          final orderDate = DateTime.parse(order['createdAt'] ?? order['deliverydate'] ?? '');
+          return orderDate.isBefore(_endDate!.add(const Duration(days: 1))) ||
+                 orderDate.isAtSameMomentAs(_endDate!);
+        } catch (e) {
+          return false;
+        }
+      }).toList();
+    }
+    
+    // Search filter
+    if (_searchController.text.isNotEmpty) {
+      final searchLower = _searchController.text.toLowerCase();
+      filtered = filtered.where((order) {
+        return (order['id']?.toString() ?? '').contains(searchLower) ||
+               (order['status']?.toString().toLowerCase() ?? '').contains(searchLower) ||
+               (order['grandtotal']?.toString() ?? '').contains(searchLower);
+      }).toList();
+    }
+    
+    return filtered;
+  }
+  
+  List<String> _getUniqueStatuses(List<dynamic> orders) {
+    final statuses = <String>{'All'};
+    for (var order in orders) {
+      final status = order['status']?.toString();
+      if (status != null && status.isNotEmpty) {
+        statuses.add(status);
+      }
+    }
+    return statuses.toList();
   }
 
   void _navigateToDetails(Map<String, dynamic> product) {
@@ -117,89 +181,236 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
                 }
 
                 final orders = snapshot.data ?? [];
+                final filteredOrders = _filterOrders(orders);
+                final uniqueStatuses = _getUniqueStatuses(orders);
 
-                if (orders.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Image.asset('assets/images/sad.png', width: 120),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'No orders to display',
-                          style: TextStyle(
-                            color: primaryColor,
-                            fontWeight: FontWeight.bold,
+                return Column(
+                  children: [
+                    // Filter Section
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 4,
+                            offset: const Offset(0, 2),
                           ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                return RefreshIndicator(
-                  onRefresh: _refreshOrders, // ✅ Pull-to-refresh support
-                  child: 
-                  ListView.builder(
-                    itemCount: orders.length,
-                    itemBuilder: (context, index) {
-                      final order = orders[index];
-                      final orderDate = intl.DateFormat.yMMMEd().format(
-                        DateTime.parse(order['createdAt']),
-                      );
-                      final products = order['products'] as List<dynamic>;
-
-                      return Card(
-                        elevation: 3,
-                        margin: const EdgeInsets.symmetric(
-                            vertical: 6, horizontal: 8),
-                        child: ExpansionTile(
-                          leading: const CircleAvatar(
-                            backgroundColor: Colors.white,
-                            child: Icon(
-                              Icons.shopping_bag_outlined,
-                              color: primaryColor,
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Search Bar
+                          TextField(
+                            controller: _searchController,
+                            decoration: InputDecoration(
+                              hintText: 'Search orders...',
+                              prefixIcon: const Icon(Icons.search),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                borderSide: BorderSide(color: Colors.grey[300]!),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                             ),
+                            onChanged: (value) => setState(() {}),
                           ),
-                          title: Text(
-                            'Order #${order['id']} - ${order['status']}',
-                            style: const TextStyle(color: Colors.black),
-                          ),
-                          subtitle: Text(
-                            '₹${order['grandtotal']}  •  $orderDate',
-                            style: const TextStyle(color: Colors.black54),
-                          ),
-                          iconColor: primaryColor,
-                          children: products.map((prod) {
-                            return ListTile(
-                              onTap: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => NewProductDetailsScreen(product: prod),
+                          const SizedBox(height: 12),
+                          // Status Filter
+                          Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  value: _selectedStatus ?? 'All',
+                                  decoration: InputDecoration(
+                                    labelText: 'Status',
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                                   ),
-                                );
-                              },
-                              leading: CircleAvatar(
-                                backgroundColor: Colors.white,
-                                backgroundImage: NetworkImage(prod['photo']),
+                                  items: uniqueStatuses.map((status) {
+                                    return DropdownMenuItem(
+                                      value: status,
+                                      child: Text(status),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedStatus = value;
+                                    });
+                                  },
+                                ),
                               ),
-                              title: Text(
-                                prod['name'] ?? '',
-                                style: const TextStyle(fontSize: 16),
+                              const SizedBox(width: 12),
+                              // Date Filters
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final DateTime? picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: _startDate ?? DateTime.now(),
+                                      firstDate: DateTime(2020),
+                                      lastDate: DateTime.now(),
+                                    );
+                                    if (picked != null) {
+                                      setState(() {
+                                        _startDate = picked;
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(Icons.calendar_today, size: 18),
+                                  label: Text(_startDate == null 
+                                      ? 'Start Date' 
+                                      : '${_startDate!.day}/${_startDate!.month}/${_startDate!.year}'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: primaryColor,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
                               ),
-                              subtitle: Text(
-                                'Qty: ${prod['qty']} • ₹${prod['price']}',
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () async {
+                                    final DateTime? picked = await showDatePicker(
+                                      context: context,
+                                      initialDate: _endDate ?? DateTime.now(),
+                                      firstDate: _startDate ?? DateTime(2020),
+                                      lastDate: DateTime.now(),
+                                    );
+                                    if (picked != null) {
+                                      setState(() {
+                                        _endDate = picked;
+                                      });
+                                    }
+                                  },
+                                  icon: const Icon(Icons.calendar_today, size: 18),
+                                  label: Text(_endDate == null 
+                                      ? 'End Date' 
+                                      : '${_endDate!.day}/${_endDate!.month}/${_endDate!.year}'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: primaryColor,
+                                    foregroundColor: Colors.white,
+                                  ),
+                                ),
                               ),
-                              trailing: const Icon(
-                                Icons.chevron_right,
-                                color: primaryColor,
+                            ],
+                          ),
+                          if (_startDate != null || _endDate != null || (_selectedStatus != null && _selectedStatus != 'All'))
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Showing ${filteredOrders.length} of ${orders.length} orders',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                  TextButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        _selectedStatus = null;
+                                        _startDate = null;
+                                        _endDate = null;
+                                        _searchController.clear();
+                                      });
+                                    },
+                                    child: const Text('Clear Filters'),
+                                  ),
+                                ],
                               ),
-                            );
-                          }).toList(),
-                        ),
-                      );
-                    },
-                  ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // Orders List
+                    Expanded(
+                      child: filteredOrders.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Image.asset('assets/images/sad.png', width: 120),
+                                  const SizedBox(height: 10),
+                                  const Text(
+                                    'No orders found',
+                                    style: TextStyle(
+                                      color: primaryColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : RefreshIndicator(
+                              onRefresh: _refreshOrders,
+                              child: ListView.builder(
+                                itemCount: filteredOrders.length,
+                                itemBuilder: (context, index) {
+                                  final order = filteredOrders[index];
+                                  final orderDate = intl.DateFormat.yMMMEd().format(
+                                    DateTime.parse(order['createdAt']),
+                                  );
+                                  final products = order['products'] as List<dynamic>;
+
+                                  return Card(
+                                    elevation: 3,
+                                    margin: const EdgeInsets.symmetric(
+                                        vertical: 6, horizontal: 8),
+                                    child: ExpansionTile(
+                                      leading: const CircleAvatar(
+                                        backgroundColor: Colors.white,
+                                        child: Icon(
+                                          Icons.shopping_bag_outlined,
+                                          color: primaryColor,
+                                        ),
+                                      ),
+                                      title: Text(
+                                        'Order #${order['id']} - ${order['status']}',
+                                        style: const TextStyle(color: Colors.black),
+                                      ),
+                                      subtitle: Text(
+                                        '₹${order['grandtotal']}  •  $orderDate',
+                                        style: const TextStyle(color: Colors.black54),
+                                      ),
+                                      iconColor: primaryColor,
+                                      children: products.map((prod) {
+                                        return ListTile(
+                                          onTap: () {
+                                            Navigator.of(context).push(
+                                              MaterialPageRoute(
+                                                builder: (context) => NewProductDetailsScreen(product: prod),
+                                              ),
+                                            );
+                                          },
+                                          leading: CircleAvatar(
+                                            backgroundColor: Colors.white,
+                                            backgroundImage: NetworkImage(prod['photo']),
+                                          ),
+                                          title: Text(
+                                            prod['name'] ?? '',
+                                            style: const TextStyle(fontSize: 16),
+                                          ),
+                                          // subtitle: Text(
+                                          //   'Qty: ${prod['qty']} • ₹${prod['price']}',
+                                          // ),
+                                          // trailing: const Icon(
+                                          //   Icons.chevron_right,
+                                          //   color: primaryColor,
+                                          // ),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                    ),
+                  ],
                 );
               },
             ),

@@ -7,6 +7,7 @@ import 'dashboard_screens/statistics.dart';
 import 'dashboard_screens/store_setup.dart';
 import 'dashboard_screens/upload_product.dart';
 import 'dashboard_screens/subscription_screen.dart';
+import 'dashboard_screens/billing_list_screen.dart';
 class DashboardScreen extends StatelessWidget {
   DashboardScreen({super.key});
 
@@ -31,6 +32,11 @@ class DashboardScreen extends StatelessWidget {
       'title': 'Orders',
       'icon': Icons.shopping_bag_outlined, // Modern icon
       'routeName': OrdersScreen.routeName,
+    },
+    {
+      'title': 'Billing (Only for subscribed stores)',
+      'icon': Icons.receipt_long_outlined, // Modern icon
+      // 'routeName': '/billing-list',
     },
     {
       'title': 'Statistics (Coming Soon)',
@@ -71,7 +77,22 @@ class DashboardScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final item = menuList[index];
                 return GestureDetector(
-                  onTap: () => Navigator.of(context).pushNamed(item['routeName'], arguments: {'customerId': 'temp_customer_id', 'subscriptionType': 'Plan1'}),
+                  onTap: () {
+                    if (item['routeName'] != null) {
+                      if (item['routeName'] == '/billing-list') {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (context) => const BillingListScreen(),
+                          ),
+                        );
+                      } else {
+                        Navigator.of(context).pushNamed(
+                          item['routeName'], 
+                          arguments: {'customerId': 'temp_customer_id', 'subscriptionType': 'Plan1'}
+                        );
+                      }
+                    }
+                  },
                   child: Card(
                     // Modern elevated card style
                     elevation: 10,
