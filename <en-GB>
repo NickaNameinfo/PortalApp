@@ -1,0 +1,13 @@
+<en-GB>
+🎯 Enhanced User Experience:
+• Improved login flow with account type selection (Customer/Seller)
+⭐ New Features:
+• Product Feedback System: Rate products (1-5 stars) and leave detailed feedback
+• Enhanced Size Selection: Better UI for selecting product sizes with size-specific pricing
+
+🚀 Performance & Navigation:
+• Fixed navigation issues - proper routing after login
+• Faster app startup for logged-in users
+🐛 Bug Fixes:
+• Fixed navigation showing incorrect screens
+</en-GB>

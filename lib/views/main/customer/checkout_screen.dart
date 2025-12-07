@@ -14,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
 import 'package:nickname_portal/helpers/checkout_api_helper.dart'; // Our new helper
 import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/utilities/auth_helper.dart';
 
 
 // --- MOCK DEFINITIONS (from your code) ---
@@ -58,6 +59,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // --- New State Variables for Payment Logic ---
   late Razorpay _razorpay;
   bool _isLoading = false;
+  bool _hasCheckedAuth = false; // Flag to prevent multiple auth checks
   
   // To pass data to the Razorpay success callback
   Map<String, dynamic>? _pendingApiParams;
@@ -74,13 +76,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _cartItems = [widget.product!];
     }
     
-    _loadUserId();
-    
-    // --- Initialize Razorpay ---
+    // Initialize Razorpay first
     _razorpay = Razorpay();
     _razorpay.on(Razorpay.EVENT_PAYMENT_SUCCESS, _handlePaymentSuccess);
     _razorpay.on(Razorpay.EVENT_PAYMENT_ERROR, _handlePaymentError);
     _razorpay.on(Razorpay.EVENT_EXTERNAL_WALLET, _handleExternalWallet);
+    
+    // Check auth after a small delay to ensure context is ready
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_hasCheckedAuth) {
+        _checkAuthAndLoad();
+      }
+    });
+  }
+  
+  Future<void> _checkAuthAndLoad() async {
+    if (_hasCheckedAuth) return; // Prevent multiple checks
+    _hasCheckedAuth = true;
+    
+    // Check if user is logged in
+    final isLoggedIn = await AuthHelper.isUserLoggedIn();
+    
+    if (!isLoggedIn && mounted) {
+      // Show login dialog only once
+      final shouldLogin = await AuthHelper.showLoginDialog(
+        context,
+        message: 'Please login to proceed with checkout.',
+      );
+      
+      if (shouldLogin) {
+        // User navigated to login screen, dialog is already dismissed
+        // Don't do anything here, let the login screen handle navigation
+        // When user comes back, we'll check auth again
+        _hasCheckedAuth = false; // Reset flag so we can check again when screen resumes
+      } else {
+        // User cancelled, navigate back
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+        return;
+      }
+    } else if (mounted) {
+      _loadUserId();
+    }
   }
 
   @override
@@ -106,14 +144,42 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _userId = (prefs.getString('userId') ?? '0');
     });
     
-    if (_userId != '0') {
+    if (_userId != '0' && _userId.isNotEmpty) {
       await _fetchAddresses();
       // Only fetch cart items if no direct product was passed
       if (widget.product == null) {
         await _fetchCartItems();
       }
     } else {
-      showErrorMessage(context, "User not logged in.");
+      // User not logged in - show login dialog
+      if (mounted) {
+        final shouldLogin = await AuthHelper.showLoginDialog(
+          context,
+          message: 'Please login to proceed with checkout.',
+        );
+        if (shouldLogin) {
+          // Wait for login and reload
+          await Future.delayed(const Duration(milliseconds: 500));
+          if (mounted) {
+            final updatedPrefs = await SharedPreferences.getInstance();
+            final updatedUserId = updatedPrefs.getString('userId') ?? '0';
+            if (updatedUserId != '0' && updatedUserId.isNotEmpty) {
+              setState(() {
+                _userId = updatedUserId;
+              });
+              await _fetchAddresses();
+              if (widget.product == null) {
+                await _fetchCartItems();
+              }
+            }
+          }
+        } else {
+          // User cancelled, navigate back
+          if (mounted) {
+            Navigator.of(context).pop();
+          }
+        }
+      }
     }
     setState(() { _isLoading = false; });
   }
@@ -145,6 +211,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _addAddress() async {
+    // Check if user is logged in
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to add an address.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0' || updatedUserId.isEmpty) {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+    });
+    
     if (!_validateAddressForm()) {
       setState(() {}); // Update UI to show errors
       showErrorMessage(context, 'Please fill all required fields correctly.');
@@ -324,6 +411,27 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
   
   Future<void> _handlePlaceOrder() async {
+    // Check if user is logged in
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to place an order.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0' || updatedUserId.isEmpty) {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+    });
+    
     // Cart validation
     if (_cartItems.isEmpty) {
       showErrorMessage(context, 'Your cart is empty.');
@@ -702,6 +810,25 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Check auth again when screen resumes (e.g., after login)
+    if (mounted && _hasCheckedAuth) {
+      // Re-check auth status when screen resumes
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        if (mounted) {
+          final isLoggedIn = await AuthHelper.isUserLoggedIn();
+          if (isLoggedIn && (_userId == '0' || _userId.isEmpty)) {
+            // User just logged in, reload data
+            _hasCheckedAuth = false; // Reset to allow re-check
+            _loadUserId();
+          }
+        }
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     // Wrap with Stack to show loading overlay
     return Scaffold(
@@ -873,42 +1000,68 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               fieldKey: 'states',
             ),
             const SizedBox(height: 20),
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.grey[200],
-                      foregroundColor: Colors.black87,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+            // Show login message if user is not logged in
+            if (_userId == '0' || _userId.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.orange[700], size: 24),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Please login to add or update addresses',
+                        style: TextStyle(
+                          color: Colors.orange[900],
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
-                    icon: const Icon(Icons.add, size: 20),
-                    onPressed: _addAddress,
-                    label: const Text('Add Address', style: TextStyle(fontWeight: FontWeight.w600)),
-                  ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey[200],
+                        foregroundColor: Colors.black87,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      elevation: 0,
+                      icon: const Icon(Icons.add, size: 20),
+                      onPressed: _addAddress,
+                      label: const Text('Add Address', style: TextStyle(fontWeight: FontWeight.w600)),
                     ),
-                    icon: const Icon(Icons.edit, size: 20),
-                    onPressed: _updateAddress,
-                    label: const Text('Update Address', style: TextStyle(fontWeight: FontWeight.w600)),
                   ),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      icon: const Icon(Icons.edit, size: 20),
+                      onPressed: _updateAddress,
+                      label: const Text('Update Address', style: TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+                ],
+              ),
           ],
         ),
       ),

@@ -9,6 +9,8 @@ import 'package:nickname_portal/views/auth/account_type_selector.dart';
 import 'package:nickname_portal/views/main/customer/edit_profile.dart';
 import 'package:nickname_portal/components/k_list_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nickname_portal/views/auth/auth.dart';
+import 'package:nickname_portal/views/main/customer/customer_bottom_nav.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -24,6 +26,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Map<String, dynamic>? credential;
   var isLoading = true;
   var isInit = true;
+  bool _isLoggedIn = false;
+  bool _isFetching = false; // Flag to prevent concurrent API calls
 
  @override
   void initState() {
@@ -31,63 +35,242 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadUserId();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh login status and fetch data when screen becomes visible
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _refreshProfileData();
+      }
+    });
+  }
+
+  // Method to refresh profile data when screen becomes visible
+  Future<void> _refreshProfileData() async {
+    // Prevent concurrent calls
+    if (_isFetching) {
+      debugPrint('Already fetching profile data, skipping refresh...');
+      return;
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId') ?? '0';
+    final userRole = prefs.getString('userRole');
+    
+    debugPrint('_refreshProfileData - userId: $userId, userRole: $userRole');
+    
+    // Check if user is logged in - if userId exists and is not '0', consider logged in
+    bool isLoggedIn = false;
+    if (userId.isNotEmpty && userId != '0') {
+      isLoggedIn = true;
+    }
+    
+    debugPrint('_refreshProfileData - isLoggedIn: $isLoggedIn');
+    
+    if (mounted) {
+      // Update state
+      setState(() {
+        _userId = userId;
+        _isLoggedIn = isLoggedIn;
+      });
+      
+      // Always fetch user details if userId is valid (refresh data when coming to profile)
+      // This ensures data is fresh every time user navigates to profile screen
+      if (userId != '0' && userId.isNotEmpty) {
+        debugPrint('Refreshing profile data for userId: $userId');
+        await _fetchUserDetails();
+      } else {
+        debugPrint('Not refreshing - userId is invalid: $userId');
+        setState(() {
+          credential = null;
+          isLoading = false;
+        });
+      }
+    }
+  }
+
+  // Quick method to check and update login status without full reload
+  Future<void> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId') ?? '0';
+    final userRole = prefs.getString('userRole');
+    
+    bool isLoggedIn = false;
+    if (userId.isNotEmpty && 
+        userId != '0' &&
+        userRole != null &&
+        (userRole == '1' || userRole == '2')) {
+      isLoggedIn = true;
+    }
+    
+    if (mounted) {
+      // Update state if login status changed
+      if (_isLoggedIn != isLoggedIn || _userId != userId) {
+        setState(() {
+          _isLoggedIn = isLoggedIn;
+          _userId = userId;
+        });
+      }
+      
+      // If logged in and we don't have user data, fetch it
+      if (isLoggedIn && credential == null && userId != '0' && !_isFetching) {
+        await _fetchUserDetails();
+      } else if (!isLoggedIn) {
+        setState(() {
+          credential = null;
+          isLoading = false;
+        });
+      }
+    }
+  }
+
   Future<void> _loadUserId() async {
     final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _userId = (prefs.getString('userId') ?? '0'); // Default to "0" or handle as needed
-      _fetchUserDetails(); // Call _fetchUserDetails after _userId is loaded
-    });
+    final userId = prefs.getString('userId') ?? '0';
+    final userRole = prefs.getString('userRole');
+    
+    debugPrint('_loadUserId - userId: $userId, userRole: $userRole');
+    
+    // Check if user is logged in - if userId exists and is not '0', consider logged in
+    // Role check is less strict - we'll fetch data if userId is valid
+    bool isLoggedIn = false;
+    if (userId.isNotEmpty && userId != '0') {
+      // If role is specified, check it, otherwise just check userId
+      if (userRole == null || userRole == '1' || userRole == '2') {
+        isLoggedIn = true;
+      } else {
+        debugPrint('User role is $userRole, but still attempting to fetch profile data');
+        // Still try to fetch if userId is valid
+        isLoggedIn = true;
+      }
+    }
+    
+    debugPrint('_loadUserId - isLoggedIn: $isLoggedIn');
+    
+    if (mounted) {
+      setState(() {
+        _userId = userId;
+        _isLoggedIn = isLoggedIn;
+      });
+      
+      // Fetch user details if userId is valid (not '0' and not empty)
+      if (userId != '0' && userId.isNotEmpty) {
+        debugPrint('Calling _fetchUserDetails from _loadUserId');
+        await _fetchUserDetails();
+      } else {
+        debugPrint('Not fetching user details - userId is invalid: $userId');
+        setState(() {
+          isLoading = false;
+        });
+      }
+    }
   }
 
   // fetch user credentials
   Future<void> _fetchUserDetails() async {
+    if (_userId.isEmpty || _userId == '0') {
+      debugPrint('Cannot fetch user details: userId is empty or 0');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          _isFetching = false;
+        });
+      }
+      return;
+    }
+    
+    // Prevent concurrent API calls
+    if (_isFetching) {
+      debugPrint('Already fetching user details, skipping...');
+      return;
+    }
+    
+    debugPrint('Fetching user details for userId: $_userId');
+    
+    if (mounted) {
+      setState(() {
+        isLoading = true;
+        _isFetching = true;
+      });
+    }
+    
     try {
+      final url = 'https://nicknameinfo.net/api/auth/user/$_userId';
+      debugPrint('API URL: $url');
+      
       final response = await http.get(
-        Uri.parse('https://nicknameinfo.net/api/auth/user/$_userId')
+        Uri.parse(url)
       ).timeout(
         const Duration(seconds: 15),
         onTimeout: () {
           throw TimeoutException('Request timeout');
         },
       );
+      
+      debugPrint('API Response Status: ${response.statusCode}');
+      debugPrint('API Response Body: ${response.body}');
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
-        if (data['success'] == true) {
-          setState(() {
-            credential = data['data'];
-            isLoading = false;
-          });
+        debugPrint('API Response Data: $data');
+        
+        if (data['success'] == true && data['data'] != null) {
+          debugPrint('User details fetched successfully');
+          debugPrint('Credential data: ${data['data']}');
+          if (mounted) {
+            setState(() {
+              credential = data['data'];
+              isLoading = false;
+              _isFetching = false;
+            });
+            debugPrint('State updated with credential - firstName: ${credential?['firstName']}, email: ${credential?['email']}, phone: ${credential?['phone']}');
+          }
         } else {
           // Handle API-specific errors
-          print('API error: ${data['errors']}');
-          setState(() {
-            isLoading = false;
-          });
+          debugPrint('API error - success: ${data['success']}, errors: ${data['errors']}');
+          if (mounted) {
+            setState(() {
+              isLoading = false;
+              _isFetching = false;
+            });
+          }
         }
       } else {
         // Handle HTTP status code errors
-        print('Failed to load user data. Status code: ${response.statusCode}');
-        setState(() {
-          isLoading = false;
-        });
+        debugPrint('Failed to load user data. Status code: ${response.statusCode}');
+        if (mounted) {
+          setState(() {
+            isLoading = false;
+            _isFetching = false;
+          });
+        }
       }
     } on TimeoutException {
-      print('Request timeout while fetching user details');
-      setState(() {
-        isLoading = false;
-      });
+      debugPrint('Request timeout while fetching user details');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          _isFetching = false;
+        });
+      }
     } on SocketException {
-      print('No internet connection');
-      setState(() {
-        isLoading = false;
-      });
+      debugPrint('No internet connection');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          _isFetching = false;
+        });
+      }
     } catch (e) {
       // Handle network or parsing errors
-      print('An unexpected error occurred: $e');
-      setState(() {
-        isLoading = false;
-      });
+      debugPrint('An unexpected error occurred: $e');
+      if (mounted) {
+        setState(() {
+          isLoading = false;
+          _isFetching = false;
+        });
+      }
     }
   }
 
@@ -158,9 +341,9 @@ void _logout(BuildContext context) async {
   // 1. Clear saved user data
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
-  // 3. Navigate and remove all other routes
-  Navigator.of(context).pushAndRemoveUntil(
-    MaterialPageRoute(builder: (context) => const AccountTypeSelector()),
+  // 3. Navigate to customer home screen and remove all other routes
+  Navigator.of(context).pushNamedAndRemoveUntil(
+    CustomerBottomNav.routeName,
     (Route<dynamic> route) => false,
   );
 }
@@ -186,6 +369,19 @@ void _logout(BuildContext context) async {
       EditProfile.routeName,
       arguments: true,
     );
+  }
+
+  void _navigateToLogin() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AccountTypeSelector(),
+      ),
+    );
+    
+    // After login, reload data if user comes back to this screen
+    if (mounted) {
+      await _loadUserId();
+    }
   }
 
   // Modern Card Widget
@@ -331,6 +527,16 @@ void _logout(BuildContext context) async {
 
   @override
   Widget build(BuildContext context) {
+    // Ensure API is called when screen is visible and user is logged in
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _isLoggedIn && _userId != '0' && _userId.isNotEmpty && !_isFetching) {
+        // Refresh data when screen becomes visible (for bottom nav scenarios)
+        if (credential == null || isLoading) {
+          _refreshProfileData();
+        }
+      }
+    });
+    
     Size size = MediaQuery.of(context).size;
     return Scaffold(
       appBar: AppBar(
@@ -503,10 +709,10 @@ void _logout(BuildContext context) async {
                                 // ),
                                 _buildDivider(),
                                 _buildActionTile(
-                                  icon: Icons.logout,
-                                  iconColor: Colors.red,
-                                  title: 'Logout',
-                                  onTap: showLogoutOptions,
+                                  icon: _isLoggedIn ? Icons.logout : Icons.login,
+                                  iconColor: _isLoggedIn ? Colors.red : Colors.green,
+                                  title: _isLoggedIn ? 'Logout' : 'Login',
+                                  onTap: _isLoggedIn ? showLogoutOptions : _navigateToLogin,
                                 ),
                               ],
                             ),

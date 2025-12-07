@@ -13,6 +13,7 @@ import 'package:nickname_portal/helpers/cart_api_helper.dart';
 import 'package:nickname_portal/views/main/customer/new_product_details_screen.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nickname_portal/utilities/auth_helper.dart';
 // Assuming you have these files and constants defined:
 // components/loading.dart
 // constants/colors.dart
@@ -166,11 +167,35 @@ class _CartScreenState extends State<CartScreen> {
   }
 
   Future<void> _checkoutCart() async {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => CheckoutScreen(),
-      ),
+    // Check if user is logged in
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to proceed to checkout.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0') {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+      _cartItemsFuture = _fetchCartItems();
+    });
+    
+    if (mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => CheckoutScreen(),
+        ),
       );
+    }
   }
 
   Future<void> _clearCart() async {
@@ -531,6 +556,73 @@ class _CartScreenState extends State<CartScreen> {
   Widget _buildCartContent(List<dynamic> cartItems, double total) {
     final Size size = MediaQuery.of(context).size;
     final int cartItemCount = cartItems.length;
+
+    // Show message if user is not logged in
+    if (_userId == '0' || _userId.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(40),
+              decoration: BoxDecoration(
+                color: primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.login,
+                size: 80,
+                color: primaryColor.withOpacity(0.5),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Please Login',
+              style: TextStyle(
+                color: Colors.grey[800],
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Login to view your cart items',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onPressed: () async {
+                final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+                  context,
+                  message: 'Please login to view your cart.',
+                );
+                if (isLoggedIn) {
+                  _loadUserId();
+                }
+              },
+              child: const Text(
+                'Login',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     if (cartItemCount < 1) {
       return Center(

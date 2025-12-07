@@ -13,6 +13,7 @@ import 'package:nickname_portal/views/main/customer/new_product_details_screen.d
 import 'package:nickname_portal/views/main/customer/cart.dart';
 import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
+import 'package:nickname_portal/utilities/auth_helper.dart';
 
 import '../../../constants/colors.dart';
 
@@ -47,6 +48,8 @@ class _StoreDetailsState extends State<StoreDetails> {
   Map<int, String?> _selectedSizes = {};
   Map<int, double> _currentPrices = {};
   Map<int, int> _currentStocks = {};
+  Map<int, double> _currentDiscounts = {}; // Store discount percentage for each product
+  Map<int, double> _originalPrices = {}; // Store original price before discount for each product
   Map<int, Map<String, dynamic>?> _sizeUnitSizeMaps = {};
 
   @override
@@ -348,22 +351,60 @@ class _StoreDetailsState extends State<StoreDetails> {
     if (selectedSize != null && sizeMap != null) {
       final sizeData = sizeMap[selectedSize];
       if (sizeData is Map) {
-        _currentPrices[productId] = double.tryParse(sizeData['price']?.toString() ?? 
-                                                    sizeData['total']?.toString() ?? 
+        // Get discounted price (total or grandTotal)
+        _currentPrices[productId] = double.tryParse(sizeData['total']?.toString() ?? 
                                                     sizeData['grandTotal']?.toString() ?? 
+                                                    sizeData['price']?.toString() ?? 
                                                     product['total']?.toString() ?? 
                                                     product['price']?.toString() ?? '0') ?? 0.0;
+        
+        // Get original price (price field from sizeData or product)
+        _originalPrices[productId] = double.tryParse(sizeData['price']?.toString() ?? 
+                                                     product['price']?.toString() ?? 
+                                                     product['total']?.toString() ?? '0') ?? 0.0;
+        
+        // Get discount percentage
+        _currentDiscounts[productId] = double.tryParse(sizeData['discountPer']?.toString() ?? 
+                                                       sizeData['discount']?.toString() ?? 
+                                                       product['discountPer']?.toString() ?? 
+                                                       '0') ?? 0.0;
+        
         _currentStocks[productId] = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
       }
     } else {
       // Fallback to default product price and stock
-      _currentPrices[productId] = double.tryParse(product['total']?.toString() ?? 
-                                                 product['price']?.toString() ?? '0') ?? 0.0;
+      final originalPrice = double.tryParse(product['price']?.toString() ?? '0') ?? 0.0;
+      final discountedPrice = double.tryParse(product['total']?.toString() ?? product['price']?.toString() ?? '0') ?? 0.0;
+      
+      _currentPrices[productId] = discountedPrice;
+      _originalPrices[productId] = originalPrice;
+      _currentDiscounts[productId] = double.tryParse(product['discountPer']?.toString() ?? '0') ?? 0.0;
       _currentStocks[productId] = int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
     }
   }
 
   Future<void> _addToCart(Map<String, dynamic> product) async {
+    // Check if user is logged in
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to add items to your cart.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login or dialog was dismissed
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0') {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+    });
+    
     final int? productIdRaw = product['id'] as int?;
     if (productIdRaw == null) {
        debugPrint("Error: Product ID is null in _addToCart");
@@ -648,24 +689,21 @@ Widget buildProductCard(Map<String, dynamic> item) {
     final String productName = product['name']?.toString() ?? 'Unnamed Product';
     
     // --- START: Price Parsing ---
-    // Use 'total' first, as it's likely the final/discounted price
-    final priceToParse = product['total'] ?? product['price'] ?? '0.0';
-    final double finalPrice = (priceToParse is num) 
-        ? priceToParse.toDouble() 
-        : double.tryParse(priceToParse.toString()) ?? 0.0;
-        
-    final String priceString = product['price']?.toString() ?? '0.0';
-    final String totalString = product['total']?.toString() ?? priceString;
+    // Get current price, discount, and stock based on selected size
+    final double currentPrice = _currentPrices[productId] ?? double.tryParse(product['total']?.toString() ?? product['price']?.toString() ?? '0') ?? 0.0;
+    final double originalPrice = _originalPrices[productId] ?? double.tryParse(product['price']?.toString() ?? product['total']?.toString() ?? '0') ?? 0.0;
+    final double discountValue = _currentDiscounts[productId] ?? double.tryParse(product['discountPer']?.toString() ?? '0') ?? 0.0;
+    final int currentStock = _currentStocks[productId] ?? int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
+    
+    // Fallback values
+    final double finalPrice = currentPrice;
+    final String priceString = originalPrice.toStringAsFixed(0);
+    final String totalString = currentPrice.toStringAsFixed(0);
     // --- END: Price Parsing ---
 
     final String unitSize = product['unitSize']?.toString() ?? '';
     final String stockQty = product['unitSize']?.toString() ?? '0';
     final String qty = product['qty']?.toString() ?? '0';
-    final String priceDisplay = unitSize.isNotEmpty ? "$totalString ($qty)" : totalString;
-    final String discount = product['discountPer']?.toString() ?? '0';
-    final String discountDisplay = discount.isNotEmpty ? product['discount'].toString() : '';
-
-    final double discountValue = double.tryParse(discount) ?? 0.0;
     final String paymentMode = product['paymentMode'];
     final bool isPerOrder = paymentMode.contains('1');
     final bool isOnline = paymentMode.contains('2'); // Not in API example, but safe check
@@ -701,7 +739,7 @@ Widget buildProductCard(Map<String, dynamic> item) {
                   ),
                 ),
               ),
-              if (discountValue > 0) Positioned( /* ... Discount Badge ... */ top: 10, left: 10, child: Container( decoration: BoxDecoration( color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(6)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text( "$discountDisplay%", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)))),
+              if (discountValue > 0) Positioned( /* ... Discount Badge ... */ top: 10, left: 10, child: Container( decoration: BoxDecoration( color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(6)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Text( "${discountValue.toStringAsFixed(0)}%", style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)))),
               if (!available && !isBooking) Positioned( /* ... Not Available Badge ... */ bottom: 8, right: 8, child: Container( decoration: BoxDecoration( color: Colors.redAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: const Text( "Online Order Not Available", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)))),
               if (isBooking) Positioned( /* ... Not Available Badge ... */ bottom: 8, right: 8, child: Container( decoration: BoxDecoration( color: Colors.redAccent.withOpacity(0.9), borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5), child: const Text( "Booking Only", style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500)))),
           ]),
@@ -711,20 +749,13 @@ Widget buildProductCard(Map<String, dynamic> item) {
                 Text(productName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 6),
                 Row( /* ... Price and Stock ... */ crossAxisAlignment: CrossAxisAlignment.end, children: [
-                    Text("₹${(_currentPrices[productId] ?? finalPrice).toStringAsFixed(0)}", style: const TextStyle(color: Colors.blue, fontSize: 14, fontWeight: FontWeight.bold)),
+                    Text("₹${currentPrice.toStringAsFixed(0)}", style: const TextStyle(color: Colors.blue, fontSize: 14, fontWeight: FontWeight.bold)),
                      const SizedBox(width: 8),
-                    Builder(
-                      builder: (context) {
-                        final currentPrice = _currentPrices[productId] ?? finalPrice;
-                        final originalPrice = double.tryParse(priceString) ?? 0.0;
-                        if (priceString != totalString && currentPrice < originalPrice) {
-                          return Text("₹$priceString", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough));
-                        }
-                        return const SizedBox.shrink();
-                      },
-                    ),
+                    // Show original price with strikethrough if there's a discount
+                    if (discountValue > 0 && originalPrice > currentPrice)
+                      Text("₹${originalPrice.toStringAsFixed(0)}", style: TextStyle(color: Colors.grey[600], fontSize: 13, decoration: TextDecoration.lineThrough)),
                     const Spacer(),
-                    Text( int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "${_currentStocks[productId] ?? int.tryParse(stockQty) ?? 0} Stocks", style: TextStyle( color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
+                    Text( currentStock <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "$currentStock Stocks", style: TextStyle( color: currentStock <= 0 ? Colors.orange[700] : Colors.green, fontWeight: FontWeight.w500, fontSize: 13)),
                   ],
                 ),
                 

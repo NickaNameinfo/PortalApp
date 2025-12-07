@@ -13,6 +13,7 @@ import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/store/store_details.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nickname_portal/utilities/auth_helper.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -40,13 +41,26 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   String? _selectedWeight;
   double _currentPrice = 0.0;
   int _currentStock = 0;
+  double _currentDiscount = 0.0;
+  double _originalPrice = 0.0;
   Map<String, dynamic>? _sizeUnitSizeMap;
+  
+  // Feedback state
+  final TextEditingController _feedbackController = TextEditingController();
+  int _feedbackRating = 0;
+  bool _isSubmittingFeedback = false;
 
   @override
   void initState() {
     super.initState();
     _fetchStoreData();
     _loadUserId();
+  }
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
   }
 
    Future<void> _loadUserId() async {
@@ -92,17 +106,32 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
     if (_selectedSize != null && _sizeUnitSizeMap != null) {
       final sizeData = _sizeUnitSizeMap![_selectedSize];
       if (sizeData is Map) {
-        _currentPrice = double.tryParse(sizeData['price']?.toString() ?? 
-                                        sizeData['total']?.toString() ?? 
+        // Get discounted price (total or grandTotal)
+        _currentPrice = double.tryParse(sizeData['total']?.toString() ?? 
                                         sizeData['grandTotal']?.toString() ?? 
+                                        sizeData['price']?.toString() ?? 
                                         widget.product['total']?.toString() ?? 
                                         widget.product['price']?.toString() ?? '0') ?? 0.0;
+        
+        // Get original price (price field from sizeData or product)
+        _originalPrice = double.tryParse(sizeData['price']?.toString() ?? 
+                                         widget.product['price']?.toString() ?? 
+                                         widget.product['total']?.toString() ?? '0') ?? 0.0;
+        
+        // Get discount percentage
+        _currentDiscount = double.tryParse(sizeData['discountPer']?.toString() ?? 
+                                           sizeData['discount']?.toString() ?? 
+                                           widget.product['discountPer']?.toString() ?? 
+                                           '0') ?? 0.0;
+        
         _currentStock = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
       }
     } else {
       // Fallback to default product price and stock
+      _originalPrice = double.tryParse(widget.product['price']?.toString() ?? '0') ?? 0.0;
       _currentPrice = double.tryParse(widget.product['total']?.toString() ?? 
                                      widget.product['price']?.toString() ?? '0') ?? 0.0;
+      _currentDiscount = double.tryParse(widget.product['discountPer']?.toString() ?? '0') ?? 0.0;
       _currentStock = int.tryParse(widget.product['unitSize']?.toString() ?? '0') ?? 0;
     }
   }
@@ -345,6 +374,27 @@ Future<void> _fetchStoreData() async {
   }
 
   Future<void> _addToCart(Map<String, dynamic> product) async {
+    // Check if user is logged in
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to add items to your cart.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login or dialog was dismissed
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0') {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+    });
+    
     final int? productIdRaw = product['id'] as int?;
     if (productIdRaw == null) {
        debugPrint("Error: Product ID is null in _addToCart");
@@ -714,21 +764,62 @@ Widget buildStoreHeader() {
                       ),
                       const SizedBox(height: 10),
                       
+                      // Discount Badge (if applicable)
+                      if (_currentDiscount > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8.0),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.red.withOpacity(0.3)),
+                                ),
+                                child: Text(
+                                  '${_currentDiscount.toStringAsFixed(0)}% OFF',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      
                       // Stock and Price Row
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "${_currentStock > 0 ? _currentStock : stockQty} Stocks",
+                            _currentStock <= 0 && !isBooking ? "Coming soon" : isBooking ? "Booking Only" : "$_currentStock Stocks",
                             style: TextStyle(
                               fontSize: 16, 
                               fontWeight: FontWeight.bold, 
-                              color: int.tryParse(stockQty) == null || int.parse(stockQty) <= 0 ? Colors.orange[700] : Colors.green
+                              color: _currentStock <= 0 && !isBooking ? Colors.orange[700] : Colors.green
                             ),
                           ),
-                          Text(
-                            'Rs : ${_currentPrice > 0 ? _currentPrice.toStringAsFixed(0) : (product['total'] ?? 0)}',
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor),
+                          Row(
+                            children: [
+                              Text(
+                                'Rs : ${_currentPrice > 0 ? _currentPrice.toStringAsFixed(0) : (product['total'] ?? 0)}',
+                                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: primaryColor),
+                              ),
+                              if (_currentDiscount > 0 && _originalPrice > _currentPrice) ...[
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Rs : ${_originalPrice.toStringAsFixed(0)}',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                         ],
                       ),
@@ -861,7 +952,17 @@ Widget buildStoreHeader() {
                           ],
                         ),
                         child: ElevatedButton(
-                          onPressed: () {
+                          onPressed: () async {
+                            // Check if user is logged in
+                            final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+                              context,
+                              message: 'Please login to place an order.',
+                            );
+                            
+                            if (!isLoggedIn) {
+                              return; // User chose not to login
+                            }
+                            
                             // Create a 'cart-like' item map that CheckoutScreen understands
                             final checkoutProduct = {
                               'productId': productId,
@@ -875,12 +976,14 @@ Widget buildStoreHeader() {
                               if (_selectedWeight != null) 'weight': _selectedWeight,
                             };
                             
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => CheckoutScreen(product: checkoutProduct),
-                              ),
-                            );
+                            if (mounted) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CheckoutScreen(product: checkoutProduct),
+                                ),
+                              );
+                            }
                           },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.transparent,
@@ -954,10 +1057,296 @@ Widget buildStoreHeader() {
               ),
               const SizedBox(height: 20),
               
-              // --- 2. Store Information Card ---
+              // --- 2. Feedback Card ---
+              _buildFeedBackCard(),
+              
+              const SizedBox(height: 20),
+              
+              // --- 3. Store Information Card ---
                buildStoreHeader(),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // Submit feedback function
+  Future<void> _submitFeedback() async {
+    // Check if user is logged in and show login dialog if not
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to submit feedback.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login or dialog was dismissed
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0') {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+    });
+
+    // Validate feedback
+    if (_feedbackController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your feedback')),
+      );
+      return;
+    }
+
+    if (_feedbackRating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a rating')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmittingFeedback = true;
+    });
+
+    try {
+      final product = widget.product;
+      final productId = product['id'] as int?;
+      final storeData = product['store'] as Map<String, dynamic>?;
+      final storeId = storeData?['id'] as int?;
+      
+      // Determine vendorId or storeId based on product type
+      int? vendorId;
+      int? finalStoreId;
+      
+      if (product['createdType'] == 'Vendor') {
+        vendorId = product['createdId'] as int?;
+      } else {
+        finalStoreId = storeId ?? product['createdId'] as int?;
+      }
+
+      final feedbackData = {
+        'customerId': _userId,
+        'productId': productId,
+        'vendorId': vendorId,
+        'storeId': finalStoreId,
+        'feedBack': _feedbackController.text.trim(),
+        'rating': _feedbackRating,
+        'customizedMessage': _feedbackController.text.trim(),
+      };
+
+      final url = Uri.parse('https://nicknameinfo.net/api/productFeedback/create');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(feedbackData),
+      );
+
+      if (mounted) {
+        if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+          if (responseData['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Feedback submitted successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Clear form
+            _feedbackController.clear();
+            setState(() {
+              _feedbackRating = 0;
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(responseData['msg'] ?? 'Failed to submit feedback'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to submit feedback. Status: ${response.statusCode}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting feedback: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingFeedback = false;
+        });
+      }
+    }
+  }
+
+  // Build star rating widget
+  Widget _buildStarRating() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: List.generate(5, (index) {
+        final starValue = index + 1;
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              _feedbackRating = starValue;
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Icon(
+              starValue <= _feedbackRating ? Icons.star : Icons.star_border,
+              color: starValue <= _feedbackRating ? Colors.amber : Colors.grey,
+              size: 32,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
+  Widget _buildFeedBackCard() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.feedback, color: primaryColor, size: 20),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Give Feedback',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            // Rating Section
+            const Text(
+              'Rating:',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildStarRating(),
+            if (_feedbackRating > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Selected: $_feedbackRating star${_feedbackRating != 1 ? 's' : ''}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            // Feedback Text Field
+            TextField(
+              controller: _feedbackController,
+              maxLines: 4,
+              minLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Enter your feedback',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade400),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: primaryColor, width: 2),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.red, width: 1),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Submit Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: (_isSubmittingFeedback || 
+                           _feedbackController.text.trim().isEmpty || 
+                           _feedbackRating == 0)
+                    ? null
+                    : _submitFeedback,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: (_feedbackController.text.trim().isNotEmpty && 
+                                   _feedbackRating > 0)
+                      ? primaryColor
+                      : Colors.grey,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: _isSubmittingFeedback
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Submit Feedback',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+              ),
+            ),
+          ],
         ),
       ),
     );

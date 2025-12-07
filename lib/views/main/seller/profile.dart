@@ -7,11 +7,14 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/store.dart';
 import '../../auth/account_type_selector.dart';
+import '../../auth/auth.dart';
 import 'dashboard_screens/manage_products.dart';
 import 'edit_profile.dart';
 import '../../../components/k_list_tile.dart';
 import 'dashboard_screens/account_balance.dart';
-import '../../../utilities/url_launcher_utils.dart'; 
+import '../../../utilities/url_launcher_utils.dart';
+import 'package:nickname_portal/views/main/seller/seller_bottom_nav.dart'; 
+import 'package:nickname_portal/views/main/customer/customer_bottom_nav.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -27,6 +30,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Store? _store;
   var isLoading = true;
   String? _supplierId;
+  bool _isLoggedIn = false;
 
   @override
   void initState() {
@@ -34,6 +38,49 @@ class _ProfileScreenState extends State<ProfileScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadAllData();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Refresh login status when screen becomes visible again (e.g., after login)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _checkLoginStatus();
+      }
+    });
+  }
+
+  // Quick method to check and update login status without full reload
+  Future<void> _checkLoginStatus() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? userId = prefs.getString('userId');
+    String? userRole = prefs.getString('userRole');
+    String? storeId = prefs.getString('storeId');
+    
+    bool isLoggedIn = false;
+    if (userId != null && 
+        userId.isNotEmpty && 
+        userId != '0' &&
+        userRole != null &&
+        userRole == '3' &&
+        storeId != null && 
+        storeId.isNotEmpty && 
+        storeId != '0') {
+      isLoggedIn = true;
+    }
+    
+    if (mounted && _isLoggedIn != isLoggedIn) {
+      setState(() {
+        _isLoggedIn = isLoggedIn;
+        _supplierId = storeId;
+      });
+      
+      // If just logged in and we don't have store data, reload full data
+      if (isLoggedIn && _store == null && storeId != null) {
+        await _loadAllData();
+      }
+    }
   }
 
   // --- Data Fetching Methods ---
@@ -70,14 +117,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => isLoading = true);
     }
     
-    // 1. Load supplier ID from SharedPreferences
+    // 1. Load supplier ID and check login status from SharedPreferences
     SharedPreferences prefs = await SharedPreferences.getInstance();
     String? loadedSupplierId = prefs.getString('storeId');
+    String? userId = prefs.getString('userId');
+    String? userRole = prefs.getString('userRole');
     debugPrint('Loaded supplier ID from SharedPreferences: $loadedSupplierId');
+    debugPrint('Loaded userId from SharedPreferences: $userId');
+    debugPrint('Loaded userRole from SharedPreferences: $userRole');
+
+    // Check if user is logged in - must have valid userId and be a seller (role 3)
+    // More strict check: userId must exist, not be '0' or empty, userRole must be '3', and storeId must exist
+    bool isLoggedIn = false;
+    if (userId != null && 
+        userId.isNotEmpty && 
+        userId != '0' &&
+        userRole != null &&
+        userRole == '3') {
+      // For seller, storeId is also required
+      if (loadedSupplierId != null && 
+          loadedSupplierId.isNotEmpty && 
+          loadedSupplierId != '0') {
+        isLoggedIn = true;
+      }
+    }
+    
+    debugPrint('Login status check: userId=$userId, userRole=$userRole, storeId=$loadedSupplierId, isLoggedIn=$isLoggedIn');
 
     if (mounted) {
       setState(() {
         _supplierId = loadedSupplierId;
+        _isLoggedIn = isLoggedIn;
       });
     }
 
@@ -164,11 +234,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
     await prefs.remove('userId');
     await prefs.remove('storeId');
     await prefs.remove('userRole');
-    // Navigate without Firebase sign-out
-    Navigator.of(context).pushNamedAndRemoveUntil(
-      AccountTypeSelector.routeName,
-      (route) => false,
+    // Navigate to customer home screen after logout
+    Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const CustomerBottomNav(),
+            settings: const RouteSettings(name: '/customer-home'),
+          ),
+          (Route<dynamic> route) => false,
+        );
+  }
+
+  void _navigateToLogin() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AccountTypeSelector(),
+      ),
     );
+    
+    // After login, check if we should reload or navigate
+    // The Auth screen will handle navigation to SellerBottomNav on success
+    // But we should reload data if user comes back to this screen
+    if (mounted) {
+      await _loadAllData();
+    }
   }
 
   void _editProfile() {
@@ -606,9 +694,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           padding: EdgeInsets.zero,
                           children: [
                             KListTile(
-                              title: 'Logout',
-                              icon: Icons.logout,
-                              onTapHandler: showLogoutOptions,
+                              title: _isLoggedIn ? 'Logout' : 'Login',
+                              icon: _isLoggedIn ? Icons.logout : Icons.login,
+                              onTapHandler: _isLoggedIn ? showLogoutOptions : _navigateToLogin,
                               showSubtitle: false,
                             ),
                           ],

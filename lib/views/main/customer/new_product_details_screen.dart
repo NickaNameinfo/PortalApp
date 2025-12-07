@@ -10,6 +10,7 @@ import 'package:nickname_portal/views/main/customer/cart.dart';
 import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/store/store_details.dart';
 import 'package:nickname_portal/utilities/url_launcher_utils.dart';
+import 'package:nickname_portal/utilities/auth_helper.dart';
 
 class NewProductDetailsScreen extends StatefulWidget {
   static const routeName = '/new_product_details_screen';
@@ -37,7 +38,14 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
   String? _selectedWeight;
   double _currentPrice = 0.0;
   int _currentStock = 0;
+  double _currentDiscount = 0.0;
+  double _originalPrice = 0.0;
   Map<String, dynamic>? _sizeUnitSizeMap;
+  
+  // Feedback state
+  final TextEditingController _feedbackController = TextEditingController();
+  int _feedbackRating = 0;
+  bool _isSubmittingFeedback = false;
 
   // Helper to safely access dynamic product fields
   String _safeGet(String key, String fallback) {
@@ -53,17 +61,25 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
     _loadUserId();
   }
 
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
+
   // Load user ID from shared preferences
   Future<void> _loadUserId() async {
     final SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? userId = prefs.getString('userId');
-    if (userId != null) {
-      setState(() {
-        _userId = userId;
-      });
-      // Don't initialize size data here - it will be initialized after cart is loaded
-      _fetchStoreData(); // Load store data after user ID is loaded
-    }
+    setState(() {
+      _userId = userId ?? '0'; // Set to '0' if null for guest users
+    });
+    
+    // Initialize size data immediately (doesn't depend on cart)
+    _initializeSizeData();
+    
+    // Load store data (and cart if user is logged in)
+    _fetchStoreData();
   }
   
   // Initialize size data from product
@@ -89,9 +105,29 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
           _selectedSize = _sizeUnitSizeMap!.keys.first;
         }
         _updatePriceAndStock();
+        
+        // Update UI by calling setState
+        if (mounted) {
+          setState(() {
+            // State is already updated above, this triggers rebuild
+          });
+        }
+      } else {
+        // No size map available, set fallback values
+        if (mounted) {
+          setState(() {
+            _updatePriceAndStock();
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error initializing size data: $e');
+      // Even on error, try to set fallback values
+      if (mounted) {
+        setState(() {
+          _updatePriceAndStock();
+        });
+      }
     }
   }
   
@@ -100,17 +136,32 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
     if (_selectedSize != null && _sizeUnitSizeMap != null) {
       final sizeData = _sizeUnitSizeMap![_selectedSize];
       if (sizeData is Map) {
-        _currentPrice = double.tryParse(sizeData['price']?.toString() ?? 
-                                        sizeData['total']?.toString() ?? 
+        // Get discounted price (total or grandTotal)
+        _currentPrice = double.tryParse(sizeData['total']?.toString() ?? 
                                         sizeData['grandTotal']?.toString() ?? 
+                                        sizeData['price']?.toString() ?? 
                                         widget.product['total']?.toString() ?? 
                                         widget.product['price']?.toString() ?? '0') ?? 0.0;
+        
+        // Get original price (price field from sizeData or product)
+        _originalPrice = double.tryParse(sizeData['price']?.toString() ?? 
+                                         widget.product['price']?.toString() ?? 
+                                         widget.product['total']?.toString() ?? '0') ?? 0.0;
+        
+        // Get discount percentage
+        _currentDiscount = double.tryParse(sizeData['discountPer']?.toString() ?? 
+                                           sizeData['discount']?.toString() ?? 
+                                           widget.product['discountPer']?.toString() ?? 
+                                           '0') ?? 0.0;
+        
         _currentStock = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
       }
     } else {
       // Fallback to default product price and stock
+      _originalPrice = double.tryParse(widget.product['price']?.toString() ?? '0') ?? 0.0;
       _currentPrice = double.tryParse(widget.product['total']?.toString() ?? 
                                      widget.product['price']?.toString() ?? '0') ?? 0.0;
+      _currentDiscount = double.tryParse(widget.product['discountPer']?.toString() ?? '0') ?? 0.0;
       _currentStock = int.tryParse(widget.product['unitSize']?.toString() ?? '0') ?? 0;
     }
   }
@@ -185,6 +236,15 @@ int? storeId;
   }
 
   Future<void> _loadCartData() async {
+    // Skip cart loading for guest users
+    if (_userId == null || _userId == '0' || _userId.isEmpty) {
+      // Still initialize size data even without cart
+      if (mounted) {
+        _initializeSizeData();
+      }
+      return;
+    }
+    
     try {
       final response = await fetchCartItems(_userId);
       if (response.statusCode == 200) {
@@ -210,14 +270,49 @@ int? storeId;
             // Re-initialize size data after cart is loaded to use cart size
             _initializeSizeData();
           }
+        } else {
+          // Even if cart API fails, initialize size data
+          if (mounted) {
+            _initializeSizeData();
+          }
+        }
+      } else {
+        // Even if cart API fails, initialize size data
+        if (mounted) {
+          _initializeSizeData();
         }
       }
     } catch (e) {
       print('Error loading cart data: $e');
+      // Even if cart loading fails, initialize size data
+      if (mounted) {
+        _initializeSizeData();
+      }
     }
   }
 
   Future<void> _addToCart(Map<String, dynamic> productData) async {
+    // Check if user is logged in
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to add items to your cart.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login or dialog was dismissed
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0') {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+    });
+    
     final productId = productData['id'] as int;
     final currentQuantity = _cartQuantities[productId] ?? 0;
     
@@ -1007,6 +1102,32 @@ int? storeId;
                         ),
                         const SizedBox(height: 10),
                         
+                        // Discount Badge (if applicable)
+                        if (_currentDiscount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(6),
+                                    border: Border.all(color: Colors.red.withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    '${_currentDiscount.toStringAsFixed(0)}% OFF',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.red[700],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -1022,10 +1143,10 @@ int? storeId;
                                   ),
                                 ),
                                 const SizedBox(width: 8),
-                                // Original Price
-                                if (_currentPrice > 0 && _currentPrice < price)
+                                // Original Price (show if there's a discount)
+                                if (_currentDiscount > 0 && _originalPrice > _currentPrice)
                                   Text(
-                                    '₹${price.toStringAsFixed(0)}',
+                                    '₹${_originalPrice.toStringAsFixed(0)}',
                                     style: const TextStyle(
                                       fontSize: 16,
                                       color: Colors.grey,
@@ -1036,7 +1157,7 @@ int? storeId;
                             ),
                             // Stock Indicator (dynamic based on size)
                             Text(
-                              isBooking ? 'Booking Only' : ((_currentStock > 0 || stockQty > 0) ? '(${_currentStock > 0 ? _currentStock : stockQty}) Stocks' : 'Out of Stock'),
+                              isBooking ? 'Booking Only' : ((_currentStock > 0 || stockQty > 0) ? '$_currentStock Stocks' : 'Out of Stock'),
                               style: TextStyle(
                                 fontSize: 16,
                                 color: isBooking ? Colors.orange.shade600 : ((_currentStock > 0 || stockQty > 0) ? Colors.green.shade600 : Colors.red.shade600),
@@ -1221,7 +1342,17 @@ int? storeId;
                                               if (!available) SizedBox(height: 10),
                                               ElevatedButton(
                                                 onPressed: available
-                                                    ? () {
+                                                    ? () async {
+                                                        // Check if user is logged in
+                                                        final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+                                                          context,
+                                                          message: 'Please login to place an order.',
+                                                        );
+                                                        
+                                                        if (!isLoggedIn) {
+                                                          return; // User chose not to login
+                                                        }
+                                                        
                                                         // Create a 'cart-like' item map that CheckoutScreen understands
                                                         final checkoutProduct = {
                                                           'productId': widget.product['id'] ?? '',
@@ -1236,14 +1367,16 @@ int? storeId;
                                                           if (_selectedWeight != null) 'weight': _selectedWeight,
                                                         };
 
-                                                        Navigator.push(
-                                                          context,
-                                                          MaterialPageRoute(
-                                                            builder: (context) => CheckoutScreen(
-                                                              product: checkoutProduct,
+                                                        if (mounted) {
+                                                          Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(
+                                                              builder: (context) => CheckoutScreen(
+                                                                product: checkoutProduct,
+                                                              ),
                                                             ),
-                                                          ),
-                                                        );
+                                                          );
+                                                        }
                                                       }
                                                     : null,
                                                 style: ElevatedButton.styleFrom(
@@ -1527,6 +1660,156 @@ int? storeId;
     );
   }
 
+  // Submit feedback function
+  Future<void> _submitFeedback() async {
+    // Check if user is logged in and show login dialog if not
+    final isLoggedIn = await AuthHelper.checkAuthAndShowDialog(
+      context,
+      message: 'Please login to submit feedback.',
+    );
+    
+    if (!isLoggedIn) {
+      return; // User chose not to login or dialog was dismissed
+    }
+    
+    // Reload userId after potential login
+    final prefs = await SharedPreferences.getInstance();
+    final updatedUserId = prefs.getString('userId') ?? '0';
+    if (updatedUserId == '0') {
+      return; // Still not logged in
+    }
+    
+    setState(() {
+      _userId = updatedUserId;
+    });
+
+    // Validate feedback
+    if (_feedbackController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter your feedback')),
+      );
+      return;
+    }
+
+    if (_feedbackRating == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a rating')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmittingFeedback = true;
+    });
+
+    try {
+      final product = widget.product;
+      final productId = product['id'] as int?;
+      final storeId = product['storeId'] as int? ?? 
+                     (product['store'] is Map ? (product['store']['id'] as int?) : null);
+      
+      // Determine vendorId or storeId based on product type
+      int? vendorId;
+      int? finalStoreId;
+      
+      if (product['createdType'] == 'Vendor') {
+        vendorId = product['createdId'] as int?;
+      } else {
+        finalStoreId = storeId ?? product['createdId'] as int?;
+      }
+
+      final feedbackData = {
+        'customerId': _userId,
+        'productId': productId,
+        'vendorId': vendorId,
+        'storeId': finalStoreId,
+        'feedBack': _feedbackController.text.trim(),
+        'rating': _feedbackRating,
+        'customizedMessage': _feedbackController.text.trim(),
+      };
+
+      final url = Uri.parse('https://nicknameinfo.net/api/productFeedback/create');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(feedbackData),
+      );
+
+      if (mounted) {
+        if (response.statusCode == 200) {
+          final responseData = json.decode(response.body);
+          if (responseData['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Feedback submitted successfully!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+            // Clear form
+            _feedbackController.clear();
+            setState(() {
+              _feedbackRating = 0;
+            });
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(responseData['msg'] ?? 'Failed to submit feedback'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to submit feedback. Status: ${response.statusCode}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error submitting feedback: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmittingFeedback = false;
+        });
+      }
+    }
+  }
+
+  // Build star rating widget
+  Widget _buildStarRating() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.start,
+      children: List.generate(5, (index) {
+        final starValue = index + 1;
+        return GestureDetector(
+          onTap: () {
+            setState(() {
+              _feedbackRating = starValue;
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: Icon(
+              starValue <= _feedbackRating ? Icons.star : Icons.star_border,
+              color: starValue <= _feedbackRating ? Colors.amber : Colors.grey,
+              size: 32,
+            ),
+          ),
+        );
+      }),
+    );
+  }
+
   Widget _buildFeedBackCard() {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -1541,10 +1824,11 @@ int? storeId;
           ),
         ],
       ),
-      child: Padding(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(20.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -1567,27 +1851,88 @@ int? storeId;
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            // TextField(
-            //   maxLines: 5,
-            //   decoration: InputDecoration(
-            //     hintText: 'Enter your feedback',
-            //     border: OutlineInputBorder(
-            //       borderRadius: BorderRadius.circular(10),
-            //       borderSide: BorderSide(color: Colors.grey.shade400),
-            //     ),
-            //     focusedBorder: OutlineInputBorder(
-            //       borderRadius: BorderRadius.circular(10),
-            //       borderSide: const BorderSide(color: primaryColor, width: 2),
-            //     ),
-            //   ),
-            // ),
+            const SizedBox(height: 20),
+            // Rating Section
             const Text(
-              'Coming Soon',
+              'Rating:',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey,
-                fontStyle: FontStyle.italic,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildStarRating(),
+            if (_feedbackRating > 0) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Selected: $_feedbackRating star${_feedbackRating != 1 ? 's' : ''}',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            // Feedback Text Field
+            TextField(
+              controller: _feedbackController,
+              maxLines: 4,
+              minLines: 3,
+              decoration: InputDecoration(
+                hintText: 'Enter your feedback',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: Colors.grey.shade400),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: primaryColor, width: 2),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.red, width: 1),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Submit Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: (_isSubmittingFeedback || 
+                           _feedbackController.text.trim().isEmpty || 
+                           _feedbackRating == 0)
+                    ? null
+                    : _submitFeedback,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: (_feedbackController.text.trim().isNotEmpty && 
+                                   _feedbackRating > 0)
+                      ? primaryColor
+                      : Colors.grey,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: _isSubmittingFeedback
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text(
+                        'Submit Feedback',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
           ],

@@ -1,4 +1,4 @@
-package nickname.infotech.portal
+package nickname.shopping.portalportal
 
 import io.flutter.embedding.android.FlutterActivity
 

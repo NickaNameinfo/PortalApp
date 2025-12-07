@@ -5,6 +5,9 @@ import 'package:liquid_swipe/liquid_swipe.dart';
 import 'package:nickname_portal/models/item_data.dart';
 import '../../constants/colors.dart';
 import '../auth/account_type_selector.dart';
+import '../main/customer/customer_bottom_nav.dart';
+import '../main/seller/seller_bottom_nav.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
   static const routeName = '/splash-screen';
@@ -80,6 +83,49 @@ class _SplashScreenState extends State<SplashScreen> {
     setState(() {
       page = lpage;
     });
+  }
+
+  Future<void> _checkLoginAndNavigate(BuildContext context) async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('userId');
+    final userRole = prefs.getString('userRole');
+
+    if (!mounted) return;
+
+    // Get root navigator to ensure we're clearing the entire stack
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    if (userId != null && userId.isNotEmpty && userId != '0') {
+      // User is logged in - navigate based on role
+      if (userRole == "3") {
+        // Seller - navigate to seller screen
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const SellerBottomNav(),
+            settings: const RouteSettings(name: '/seller-home'),
+          ),
+          (Route<dynamic> route) => false,
+        );
+      } else {
+        // Customer - navigate to customer screen
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const CustomerBottomNav(),
+            settings: const RouteSettings(name: '/customer-home'),
+          ),
+          (Route<dynamic> route) => false,
+        );
+      }
+    } else {
+      // Guest access - navigate to customer home
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const CustomerBottomNav(),
+          settings: const RouteSettings(name: '/customer-home'),
+        ),
+        (Route<dynamic> route) => false,
+      );
+    }
   }
 
   Widget _buildDot(int index) {
@@ -174,10 +220,10 @@ class _SplashScreenState extends State<SplashScreen> {
                                           Icons.chevron_left,
                                           color: Colors.white,
                                         ),
-                                        onPressed: () =>
-                                            Navigator.of(context).pushNamed(
-                                          AccountTypeSelector.routeName,
-                                        ),
+                                        onPressed: () {
+                                          // Check if user is already logged in and navigate based on role
+                                          _checkLoginAndNavigate(context);
+                                        },
                                         label: const Text(
                                           'Get started',
                                           style: TextStyle(

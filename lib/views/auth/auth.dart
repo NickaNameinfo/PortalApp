@@ -220,25 +220,70 @@ class _AuthState extends State<Auth> {
 
         if (response.statusCode == 200) {
           final responseData = json.decode(response.body);
+          debugPrint('Login response: $responseData');
+          
           final userId = responseData['data']['id'];
           final storeId = responseData['data']['storeId'];
-          final userRole = responseData['data']['role'];
+          // Handle role as either string or number - convert to string for comparison
+          final userRole = (responseData['data']['role'] ?? responseData['role']).toString();
           final phone = responseData['data']['phone'];
           final email = responseData['data']['email'];
           final firstName = responseData['data']['firstName'];
+          
+          debugPrint('Login data - userId: $userId, storeId: $storeId, userRole: $userRole (type: ${userRole.runtimeType})');
+          
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('userId', userId.toString());
-          await prefs.setString('storeId', storeId.toString());
+          await prefs.setString('storeId', storeId?.toString() ?? '');
           await prefs.setString('userRole', userRole);
-          await prefs.setString('phone', phone);
-          await prefs.setString('email', email);
-          await prefs.setString('firstName', firstName);
+          await prefs.setString('phone', phone ?? '');
+          await prefs.setString('email', email ?? '');
+          await prefs.setString('firstName', firstName ?? '');
+          
+          // Save token if available
+          if (responseData['token'] != null) {
+            await prefs.setString('token', responseData['token']);
+            debugPrint('Token saved to SharedPreferences');
+          }
 
           showSnackBar('Login successful!');
           isLoadingFnc();
+          
+          // Small delay to ensure state is updated and snackbar is shown
+          await Future.delayed(const Duration(milliseconds: 300));
+          
+          if (!mounted) {
+            debugPrint('Widget not mounted, cannot navigate');
+            return;
+          }
+          
+          debugPrint('Checking role for navigation - userRole: "$userRole", comparison with "3": ${userRole == "3"}');
+          
+          // Get root navigator to ensure we're clearing the entire stack
+          final navigator = Navigator.of(context, rootNavigator: true);
+          
+          // Use MaterialPageRoute directly and clear entire navigation stack
           if (userRole == "3") {
-            // Redirect to seller screen
-            Navigator.of(context).pushReplacementNamed(SellerBottomNav.routeName);
+            // Redirect to seller screen - clear all previous routes
+            debugPrint('Navigating to SellerBottomNav - clearing all routes');
+            navigator.pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => const SellerBottomNav(),
+                settings: const RouteSettings(name: '/seller-home'),
+              ),
+              (Route<dynamic> route) => false, // Remove all previous routes
+            );
+          } else {
+            // For customers
+            debugPrint('Navigating to CustomerBottomNav - clearing all routes');
+            // Always clear stack and navigate to customer home (don't pop if from dialog)
+            navigator.pushAndRemoveUntil(
+              MaterialPageRoute(
+                builder: (context) => const CustomerBottomNav(),
+                settings: const RouteSettings(name: '/customer-home'),
+              ),
+              (Route<dynamic> route) => false, // Remove all previous routes
+            );
           }
         } else {
           final errorResponse = json.decode(response.body);
@@ -413,8 +458,8 @@ class _AuthState extends State<Auth> {
                                 ? 'Seller Signin'
                                 : 'Seller Signup'
                             : isLogin
-                                ? 'Customer Signin'
-                                : 'Customer Signup',
+                                ? 'Signin'
+                                : 'Signup',
                         style: const TextStyle(
                           color: primaryColor,
                           fontSize: 18,

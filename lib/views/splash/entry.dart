@@ -46,23 +46,38 @@ class _EntryScreenState extends State<EntryScreen> {
 
     if (!mounted) return;
 
-    if (userId != null) {
-      // User is logged in
+    // Get root navigator to ensure we're clearing the entire stack
+    final navigator = Navigator.of(context, rootNavigator: true);
+
+    if (userId != null && userId.isNotEmpty && userId != '0') {
+      // User is logged in - navigate based on role
       if (userRole == "3") {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          SellerBottomNav.routeName,
-          (route) => false,
+        // Seller - navigate to seller screen
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const SellerBottomNav(),
+            settings: const RouteSettings(name: '/seller-home'),
+          ),
+          (Route<dynamic> route) => false,
         );
       } else {
-        Navigator.of(context).pushNamedAndRemoveUntil(
-          CustomerBottomNav.routeName,
-          (route) => false,
+        // Customer - navigate to customer screen
+        navigator.pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const CustomerBottomNav(),
+            settings: const RouteSettings(name: '/customer-home'),
+          ),
+          (Route<dynamic> route) => false,
         );
       }
     } else {
-      // User is not logged in
-      Navigator.of(context).pushReplacementNamed(
-        AccountTypeSelector.routeName,
+      // Allow guest access - navigate to customer home without login
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const CustomerBottomNav(),
+          settings: const RouteSettings(name: '/customer-home'),
+        ),
+        (Route<dynamic> route) => false,
       );
     }
   }
