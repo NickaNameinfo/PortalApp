@@ -14,6 +14,7 @@ import 'package:nickname_portal/views/main/customer/cart.dart';
 import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:nickname_portal/utilities/auth_helper.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 import '../../../constants/colors.dart';
 
@@ -71,11 +72,10 @@ class _StoreDetailsState extends State<StoreDetails> {
     final url = Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId');
 
     try {
-      final response = await http.get(url).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Request timeout');
-        },
+      final response = await SecureHttpClient.get(
+        url.toString(),
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
 
       if (response.statusCode == 200) {
@@ -128,31 +128,22 @@ class _StoreDetailsState extends State<StoreDetails> {
     }
     try {
       // Add timeouts to all API calls to prevent infinite loading
-      final storeFuture = http.get(
-        Uri.parse('https://nicknameinfo.net/api/store/list/${widget.storeId}')
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Store request timeout');
-        },
+      final storeFuture = SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/list/${widget.storeId}',
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
       
-      final productFuture = http.get(
-        Uri.parse('https://nicknameinfo.net/api/store/product/getAllProductById/${widget.storeId}')
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Product request timeout');
-        },
+      final productFuture = SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/product/getAllProductById/${widget.storeId}',
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
       
-      final allStoresFuture = http.get(
-        Uri.parse('https://nicknameinfo.net/api/store/list')
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('All stores request timeout');
-        },
+      final allStoresFuture = SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/list',
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
 
       final responses = await Future.wait([storeFuture, productFuture, allStoresFuture]);
@@ -364,9 +355,8 @@ class _StoreDetailsState extends State<StoreDetails> {
                                                      product['total']?.toString() ?? '0') ?? 0.0;
         
         // Get discount percentage
-        _currentDiscounts[productId] = double.tryParse(sizeData['discountPer']?.toString() ?? 
+        _currentDiscounts[productId] = double.tryParse(
                                                        sizeData['discount']?.toString() ?? 
-                                                       product['discountPer']?.toString() ?? 
                                                        '0') ?? 0.0;
         
         _currentStocks[productId] = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
@@ -378,7 +368,7 @@ class _StoreDetailsState extends State<StoreDetails> {
       
       _currentPrices[productId] = discountedPrice;
       _originalPrices[productId] = originalPrice;
-      _currentDiscounts[productId] = double.tryParse(product['discountPer']?.toString() ?? '0') ?? 0.0;
+      _currentDiscounts[productId] = double.tryParse(product['discount']?.toString() ?? '0') ?? 0.0;
       _currentStocks[productId] = int.tryParse(product['unitSize']?.toString() ?? '0') ?? 0;
     }
   }

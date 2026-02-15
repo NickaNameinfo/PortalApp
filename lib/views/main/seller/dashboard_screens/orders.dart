@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../constants/colors.dart'; // Ensure this path is correct for your project
+import '../../../../helpers/secure_http_client.dart';
 
 class OrdersScreen extends StatefulWidget {
   static const routeName = '/orders';
@@ -16,6 +17,7 @@ class OrdersScreen extends StatefulWidget {
 
 class _OrdersScreenState extends State<OrdersScreen> {
   late String _userId = '';
+  late String _storeId = '';
   List<dynamic> _orders = [];
   bool _isLoading = true;
   double _totalAmount = 0.0;
@@ -30,7 +32,8 @@ class _OrdersScreenState extends State<OrdersScreen> {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _userId = (prefs.getString('userId') ?? '0');
-      if (_userId != '0') {
+      _storeId = (prefs.getString('storeId') ?? '');
+      if (_userId != '0' && _storeId.isNotEmpty) {
         _fetchOrders();
       } else {
         setState(() {
@@ -42,12 +45,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   // --- 1. Fetch Orders API ---
   Future<void> _fetchOrders() async {
-    // Using the specific store ID endpoint provided in your example
-    // Ideally, this 57 should be dynamic based on the logged-in user's store
-    final url = Uri.parse('https://nicknameinfo.net/api/order/store/list/57'); 
+    // Using the store ID from login info stored in SharedPreferences
+    if (_storeId.isEmpty) {
+      setState(() {
+        _isLoading = false;
+      });
+      return;
+    }
+    final url = Uri.parse('https://nicknameinfo.net/api/order/store/list/$_storeId'); 
     
     try {
-      final response = await http.get(url);
+      final response = await SecureHttpClient.get(
+        url.toString(),
+        context: context,
+      );
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> jsonResponse = json.decode(response.body);
@@ -96,14 +107,14 @@ class _OrdersScreenState extends State<OrdersScreen> {
         builder: (ctx) => const Center(child: CircularProgressIndicator(color: primaryColor)),
       );
 
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode({
+      final response = await SecureHttpClient.post(
+        url.toString(),
+        body: {
           "id": orderId,
           "status": status,
           "deliverydate": formattedDate,
-        }),
+        },
+        context: context,
       );
 
       if (!mounted) return;
@@ -243,23 +254,34 @@ class _OrdersScreenState extends State<OrdersScreen> {
     );
   }
 
-  // Helper: Build Data Row for DataTable
-  DataRow buildDataRow(String field, dynamic detail) {
-    return DataRow(
-      cells: [
-        DataCell(Text(field, style: const TextStyle(color: Colors.grey))),
-        DataCell(
+  // Helper: Build detail row (label + value). Address shows fully with wrap, no scroll.
+  Widget _buildDetailRow(String label, dynamic value, {bool isAddress = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           SizedBox(
-            width: 160,
-            child: Text(
-              detail.toString(),
-              style: const TextStyle(color: Colors.black87, fontSize: 13),
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
+            width: 100,
+            child: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
           ),
-        )
-      ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: isAddress
+                ? Text(
+                    value.toString(),
+                    style: const TextStyle(color: Colors.black87, fontSize: 13),
+                    softWrap: true,
+                  )
+                : Text(
+                    value.toString(),
+                    style: const TextStyle(color: Colors.black87, fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 2,
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -390,18 +412,20 @@ class _OrdersScreenState extends State<OrdersScreen> {
                         ),
                         iconColor: primaryColor,
                         children: [
-                          DataTable(
-                            headingRowHeight: 0,
-                            columns: const [DataColumn(label: Text('')), DataColumn(label: Text(''))],
-                            rows: [
-                              buildDataRow('Order ID', '#${item['id']}'),
-                              buildDataRow('Order Date', formattedDate),
-                              buildDataRow('Customer', user['firstName'] ?? 'N/A'),
-                              buildDataRow('Contact', user['phone'] ?? 'N/A'),
-                              buildDataRow('Address', item['deliveryAddress'] ?? 'N/A'),
-                              if (item['deliverydate'] != null)
-                                buildDataRow('Delivery Date', item['deliverydate']),
-                            ],
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildDetailRow('Order ID', '#${item['id']}'),
+                                _buildDetailRow('Order Date', formattedDate),
+                                _buildDetailRow('Customer', user['firstName'] ?? 'N/A'),
+                                _buildDetailRow('Contact', user['phone'] ?? 'N/A'),
+                                _buildDetailRow('Address', item['deliveryAddress'] ?? 'N/A', isAddress: true),
+                                if (item['deliverydate'] != null)
+                                  _buildDetailRow('Delivery Date', item['deliverydate']),
+                              ],
+                            ),
                           )
                         ],
                       ),

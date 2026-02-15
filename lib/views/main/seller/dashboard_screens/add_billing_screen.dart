@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../../../models/billing_model.dart';
 import '../../../../helpers/billing_service.dart';
+import '../../../../helpers/secure_http_client.dart';
 
 class AddBillingScreen extends StatefulWidget {
   const AddBillingScreen({Key? key}) : super(key: key);
@@ -84,12 +85,11 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
       final url = 'https://nicknameinfo.net/api/store/product/admin/getAllProductById/$_storeId';
       print('Fetching products from: $url'); // Debug log
       
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 15));
+      final response = await SecureHttpClient.get(
+        url,
+        timeout: const Duration(seconds: 15),
+        context: context,
+      );
 
       print('Response status code: ${response.statusCode}'); // Debug log
       
@@ -253,10 +253,11 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
         if (product.productId == null) continue;
 
         // Fetch current product data
-        final productResponse = await http.get(
-          Uri.parse('https://nicknameinfo.net/api/product/getProductById/${product.productId}'),
-          headers: {'Content-Type': 'application/json'},
-        ).timeout(const Duration(seconds: 15));
+        final productResponse = await SecureHttpClient.get(
+          'https://nicknameinfo.net/api/product/getProductById/${product.productId}',
+          timeout: const Duration(seconds: 15),
+          context: context,
+        );
 
         if (productResponse.statusCode != 200) {
           print('Failed to fetch product ${product.productId}');
@@ -330,11 +331,12 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
                   'sizeUnitSizeMap': jsonEncode(sizeUnitSizeMap),
                 };
 
-                final response = await http.post(
-                  Uri.parse('https://nicknameinfo.net/api/product/update'),
-                  headers: {'Content-Type': 'application/json'},
-                  body: jsonEncode(updateData),
-                ).timeout(const Duration(seconds: 15));
+                final response = await SecureHttpClient.post(
+                  'https://nicknameinfo.net/api/product/update',
+                  body: updateData,
+                  timeout: const Duration(seconds: 15),
+                  context: context,
+                );
 
                 if (response.statusCode == 200) {
                   print('✅ Successfully updated product ${product.productId} size ${product.size} unitSize to $newSizeUnitSize');
@@ -365,11 +367,12 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
           'unitSize': newUnitSize.toString(),
         };
 
-        final response = await http.post(
-          Uri.parse('https://nicknameinfo.net/api/product/update'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(updateData),
-        ).timeout(const Duration(seconds: 15));
+        final response = await SecureHttpClient.post(
+          'https://nicknameinfo.net/api/product/update',
+          body: updateData,
+          timeout: const Duration(seconds: 15),
+          context: context,
+        );
 
         if (response.statusCode == 200) {
           print('✅ Successfully updated product ${product.productId} unit size to $newUnitSize');

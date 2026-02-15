@@ -5,6 +5,8 @@ import 'package:nickname_portal/views/auth/auth.dart';
 import '../../constants/colors.dart';
 import 'package:http/http.dart' as http;
 import 'package:nickname_portal/views/auth/auth.dart';
+import '../../helpers/secure_http_client.dart';
+import '../../helpers/error_handler.dart';
 
 class ForgotPassword extends StatefulWidget {
   static const routeName = '/forgot-password';
@@ -40,15 +42,13 @@ class _ForgotPasswordState extends State<ForgotPassword> {
     });
 
     try {
-      final response = await http.post(
-        Uri.parse('https://nicknameinfo.net/api/auth/user/update'),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(<String, String>{
+      final response = await SecureHttpClient.post(
+        'https://nicknameinfo.net/api/auth/user/update',
+        body: {
           'email': _emailController.text,
           'password': _passwordController.text,
-        }),
+        },
+        context: context,
       );
 
       if (response.statusCode == 200) {

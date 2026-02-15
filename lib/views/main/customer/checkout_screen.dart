@@ -9,12 +9,18 @@ import 'package:nickname_portal/helpers/address_service.dart';
 import 'package:nickname_portal/helpers/order_service.dart'; // We keep this for Address class
 import 'package:nickname_portal/views/main/customer/home.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 // --- New Imports Required for Payment Logic ---
-import 'package:razorpay_flutter/razorpay_flutter.dart';
+// Conditional imports for Razorpay - use appropriate package based on platform
+import 'package:nickname_portal/components/razorpay_stub.dart'
+    if (dart.library.io) 'package:nickname_portal/components/razorpay_mobile.dart'
+    if (dart.library.html) 'package:nickname_portal/components/razorpay_web_impl.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:nickname_portal/helpers/checkout_api_helper.dart'; // Our new helper
 import 'package:nickname_portal/constants/colors.dart';
 import 'package:nickname_portal/utilities/auth_helper.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 
 
 // --- MOCK DEFINITIONS (from your code) ---
@@ -473,10 +479,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final int qty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
       
       try {
-        final productResponse = await http.get(
-          Uri.parse('https://nicknameinfo.net/api/product/getProductById/$productId'),
-          headers: {'Content-Type': 'application/json'},
-        ).timeout(const Duration(seconds: 10));
+        final productResponse = await SecureHttpClient.get(
+          'https://nicknameinfo.net/api/product/getProductById/$productId',
+          timeout: const Duration(seconds: 10),
+          context: context,
+        );
         
         if (productResponse.statusCode == 200) {
           final productData = jsonDecode(productResponse.body);
@@ -548,7 +555,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           _pendingPaymentResult = paymentData;
 
           final options = {
-            'key': 'rzp_live_RgPc8rKEOZbHgf', // Your Razorpay Key
+            'key': AppConfig.razorpayKey,
             'amount': paymentData['amount'],
             'currency': paymentData['currency'],
             'order_id': paymentData['id'],
@@ -608,10 +615,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   // This helper function creates individual orders, used by both online and offline flows
   Future<void> _updateProductUnitSize(int productId, int quantity, {String? size}) async {
     try {
-      final productResponse = await http.get(
-        Uri.parse('https://nicknameinfo.net/api/product/getProductById/$productId'),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 15));
+      final productResponse = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/product/getProductById/$productId',
+        timeout: const Duration(seconds: 15),
+        context: context,
+      );
 
       if (productResponse.statusCode == 200) {
         final productData = jsonDecode(productResponse.body);
@@ -681,11 +689,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   'sizeUnitSizeMap': jsonEncode(sizeUnitSizeMap),
                 };
 
-                final response = await http.post(
-                  Uri.parse('https://nicknameinfo.net/api/product/update'),
-                  headers: {'Content-Type': 'application/json'},
-                  body: jsonEncode(updateData),
-                ).timeout(const Duration(seconds: 15));
+                final response = await SecureHttpClient.post(
+                  'https://nicknameinfo.net/api/product/update',
+                  body: updateData,
+                  timeout: const Duration(seconds: 15),
+                  context: context,
+                );
                 
                 if (response.statusCode == 200) {
                   print('✅ Successfully updated product $productId size $size unitSize to $newSizeUnitSize');
@@ -720,10 +729,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           'unitSize': newUnitSize.toString(),
         };
 
-        final response = await http.post(
-          Uri.parse('https://nicknameinfo.net/api/product/update'),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode(updateData),
+        final response = await SecureHttpClient.post(
+          'https://nicknameinfo.net/api/product/update',
+          body: updateData,
+          timeout: const Duration(seconds: 15),
+          context: context,
         ).timeout(const Duration(seconds: 15));
         
         if (response.statusCode == 200) {
@@ -1329,16 +1339,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               },
             ),
 
-            RadioListTile<int>(
-              title: const Text('Cash on Delivery'),
-              value: 3,
-              groupValue: _selectedPaymentOption,
-              onChanged: (int? value) {
-                setState(() {
-                  _selectedPaymentOption = value!;
-                });
-              },
-            ),
+            // RadioListTile<int>(
+            //   title: const Text('Cash on Delivery'),
+            //   value: 3,
+            //   groupValue: _selectedPaymentOption,
+            //   onChanged: (int? value) {
+            //     setState(() {
+            //       _selectedPaymentOption = value!;
+            //     });
+            //   },
+            // ),
             RadioListTile<int>(
               title: const Text('Delivery in future'),
               value: 4,
@@ -1408,7 +1418,10 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> _fetchCartItems() async {
-    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId'));
+    final response = await SecureHttpClient.get(
+      'https://nicknameinfo.net/api/cart/list/$_userId',
+      context: context,
+    );
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       if (data['success'] == true && data['data'] != null) {

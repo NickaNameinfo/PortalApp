@@ -5,6 +5,7 @@ import 'package:nickname_portal/views/main/seller/dashboard_screens/orders.dart'
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../helpers/secure_http_client.dart';
 import '../../../models/store.dart';
 import '../../auth/account_type_selector.dart';
 import '../../auth/auth.dart';
@@ -92,7 +93,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         debugPrint('Supplier ID is null/empty. Cannot fetch store details.');
         return;
       }
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/store/list/$_supplierId'));
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/list/$_supplierId',
+        context: context,
+      );
       
       if (response.statusCode == 200) {
         final decodedData = json.decode(response.body);
@@ -285,6 +289,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Widget _buildVerificationDocumentSection() {
+    final String url = _store?.verifyDocument ?? '';
+    final bool hasDocument = url.isNotEmpty;
+    final bool isImageUrl = hasDocument && (url.toLowerCase().contains('.jpeg') || url.toLowerCase().contains('.jpg') || url.toLowerCase().contains('.png') || url.toLowerCase().contains('.webp') || url.toLowerCase().contains('.gif'));
+
+    return InkWell(
+      onTap: hasDocument ? () => launchWebsite(url, _store!.id) : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.verified_user, color: primaryColor),
+                const SizedBox(width: 16),
+                const Text(
+                  'Verification Document',
+                  style: TextStyle(fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+            if (hasDocument) ...[
+              const SizedBox(height: 10),
+              if (isImageUrl)
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.network(
+                    url,
+                    height: 200,
+                    width: double.infinity,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text(url, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ),
+                    loadingBuilder: (_, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return SizedBox(
+                        height: 200,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded / (loadingProgress.expectedTotalBytes!.toDouble())
+                                : null,
+                            color: primaryColor,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Text(url, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                ),
+            ] else
+              const Padding(
+                padding: EdgeInsets.only(top: 8.0),
+                child: Text('Not provided', style: TextStyle(fontSize: 13, color: Colors.grey)),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -661,16 +732,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 padding: EdgeInsets.all(8.0),
                                 child: Divider(thickness: 1),
                               ),
-                              KListTile(
-                                title: 'Verification Document',
-                                subtitle: _store!.verifyDocument.isNotEmpty ? _store!.verifyDocument : 'Not provided',
-                                icon: Icons.verified_user,
-                                onTapHandler: () {
-                                  if (_store!.verifyDocument.isNotEmpty) {
-                                    launchWebsite(_store!.verifyDocument, _store!.id);
-                                  }
-                                },
-                              ),
+                              _buildVerificationDocumentSection(),
                             ],
                             // Fallback if no user or store data is available
                             if (!dataLoaded && !isLoading)

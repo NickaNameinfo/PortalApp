@@ -4,7 +4,8 @@ import 'package:nickname_portal/components/loading.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http; 
-import 'dart:convert'; 
+import 'dart:convert';
+import 'package:nickname_portal/helpers/secure_http_client.dart'; 
 
 // ASSUMED: These imports point to your other files
 import 'package:nickname_portal/components/nav_bar_container.dart';
@@ -894,18 +895,23 @@ class CategoriesExpansionFilter extends StatefulWidget {
 
 class _CategoriesExpansionFilterState extends State<CategoriesExpansionFilter> {
   
-  late Future<List<dynamic>> _categoriesFuture;
+  Future<List<dynamic>>? _categoriesFuture;
   bool _isExpanded = false;
 
   @override
   void initState() {
     super.initState();
+    // Initialize future - category API is public so context not needed
     _categoriesFuture = _fetchCategoriesFromApi();
   }
 
   Future<List<dynamic>> _fetchCategoriesFromApi() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      // Use context from build method - SecureHttpClient will use global navigator if context is null
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/category/getAllCategory',
+        context: null, // Category API is public, context not needed
+      );
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true) {

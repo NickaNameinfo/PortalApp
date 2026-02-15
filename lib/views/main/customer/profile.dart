@@ -11,6 +11,7 @@ import 'package:nickname_portal/components/k_list_tile.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nickname_portal/views/auth/auth.dart';
 import 'package:nickname_portal/views/main/customer/customer_bottom_nav.dart';
+import '../../../helpers/secure_http_client.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -199,13 +200,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final url = 'https://nicknameinfo.net/api/auth/user/$_userId';
       debugPrint('API URL: $url');
       
-      final response = await http.get(
-        Uri.parse(url)
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Request timeout');
-        },
+      final response = await SecureHttpClient.get(
+        url,
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
       
       debugPrint('API Response Status: ${response.statusCode}');

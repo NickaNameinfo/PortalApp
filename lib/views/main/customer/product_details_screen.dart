@@ -14,6 +14,7 @@ import 'package:nickname_portal/views/main/store/store_details.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nickname_portal/utilities/auth_helper.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> product;
@@ -119,9 +120,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
                                          widget.product['total']?.toString() ?? '0') ?? 0.0;
         
         // Get discount percentage
-        _currentDiscount = double.tryParse(sizeData['discountPer']?.toString() ?? 
-                                           sizeData['discount']?.toString() ?? 
-                                           widget.product['discountPer']?.toString() ?? 
+        _currentDiscount = double.tryParse(sizeData['discount']?.toString() ?? 
                                            '0') ?? 0.0;
         
         _currentStock = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
@@ -131,7 +130,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
       _originalPrice = double.tryParse(widget.product['price']?.toString() ?? '0') ?? 0.0;
       _currentPrice = double.tryParse(widget.product['total']?.toString() ?? 
                                      widget.product['price']?.toString() ?? '0') ?? 0.0;
-      _currentDiscount = double.tryParse(widget.product['discountPer']?.toString() ?? '0') ?? 0.0;
+      _currentDiscount = double.tryParse(widget.product['discount']?.toString() ?? '0') ?? 0.0;
       _currentStock = int.tryParse(widget.product['unitSize']?.toString() ?? '0') ?? 0;
     }
   }
@@ -233,7 +232,10 @@ Future<void> _fetchCartQuantities() async {
     final url = Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId');
 
     try {
-      final response = await http.get(url);
+      final response = await SecureHttpClient.get(
+        url.toString(),
+        context: context,
+      );
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
@@ -282,10 +284,14 @@ Future<void> _fetchStoreData() async {
       });
     }
     try {
-      final storeFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/list/${widget.product['store']['id']}'));
-      final productFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/product/getAllProductById/${widget.product['store']['id']}'));
+      final storeFuture = SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/list/${widget.product['store']['id']}',
+        context: context,
+      );
+      final productFuture = SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/product/getAllProductById/${widget.product['store']['id']}',
+        context: context,
+      );
       final responses = await Future.wait([storeFuture, productFuture]);
       final storeResponse = responses[0];
       final productResponse = responses[1];
@@ -1139,11 +1145,10 @@ Widget buildStoreHeader() {
         'customizedMessage': _feedbackController.text.trim(),
       };
 
-      final url = Uri.parse('https://nicknameinfo.net/api/productFeedback/create');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(feedbackData),
+      final response = await SecureHttpClient.post(
+        'https://nicknameinfo.net/api/productFeedback/create',
+        body: feedbackData,
+        context: context,
       );
 
       if (mounted) {

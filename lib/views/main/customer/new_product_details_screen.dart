@@ -11,6 +11,7 @@ import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/store/store_details.dart';
 import 'package:nickname_portal/utilities/url_launcher_utils.dart';
 import 'package:nickname_portal/utilities/auth_helper.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 class NewProductDetailsScreen extends StatefulWidget {
   static const routeName = '/new_product_details_screen';
@@ -47,6 +48,10 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
   int _feedbackRating = 0;
   bool _isSubmittingFeedback = false;
 
+  // Product photos state
+  int _selectedImageIndex = 0;
+  List<String> _allProductPhotos = [];
+
   // Helper to safely access dynamic product fields
   String _safeGet(String key, String fallback) {
     // Accessing map safely and converting to String
@@ -59,6 +64,63 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
   void initState() {
     super.initState();
     _loadUserId();
+    _initializeProductPhotos();
+  }
+  
+  // Initialize product photos (main + sub photos)
+  void _initializeProductPhotos() {
+    final List<String> photos = [];
+    
+    // Add main photo first
+    final mainPhoto = _safeGet('photo', '');
+    if (mainPhoto.isNotEmpty && mainPhoto != 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image') {
+      photos.add(mainPhoto);
+    }
+    
+    // Add sub photos from productphotos array
+    try {
+      final productphotos = widget.product['productphotos'];
+      if (productphotos != null) {
+        if (productphotos is List) {
+          for (var photo in productphotos) {
+            String? imgUrl;
+            if (photo is Map) {
+              imgUrl = photo['imgUrl']?.toString() ?? photo['url']?.toString();
+            } else if (photo is String) {
+              imgUrl = photo;
+            }
+            if (imgUrl != null && imgUrl.isNotEmpty) {
+              photos.add(imgUrl);
+            }
+          }
+        } else if (productphotos is String) {
+          // Try to parse as JSON string
+          try {
+            final parsed = json.decode(productphotos) as List;
+            for (var photo in parsed) {
+              String? imgUrl;
+              if (photo is Map) {
+                imgUrl = photo['imgUrl']?.toString() ?? photo['url']?.toString();
+              } else if (photo is String) {
+                imgUrl = photo;
+              }
+              if (imgUrl != null && imgUrl.isNotEmpty) {
+                photos.add(imgUrl);
+              }
+            }
+          } catch (e) {
+            // If parsing fails, ignore
+          }
+        }
+      }
+    } catch (e) {
+      // If any error occurs, just use main photo
+    }
+    
+    setState(() {
+      _allProductPhotos = photos;
+      _selectedImageIndex = 0;
+    });
   }
 
   @override
@@ -149,9 +211,7 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
                                          widget.product['total']?.toString() ?? '0') ?? 0.0;
         
         // Get discount percentage
-        _currentDiscount = double.tryParse(sizeData['discountPer']?.toString() ?? 
-                                           sizeData['discount']?.toString() ?? 
-                                           widget.product['discountPer']?.toString() ?? 
+        _currentDiscount = double.tryParse(sizeData['discount']?.toString() ?? 
                                            '0') ?? 0.0;
         
         _currentStock = int.tryParse(sizeData['unitSize']?.toString() ?? '0') ?? 0;
@@ -161,7 +221,7 @@ class _NewProductDetailsScreenState extends State<NewProductDetailsScreen> {
       _originalPrice = double.tryParse(widget.product['price']?.toString() ?? '0') ?? 0.0;
       _currentPrice = double.tryParse(widget.product['total']?.toString() ?? 
                                      widget.product['price']?.toString() ?? '0') ?? 0.0;
-      _currentDiscount = double.tryParse(widget.product['discountPer']?.toString() ?? '0') ?? 0.0;
+      _currentDiscount = double.tryParse(widget.product['discount']?.toString() ?? '0') ?? 0.0;
       _currentStock = int.tryParse(widget.product['unitSize']?.toString() ?? '0') ?? 0;
     }
   }
@@ -188,10 +248,14 @@ int? storeId;
         throw Exception('Store ID not found in product data');
       }
       
-      final storeFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/list/$storeId'));
-      final productFuture = http.get(Uri.parse(
-          'https://nicknameinfo.net/api/store/product/getAllProductById/$storeId'));
+      final storeFuture = SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/list/$storeId',
+        context: context,
+      );
+      final productFuture = SecureHttpClient.get(
+        'https://nicknameinfo.net/api/store/product/getAllProductById/$storeId',
+        context: context,
+      );
       final responses = await Future.wait([storeFuture, productFuture]);
       final storeResponse = responses[0];
       final productResponse = responses[1];
@@ -538,7 +602,7 @@ int? storeId;
   }
 
   // Show full-screen image viewer
-  void _showFullScreenImage(BuildContext context, String imageUrl) {
+  void _showFullScreenImage(BuildContext context, String imageUrl, {int initialIndex = 0}) {
     Navigator.of(context).push(
       PageRouteBuilder(
         fullscreenDialog: true,
@@ -546,6 +610,8 @@ int? storeId;
         barrierColor: Colors.black,
         pageBuilder: (context, animation, secondaryAnimation) => _FullScreenImageViewer(
           imageUrl: imageUrl,
+          allImages: _allProductPhotos,
+          initialIndex: initialIndex,
         ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
@@ -974,7 +1040,6 @@ int? storeId;
     final double price = double.tryParse(_safeGet('price', '0')) ?? 0.0;
     // Calculate final price after discount (API: total = 44100)
     final double discountedPrice = double.tryParse(_safeGet('total', price.toString())) ?? price;
-    final double discountPer = double.tryParse(_safeGet('discountPer', '0')) ?? 0.0;
     final int stockQty = int.tryParse(_safeGet('unitSize', '0')) ?? 0;
     
     // Check payment modes (API: paymentMode = "1,3")
@@ -1042,19 +1107,47 @@ int? storeId;
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Product Image - Tappable for full view
-                        GestureDetector(
-                          onTap: () => _showFullScreenImage(context, _safeGet('photo', 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image')),
+                        // Product Image with Thumbnails
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Main Image
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  if (_allProductPhotos.isNotEmpty) {
+                                    _showFullScreenImage(
+                                      context,
+                                      _allProductPhotos[_selectedImageIndex],
+                                      initialIndex: _selectedImageIndex,
+                                    );
+                                  } else {
+                                    _showFullScreenImage(
+                                      context,
+                                      _safeGet('photo', 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image'),
+                                    );
+                                  }
+                                },
                           child: Stack(
                             children: [
                               ClipRRect(
                                 borderRadius: BorderRadius.circular(10),
                                 child: Container(
                                   color: Colors.grey.shade100,
-                                  child: Image.network(
-                                    _safeGet('photo', 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image'),
                                     height: 200,
                                     width: double.infinity,
+                                        child: _allProductPhotos.isNotEmpty
+                                            ? Image.network(
+                                                _allProductPhotos[_selectedImageIndex],
+                                                fit: BoxFit.contain,
+                                                errorBuilder: (context, error, stackTrace) => Container(
+                                                  height: 200,
+                                                  color: Colors.grey.shade200,
+                                                  child: const Center(child: Text('Image Failed to Load')),
+                                                ),
+                                              )
+                                            : Image.network(
+                                                _safeGet('photo', 'https://placehold.co/600x400/5E5E5E/FFFFFF/png?text=No+Image'),
                                     fit: BoxFit.contain,
                                     errorBuilder: (context, error, stackTrace) => Container(
                                       height: 200,
@@ -1084,11 +1177,104 @@ int? storeId;
                                     Icons.zoom_in,
                                     color: Colors.white,
                                     size: 18,
+                                        ),
+                                      ),
+                                    ),
+                                    // Photo count badge
+                                    if (_allProductPhotos.length > 1)
+                                      Positioned(
+                                        top: 8,
+                                        left: 8,
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withOpacity(0.6),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            '${_selectedImageIndex + 1}/${_allProductPhotos.length}',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                   ),
                                 ),
                               ),
                             ],
                           ),
+                              ),
+                            ),
+                            // Thumbnail Gallery (if multiple photos)
+                            if (_allProductPhotos.length > 1) ...[
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                width: 60,
+                                child: Column(
+                                  children: [
+                                    ...List.generate(
+                                      _allProductPhotos.length > 4 ? 4 : _allProductPhotos.length,
+                                      (index) => GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedImageIndex = index;
+                                          });
+                                        },
+                                        child: Container(
+                                          margin: const EdgeInsets.only(bottom: 8),
+                                          decoration: BoxDecoration(
+                                            border: Border.all(
+                                              color: _selectedImageIndex == index
+                                                  ? primaryColor
+                                                  : Colors.grey.shade300,
+                                              width: _selectedImageIndex == index ? 2 : 1,
+                                            ),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(5),
+                                            child: Image.network(
+                                              _allProductPhotos[index],
+                                              width: 60,
+                                              height: 60,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                width: 60,
+                                                height: 60,
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(Icons.broken_image, size: 20),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                    // Show "+X more" indicator if more than 4 photos
+                                    if (_allProductPhotos.length > 4)
+                                      Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          border: Border.all(color: Colors.grey.shade300),
+                                          borderRadius: BorderRadius.circular(6),
+                                          color: Colors.grey.shade100,
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '+${_allProductPhotos.length - 4}',
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Colors.grey.shade700,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         const SizedBox(height: 20),
 
@@ -1728,11 +1914,10 @@ int? storeId;
         'customizedMessage': _feedbackController.text.trim(),
       };
 
-      final url = Uri.parse('https://nicknameinfo.net/api/productFeedback/create');
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(feedbackData),
+      final response = await SecureHttpClient.post(
+        'https://nicknameinfo.net/api/productFeedback/create',
+        body: feedbackData,
+        context: context,
       );
 
       if (mounted) {
@@ -1945,9 +2130,13 @@ int? storeId;
 // Full-screen image viewer widget
 class _FullScreenImageViewer extends StatefulWidget {
   final String imageUrl;
+  final List<String>? allImages;
+  final int initialIndex;
 
   const _FullScreenImageViewer({
     required this.imageUrl,
+    this.allImages,
+    this.initialIndex = 0,
   });
 
   @override
@@ -1957,10 +2146,20 @@ class _FullScreenImageViewer extends StatefulWidget {
 class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
   final TransformationController _transformationController = TransformationController();
   TapDownDetails? _doubleTapDetails;
+  late PageController _pageController;
+  late int _currentIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.initialIndex;
+    _pageController = PageController(initialPage: widget.initialIndex);
+  }
 
   @override
   void dispose() {
     _transformationController.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -1981,9 +2180,19 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
         ..scale(scale);
     }
   }
+  
+  List<String> get _images {
+    if (widget.allImages != null && widget.allImages!.isNotEmpty) {
+      return widget.allImages!;
+    }
+    return [widget.imageUrl];
+  }
 
   @override
   Widget build(BuildContext context) {
+    final images = _images;
+    final hasMultipleImages = images.length > 1;
+    
     return Scaffold(
       backgroundColor: Colors.black,
       extendBodyBehindAppBar: true,
@@ -1992,8 +2201,78 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            // Image with pinch-to-zoom and pan
-            GestureDetector(
+            // Image viewer with PageView for multiple images
+            hasMultipleImages
+                ? PageView.builder(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentIndex = index;
+                        _transformationController.value = Matrix4.identity();
+                      });
+                    },
+                    itemCount: images.length,
+                    itemBuilder: (context, index) {
+                      return GestureDetector(
+                        onDoubleTapDown: _handleDoubleTapDown,
+                        onDoubleTap: _handleDoubleTap,
+                        child: InteractiveViewer(
+                          transformationController: _transformationController,
+                          minScale: 0.5,
+                          maxScale: 5.0,
+                          panEnabled: true,
+                          scaleEnabled: true,
+                          child: Container(
+                            color: Colors.black,
+                            child: Center(
+                              child: Image.network(
+                                images[index],
+                                fit: BoxFit.contain,
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) {
+                                    return child;
+                                  }
+                                  return Center(
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded /
+                                                  loadingProgress.expectedTotalBytes!
+                                              : null,
+                                          color: Colors.white,
+                                        ),
+                                        const SizedBox(height: 16),
+                                        Text(
+                                          'Loading image...',
+                                          style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                errorBuilder: (context, error, stackTrace) => const Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.error_outline, color: Colors.white, size: 48),
+                                      SizedBox(height: 16),
+                                      Text(
+                                        'Failed to load image',
+                                        style: TextStyle(color: Colors.white),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : GestureDetector(
               onDoubleTapDown: _handleDoubleTapDown,
               onDoubleTap: _handleDoubleTap,
               child: InteractiveViewer(
@@ -2073,6 +2352,27 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
                 ),
               ),
             ),
+            // Image counter (if multiple images)
+            if (hasMultipleImages)
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 16,
+                left: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '${_currentIndex + 1} / ${images.length}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
             // Instructions
             Positioned(
               bottom: 48,

@@ -6,6 +6,7 @@ import '../../../../constants/colors.dart';
 import '../../../../helpers/product_api_service.dart';
 import '../../product/details.dart';
 import 'edit_product.dart';
+import 'scan_barcode_screen.dart';
 import '../category.dart';
 class ManageProductsScreen extends StatefulWidget {
   static const routeName = '/manage_products';
@@ -65,6 +66,23 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
             fontWeight: FontWeight.w500,
           ),
         ),
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ScanBarcodeScreen(),
+                ),
+              );
+            },
+            icon: const Icon(
+              Icons.qr_code_scanner,
+              color: Colors.white,
+            ),
+            tooltip: 'Scan Barcode',
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(

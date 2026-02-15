@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart'; 
-import 'package:flutter/foundation.dart'; 
+import 'package:flutter/foundation.dart';
+import '../../../helpers/secure_http_client.dart'; 
 
 import '../../../constants/colors.dart';
 import '../../../components/loading.dart';
@@ -59,6 +60,37 @@ class _ProductScreenState extends State<ProductScreen> {
       searchQuery: _currentSearchQuery,
       paymentMode: _currentPaymentMode, // <-- NEW
     );
+  }
+
+  // Helper method to get product photo count
+  int _getProductPhotoCount(Map<String, dynamic> product) {
+    int count = 0;
+    
+    // Count main photo
+    if (product['photo'] != null && product['photo'].toString().isNotEmpty) {
+      count = 1;
+    }
+    
+    // Count sub photos from productphotos array
+    try {
+      final productphotos = product['productphotos'];
+      if (productphotos != null) {
+        if (productphotos is List) {
+          count += productphotos.length;
+        } else if (productphotos is String) {
+          try {
+            final parsed = json.decode(productphotos) as List;
+            count += parsed.length;
+          } catch (e) {
+            // If parsing fails, ignore
+          }
+        }
+      }
+    } catch (e) {
+      // If any error occurs, just return main photo count
+    }
+    
+    return count;
   }
 
   // Listen for changes in *all* relevant filters
@@ -127,13 +159,10 @@ class _ProductScreenState extends State<ProductScreen> {
   // This function is for the CategoriesWidget
   Future<List<dynamic>> _fetchCategories() async {
     try {
-      final response = await http.get(
-        Uri.parse('https://nicknameinfo.net/api/category/getAllCategory')
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Category request timeout');
-        },
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/category/getAllCategory',
+        timeout: const Duration(seconds: 10),
+        context: context,
       );
       
       if (response.statusCode == 200) {
@@ -184,11 +213,10 @@ class _ProductScreenState extends State<ProductScreen> {
     }
     
     try {
-      final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Request timeout');
-        },
+      final response = await SecureHttpClient.get(
+        url,
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
 
       if (response.statusCode == 200) {
@@ -352,22 +380,47 @@ class _ProductScreenState extends State<ProductScreen> {
                                         topLeft: Radius.circular(18),
                                         topRight: Radius.circular(18),
                                       ),
-                                      child: Image.network(
-                                        product['photo'] ?? 'https://via.placeholder.com/150',
-                                        height: 150,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) => 
-                                          Container(
+                                      child: Stack(
+                                        children: [
+                                          Image.network(
+                                            product['photo'] ?? 'https://via.placeholder.com/150',
                                             height: 150,
-                                            decoration: BoxDecoration(
-                                              color: Colors.grey[100],
-                                              borderRadius: const BorderRadius.only(
-                                                topLeft: Radius.circular(18),
-                                                topRight: Radius.circular(18),
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (context, error, stackTrace) => 
+                                              Container(
+                                                height: 150,
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey[100],
+                                                  borderRadius: const BorderRadius.only(
+                                                    topLeft: Radius.circular(18),
+                                                    topRight: Radius.circular(18),
+                                                  ),
+                                                ),
+                                                child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 50)
+                                              ),
+                                          ),
+                                          // Photo count badge
+                                          if (_getProductPhotoCount(product) > 1)
+                                            Positioned(
+                                              top: 8,
+                                              right: 8,
+                                              child: Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.black.withOpacity(0.6),
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                child: Text(
+                                                  '${_getProductPhotoCount(product)} photos',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
                                               ),
                                             ),
-                                            child: Icon(Icons.image_not_supported, color: Colors.grey[400], size: 50)
-                                          ),
+                                        ],
                                       ),
                                     ),
                                     Padding(

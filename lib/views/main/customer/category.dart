@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:provider/provider.dart'; 
-import 'package:flutter/foundation.dart'; 
+import 'package:flutter/foundation.dart';
+import '../../../helpers/secure_http_client.dart'; 
 
 import '../../../constants/colors.dart';
 import '../../../components/loading.dart';
@@ -95,7 +96,10 @@ class _ProductScreenState extends State<ProductScreen> {
   // This function is for the CategoriesWidget
   Future<List<dynamic>> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/category/getAllCategory',
+        context: context,
+      );
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true) {
@@ -124,7 +128,10 @@ class _ProductScreenState extends State<ProductScreen> {
       url = 'https://nicknameinfo.net/api/product/getAllproductList';
     }
     
-    final response = await http.get(Uri.parse(url));
+    final response = await SecureHttpClient.get(
+      url,
+      context: context,
+    );
 
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);

@@ -35,6 +35,124 @@
   <link rel="manifest" href="manifest.json">
   <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY" async></script>
   <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  
+  <!-- Developer Tools Protection -->
+  <script>
+    // Early DevTools detection and blocking (runs before Flutter loads)
+    (function() {
+      'use strict';
+      
+      // Disable right-click context menu
+      document.addEventListener('contextmenu', function(e) {
+        e.preventDefault();
+        return false;
+      }, true);
+      
+      // Block F12 and common DevTools shortcuts
+      document.addEventListener('keydown', function(e) {
+        // F12
+        if (e.key === 'F12' || e.keyCode === 123) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+Shift+C, Ctrl+Shift+K
+        if (e.ctrlKey && e.shiftKey && ['I', 'J', 'C', 'K', 'i', 'j', 'c', 'k'].includes(e.key)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Ctrl+U (View Source)
+        if (e.ctrlKey && (e.key === 'U' || e.key === 'u' || e.keyCode === 85)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Ctrl+S (Save Page)
+        if (e.ctrlKey && (e.key === 'S' || e.key === 's' || e.keyCode === 83)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        // Ctrl+P (Print)
+        if (e.ctrlKey && (e.key === 'P' || e.key === 'p' || e.keyCode === 80)) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+      }, true);
+      
+      // Disable text selection
+      document.addEventListener('selectstart', function(e) {
+        e.preventDefault();
+        return false;
+      }, true);
+      
+      // Disable drag
+      document.addEventListener('dragstart', function(e) {
+        e.preventDefault();
+        return false;
+      }, true);
+      
+      // Basic DevTools detection
+      let devtools = {open: false};
+      const element = new Image();
+      Object.defineProperty(element, 'id', {
+        get: function() {
+          devtools.open = true;
+        }
+      });
+      
+      setInterval(function() {
+        devtools.open = false;
+        console.clear();
+        console.log(element);
+        if (devtools.open) {
+          // DevTools detected
+          console.clear();
+        }
+      }, 1000);
+    })();
+  </script>
+  
+  <style>
+    /* Prevent text selection (except in form fields) */
+    body {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+      -webkit-touch-callout: none;
+    }
+    
+    /* Allow text selection in input fields */
+    input,
+    textarea,
+    [contenteditable="true"] {
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
+      user-select: text !important;
+    }
+    
+    /* Prevent image dragging */
+    img {
+      -webkit-user-drag: none;
+      -khtml-user-drag: none;
+      -moz-user-drag: none;
+      -o-user-drag: none;
+      user-drag: none;
+    }
+    
+    /* Prevent text highlighting */
+    ::selection {
+      background: transparent !important;
+    }
+    
+    ::-moz-selection {
+      background: transparent !important;
+    }
+  </style>
 
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart'; // <-- NEW: Import geolocator
+import '../../../helpers/secure_http_client.dart';
 
 // ASSUMED: Your Utility Functions
 import 'package:nickname_portal/utilities/url_launcher_utils.dart';
@@ -234,7 +235,10 @@ class _MapViewPageState extends State<MapViewPage> {
   
   Future<List<dynamic>> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/category/getAllCategory',
+        context: context,
+      );
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true) {
@@ -278,7 +282,10 @@ class _MapViewPageState extends State<MapViewPage> {
       print('Fetching URL: $url');
     }
 
-    final response = await http.get(Uri.parse(url));
+    final response = await SecureHttpClient.get(
+      url,
+      context: context,
+    );
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       if (data['success'] == true) {

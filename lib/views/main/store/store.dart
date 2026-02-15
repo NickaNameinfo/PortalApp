@@ -5,6 +5,8 @@ import 'package:nickname_portal/views/main/store/store_details.dart';
 import '../../../components/loading.dart';
 import '../../../constants/colors.dart';
 import 'package:nickname_portal/components/gradient_background.dart';
+import '../../../helpers/secure_http_client.dart';
+import '../../../helpers/error_handler.dart';
 
 class StoreScreen extends StatefulWidget {
   const StoreScreen({super.key});
@@ -23,13 +25,13 @@ class _StoreScreenState extends State<StoreScreen> {
   }
 
   Future<List<dynamic>> fetchStores() async {
-    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/store/list'));
+    final response = await SecureHttpClient.get('https://nicknameinfo.net/api/store/list');
     if (response.statusCode == 200) {
       final Map<String, dynamic> data = json.decode(response.body);
       if (data['success'] == true) {
         return data['data'];
       } else {
-        throw Exception('API returned an error');
+        throw Exception(ErrorHandler.getErrorMessage(response));
       }
     } else {
       throw Exception('Failed to load stores');

@@ -23,8 +23,13 @@
 -keep class com.stripe.android.pushProvisioning.PushProvisioningEphemeralKeyProvider { *; }
 
 # Razorpay
--keep class com.razorpay.** { *; }
+-keepattributes *Annotation*
 -dontwarn com.razorpay.**
+-keep class com.razorpay.** { *; }
+-optimizations !method/inlining/
+-keepclasseswithmembers class * {
+  public void onPayment*(...);
+}
 
 # Google Play Core (for Flutter deferred components - optional feature)
 # These classes are referenced but not required if deferred components aren't used

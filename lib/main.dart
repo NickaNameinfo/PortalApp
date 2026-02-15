@@ -11,12 +11,45 @@ import 'firebase_options.dart';
 // Import your provider file
 import 'package:nickname_portal/providers/category_filter_data.dart';
 import 'package:marquee/marquee.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
+import 'package:nickname_portal/helpers/error_handler.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:nickname_portal/utils/dev_tools_protection.dart';
+import 'package:flutter/foundation.dart';
+import 'package:nickname_portal/utils/dev_tools_protection.dart';
+import 'package:flutter/foundation.dart';
+
+// Global navigator key for 401 handling
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialize developer tools protection for web builds
+  if (kIsWeb) {
+    DevToolsProtection.initialize(enabled: true);
+    // Optionally disable console in production
+    // DevToolsProtection.disableConsole();
+  }
+  
+  // Load environment variables from .env file
+  // Create .env file in root directory (see .env.example)
+  try {
+    await dotenv.load(fileName: ".env");
+    debugPrint('[Main] Environment variables loaded');
+  } catch (e) {
+    debugPrint('[Main] Warning: .env file not found, using defaults: $e');
+  }
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  
+  // Set up 401 handler for SecureHttpClient
+  SecureHttpClient.onUnauthorized = (context) {
+    ErrorHandler.handleUnauthorized(context);
+  };
+  
   runApp(
     MultiProvider(
       providers: [
@@ -47,6 +80,7 @@ class _MultiVendorState extends State<MultiVendor> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey, // Global navigator for 401 handling
       title: 'Nickname Portal',
       theme: ThemeData(
         fontFamily: 'Roboto',

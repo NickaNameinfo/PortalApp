@@ -8,6 +8,7 @@ import 'package:nickname_portal/views/main/customer/new_product_details_screen.d
 import '../../../constants/colors.dart';
 import '../product/details.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../helpers/secure_http_client.dart';
 
 class CustomerOrderScreen extends StatefulWidget {
   static const routeName = '/customer_orders';
@@ -40,8 +41,10 @@ class _CustomerOrderScreenState extends State<CustomerOrderScreen> {
   }
 
   Future<List<dynamic>> fetchOrders() async {
-    final url = Uri.parse('https://nicknameinfo.net/api/order/list/$_userId');
-    final response = await http.get(url);
+    final response = await SecureHttpClient.get(
+      'https://nicknameinfo.net/api/order/list/$_userId',
+      context: context,
+    );
 
     if (response.statusCode == 200) {
       final jsonData = json.decode(response.body);

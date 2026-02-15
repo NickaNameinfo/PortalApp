@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart'; // <-- NEW: Import geolocator
+import '../../../helpers/secure_http_client.dart';
 
 // ASSUMED: Your Utility Functions
 import 'package:nickname_portal/utilities/url_launcher_utils.dart';
@@ -235,13 +236,10 @@ class _HomeScreenState extends State<HomeScreen> {
   
   Future<List<dynamic>> _fetchCategories() async {
     try {
-      final response = await http.get(
-        Uri.parse('https://nicknameinfo.net/api/category/getAllCategory')
-      ).timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          throw TimeoutException('Category request timeout');
-        },
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/category/getAllCategory',
+        timeout: const Duration(seconds: 10),
+        context: context,
       );
       
       if (response.statusCode == 200) {
@@ -293,11 +291,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     try {
-      final response = await http.get(Uri.parse(url)).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Request timeout');
-        },
+      final response = await SecureHttpClient.get(
+        url,
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
       
       if (response.statusCode == 200) {

@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import '../../components/loading.dart';
 import '../../constants/colors.dart';
 import '../../helpers/image_picker.dart';
+import '../../helpers/secure_http_client.dart';
+import '../../helpers/error_handler.dart';
 import '../main/customer/customer_bottom_nav.dart';
 import '../main/seller/seller_bottom_nav.dart';
 import 'dart:convert';
@@ -203,24 +205,34 @@ class _AuthState extends State<Auth> {
     try {
       if (isLogin) {
         // Custom Login API with timeout
-        final url = Uri.parse('https://nicknameinfo.net/api/auth/rootLogin');
-        final response = await http.post(
-          url,
-          headers: {'Content-Type': 'application/json'},
-          body: json.encode({
+        // Note: Login endpoint doesn't require auth token (used to get token)
+        final response = await SecureHttpClient.post(
+          'https://nicknameinfo.net/api/auth/rootLogin',
+          body: {
             'email': _emailController.text.trim(),
             'password': _passwordController.text.trim(),
-          }),
-        ).timeout(
-          const Duration(seconds: 15),
-          onTimeout: () {
-            throw TimeoutException('Login request timed out. Please check your internet connection.');
           },
+          timeout: const Duration(seconds: 15),
         );
 
         if (response.statusCode == 200) {
           final responseData = json.decode(response.body);
-          debugPrint('Login response: $responseData');
+          
+          // Extract token from multiple possible locations (matching Dashboard Login.tsx)
+          // Dashboard checks: user?.data?.token || user?.data?.accessToken || user?.token || user?.accessToken || user?.user?.token
+          final token = responseData['data']?['token'] ?? 
+                       responseData['data']?['accessToken'] ??
+                       responseData['token'] ?? 
+                       responseData['accessToken'] ??
+                       responseData['user']?['token'];
+          
+          if (token == null || token.toString().isEmpty) {
+            showSnackBar('Login failed: No token received');
+            setState(() {
+              isLoading = false;
+            });
+            return;
+          }
           
           final userId = responseData['data']['id'];
           final storeId = responseData['data']['storeId'];
@@ -230,8 +242,6 @@ class _AuthState extends State<Auth> {
           final email = responseData['data']['email'];
           final firstName = responseData['data']['firstName'];
           
-          debugPrint('Login data - userId: $userId, storeId: $storeId, userRole: $userRole (type: ${userRole.runtimeType})');
-          
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('userId', userId.toString());
           await prefs.setString('storeId', storeId?.toString() ?? '');
@@ -240,11 +250,9 @@ class _AuthState extends State<Auth> {
           await prefs.setString('email', email ?? '');
           await prefs.setString('firstName', firstName ?? '');
           
-          // Save token if available
-          if (responseData['token'] != null) {
-            await prefs.setString('token', responseData['token']);
-            debugPrint('Token saved to SharedPreferences');
-          }
+          // Save token (matching Dashboard - sets both XSRF-token and token cookies)
+          // Mobile app uses SharedPreferences, so we save as 'token'
+          await prefs.setString('token', token.toString());
 
           showSnackBar('Login successful!');
           isLoadingFnc();
@@ -253,11 +261,8 @@ class _AuthState extends State<Auth> {
           await Future.delayed(const Duration(milliseconds: 300));
           
           if (!mounted) {
-            debugPrint('Widget not mounted, cannot navigate');
             return;
           }
-          
-          debugPrint('Checking role for navigation - userRole: "$userRole", comparison with "3": ${userRole == "3"}');
           
           // Get root navigator to ensure we're clearing the entire stack
           final navigator = Navigator.of(context, rootNavigator: true);
@@ -265,7 +270,6 @@ class _AuthState extends State<Auth> {
           // Use MaterialPageRoute directly and clear entire navigation stack
           if (userRole == "3") {
             // Redirect to seller screen - clear all previous routes
-            debugPrint('Navigating to SellerBottomNav - clearing all routes');
             navigator.pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (context) => const SellerBottomNav(),
@@ -275,7 +279,6 @@ class _AuthState extends State<Auth> {
             );
           } else {
             // For customers
-            debugPrint('Navigating to CustomerBottomNav - clearing all routes');
             // Always clear stack and navigate to customer home (don't pop if from dialog)
             navigator.pushAndRemoveUntil(
               MaterialPageRoute(
@@ -286,25 +289,29 @@ class _AuthState extends State<Auth> {
             );
           }
         } else {
-          final errorResponse = json.decode(response.body);
-          if (errorResponse.containsKey('errors') &&
-              errorResponse['errors'] is List &&
-              (errorResponse['errors'] as List).contains('Invalid Credentials')) {
-            showSnackBar('Invalid email or password. Please try again.');
-          } else {
-            showSnackBar('Login failed: ${response.body}');
+          // Use ErrorHandler for consistent error message extraction
+          // Matches Dashboard format: result?.error?.data?.message
+          final errorMessage = ErrorHandler.getErrorMessage(response);
+          final formattedMessage = ErrorHandler.formatErrorMessage(errorMessage);
+          
+          // Check if it's an auth error (401)
+          if (ErrorHandler.isAuthError(response)) {
+            await ErrorHandler.handleUnauthorized(context);
+            return;
           }
+          
+          showSnackBar(formattedMessage);
+          setState(() {
+            isLoading = false;
+          });
         }
       } else {
-        print(_phoneController);
-
         if (widget.isSellerReg) {
             try {
-              final storeUrl = Uri.parse('https://nicknameinfo.net/api/store/create');
-              final storeResponse = await http.post(
-                storeUrl,
-                headers: {'Content-Type': 'application/json'},
-                body: json.encode({
+              // Store creation - may need auth if user is already logged in
+              final storeResponse = await SecureHttpClient.post(
+                'https://nicknameinfo.net/api/store/create',
+                body: {
                   'storename': _fullnameController.text.trim(),
                   'email': _emailController.text.trim(),
                   'phone': _phoneController.text.trim(),
@@ -312,12 +319,8 @@ class _AuthState extends State<Auth> {
                   'ownername': _fullnameController.text.trim(),
                   'password': _passwordController.text.trim(),
                   'areaId': 3,
-                }),
-              ).timeout(
-                const Duration(seconds: 15),
-                onTimeout: () {
-                  throw TimeoutException('Store creation request timed out.');
                 },
+                timeout: const Duration(seconds: 15),
               );
 
               if (storeResponse.statusCode == 200) {
@@ -326,11 +329,10 @@ class _AuthState extends State<Auth> {
                 final storeId = storeData['data']['id'];
                 
                 // Custom Registration API with timeout
-                final url = Uri.parse('https://nicknameinfo.net/api/auth/register');
-                final response = await http.post(
-                  url,
-                  headers: {'Content-Type': 'application/json'},
-                  body: json.encode({
+                // Registration endpoint doesn't require auth token
+                final response = await SecureHttpClient.post(
+                  'https://nicknameinfo.net/api/auth/register',
+                  body: {
                     'role': "3",
                     'firstName': _fullnameController.text.trim(),
                     'email': _emailController.text.trim(),
@@ -338,12 +340,8 @@ class _AuthState extends State<Auth> {
                     'password': _passwordController.text.trim(),
                     'verify': 1,
                     'storeId': storeId.toString(),
-                  }),
-                ).timeout(
-                  const Duration(seconds: 15),
-                  onTimeout: () {
-                    throw TimeoutException('Registration request timed out. Please check your internet connection.');
                   },
+                  timeout: const Duration(seconds: 15),
                 );
                 if (response.statusCode == 200) {
                   showSnackBar('Registration successful!');
@@ -361,23 +359,18 @@ class _AuthState extends State<Auth> {
             }
         } else {
           // Custom Registration API with timeout
-            final url = Uri.parse('https://nicknameinfo.net/api/auth/register');
-            final response = await http.post(
-              url,
-              headers: {'Content-Type': 'application/json'},
-              body: json.encode({
+            // Registration endpoint doesn't require auth token
+            final response = await SecureHttpClient.post(
+              'https://nicknameinfo.net/api/auth/register',
+              body: {
                 'role': "1",
                 'firstName': _fullnameController.text.trim(),
                 'email': _emailController.text.trim(),
                 'phoneNo': _phoneController.text.trim(),
                 'password': _passwordController.text.trim(),
                 'verify': 1,
-              }),
-            ).timeout(
-              const Duration(seconds: 15),
-              onTimeout: () {
-                throw TimeoutException('Registration request timed out. Please check your internet connection.');
               },
+              timeout: const Duration(seconds: 15),
             );
             if (response.statusCode == 200) {
               showSnackBar('Registration successful!');

@@ -11,13 +11,18 @@ import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http; // Added for making HTTP requests
 import 'package:nickname_portal/components/loading.dart';
 import 'package:nickname_portal/helpers/category_service.dart'; // Added for CategoryService
+import 'package:nickname_portal/helpers/secure_http_client.dart'; // Secure HTTP client with authentication
+import 'package:nickname_portal/helpers/file_validation.dart'; // File validation utilities
 import 'package:shared_preferences/shared_preferences.dart'; // Added for SharedPreferences
 import '../../../../utilities/categories_list.dart'; // Still needed for legacy/default values
 import 'package:path/path.dart' as path;
 import 'package:nickname_portal/constants/colors.dart';
 import 'package:nickname_portal/models/subscription_model.dart'; // Import SubscriptionPlan
-import 'package:nickname_portal/helpers/subscription_service.dart'; // Import SubscriptionService
 import 'dart:typed_data';
+import 'package:barcode/barcode.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
 
 // New: Enum for Product Status
 enum ProductStatus { active, inactive }
@@ -68,9 +73,12 @@ class _EditProductState extends State<EditProduct> {
   final _descriptionController = TextEditingController();
   final _brandController = TextEditingController(); // Added brand controller
 
-  List<dynamic> productImages = [];
-  List<String> imageDownloadLinks = [];
+  List<dynamic> productImages = []; // Main product image
+  List<String> imageDownloadLinks = []; // Main image URLs
+  List<XFile> subImages = []; // New sub-images to upload
+  List<String> existingSubImages = []; // Existing sub-image URLs from API
   final ImagePicker _picker = ImagePicker();
+  Map<String, dynamic>? _fullProductData; // Full product data fetched by ID (includes all photos)
 
   var isInit = true;
   var currentImage = 0;
@@ -97,7 +105,7 @@ class _EditProductState extends State<EditProduct> {
   Map<String, Map<String, dynamic>> sizeUnitSizeMap = {}; // Map<size, {unitSize, qty, price, discount, discountPer, total, grandTotal}>
   List<Map<String, dynamic>> sizeEntries = []; // List of size entries for display
   String? selectedSize; // Currently selected size (nullable to avoid dropdown errors)
-  final List<String> availableSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'XXXXL'];
+  final List<String> availableSizes = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', '5XL', '6XL', '7XL', '8XL', '9XL', '10XL'];
   
   // Helper to normalize size (case-insensitive matching)
   String? _normalizeSize(String? size) {
@@ -113,6 +121,7 @@ class _EditProductState extends State<EditProduct> {
   final _sizeUnitSizeController = TextEditingController();
   final _sizePriceController = TextEditingController();
   final _sizeDiscountController = TextEditingController();
+  final _sizeQuantityController = TextEditingController();
 
   var isLoading = false;
   var isImagePicked = false; 
@@ -123,9 +132,15 @@ class _EditProductState extends State<EditProduct> {
   bool _isCategoryLoading = true; 
 
   String? _customerId;
-  late Future<SubscriptionPlan?> _plan1SubscriptionFuture;
-  late Future<SubscriptionPlan?> _plan2SubscriptionFuture;
-  late Future<SubscriptionPlan?> _plan3SubscriptionFuture;
+  SubscriptionPlan? _plan1Subscription;
+  SubscriptionPlan? _plan2Subscription;
+  SubscriptionPlan? _plan3Subscription;
+  bool _isLoadingSubscriptions = true;
+  
+  // Product counts for "Used" calculation
+  int _ecommerceUsedCount = 0;
+  int _customizeUsedCount = 0;
+  int _bookingUsedCount = 0;
 
   Future<void> _loadCustomerId() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -134,19 +149,217 @@ class _EditProductState extends State<EditProduct> {
     if (mounted) {
       setState(() {
         _customerId = loadedCustomerId; 
-        if (_customerId != null) {
-          // Fetch subscriptions for Plan1, Plan2, and Plan3 keys
-          _plan1SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan1");
-          _plan2SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan2");
-          _plan3SubscriptionFuture = SubscriptionService.getSubscriptionDetails(_customerId!, "Plan3");
-        } else {
-          // Handle case where customerId is missing
-          final errorFuture = Future<SubscriptionPlan?>.error('Customer ID not found.');
-          _plan1SubscriptionFuture = errorFuture;
-          _plan2SubscriptionFuture = errorFuture;
-          _plan3SubscriptionFuture = errorFuture;
-        }
       });
+      
+      if (_customerId != null) {
+        await _fetchUserSubscriptions();
+        await _fetchProductCounts();
+      } else {
+        if (mounted) {
+          setState(() {
+            _plan1Subscription = null;
+            _plan2Subscription = null;
+            _plan3Subscription = null;
+            _isLoadingSubscriptions = false;
+          });
+        }
+      }
+    }
+  }
+
+  /// Fetches user subscriptions from the API endpoint: https://nicknameinfo.net/api/auth/user/{userId}
+  /// 
+  /// API Response Structure:
+  /// {
+  ///   "success": true,
+  ///   "data": {
+  ///     "id": 119,
+  ///     "subscriptions": [
+  ///       {
+  ///         "id": 137,
+  ///         "subscriptionType": "Plan1" | "Plan2" | "Plan3",
+  ///         "subscriptionPlan": "PL1_005",
+  ///         "subscriptionPrice": "10016.00",
+  ///         "customerId": 55,
+  ///         "status": "1",
+  ///         "subscriptionCount": 200,
+  ///         "freeCount": 0
+  ///       }
+  ///     ]
+  ///   }
+  /// }
+  Future<void> _fetchUserSubscriptions() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      
+      if (userId == null || userId.isEmpty || userId == '0') {
+        if (mounted) {
+          setState(() {
+            _plan1Subscription = null;
+            _plan2Subscription = null;
+            _plan3Subscription = null;
+            _isLoadingSubscriptions = false;
+          });
+        }
+        return;
+      }
+
+      // Fetch user data with subscriptions from api/auth/user/{userId}
+      final url = 'https://nicknameinfo.net/api/auth/user/$userId';
+      debugPrint('Fetching user subscriptions from: $url');
+      final response = await SecureHttpClient.get(url);
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        debugPrint('User data response: ${data['success']}');
+        
+        if (data['success'] == true && data['data'] != null) {
+          final userData = data['data'];
+          final subscriptions = userData['subscriptions'] as List<dynamic>?;
+          debugPrint('Found ${subscriptions?.length ?? 0} subscriptions');
+          
+          SubscriptionPlan? plan1;
+          SubscriptionPlan? plan2;
+          SubscriptionPlan? plan3;
+          
+          if (subscriptions != null && subscriptions.isNotEmpty) {
+            // Find Plan1 subscription (Ecommerce)
+            final plan1List = subscriptions.where(
+              (sub) => sub['subscriptionType'] == 'Plan1' && sub['status'] == '1',
+            ).toList();
+            if (plan1List.isNotEmpty) {
+              plan1 = SubscriptionPlan.fromJson(plan1List.first);
+              debugPrint('Plan1 subscription found: ${plan1?.subscriptionPlan} with count: ${plan1?.subscriptionCount}');
+            }
+            
+            // Find Plan2 subscription (Customize)
+            final plan2List = subscriptions.where(
+              (sub) => sub['subscriptionType'] == 'Plan2' && sub['status'] == '1',
+            ).toList();
+            if (plan2List.isNotEmpty) {
+              plan2 = SubscriptionPlan.fromJson(plan2List.first);
+              debugPrint('Plan2 subscription found: ${plan2?.subscriptionPlan} with count: ${plan2?.subscriptionCount}');
+            }
+            
+            // Find Plan3 subscription (Booking)
+            final plan3List = subscriptions.where(
+              (sub) => sub['subscriptionType'] == 'Plan3' && sub['status'] == '1',
+            ).toList();
+            if (plan3List.isNotEmpty) {
+              plan3 = SubscriptionPlan.fromJson(plan3List.first);
+              debugPrint('Plan3 subscription found: ${plan3?.subscriptionPlan} with count: ${plan3?.subscriptionCount}');
+            }
+          } else {
+            debugPrint('No subscriptions found in user data');
+          }
+          
+          if (mounted) {
+            setState(() {
+              _plan1Subscription = plan1;
+              _plan2Subscription = plan2;
+              _plan3Subscription = plan3;
+              _isLoadingSubscriptions = false;
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _plan1Subscription = null;
+              _plan2Subscription = null;
+              _plan3Subscription = null;
+              _isLoadingSubscriptions = false;
+            });
+          }
+        }
+      } else {
+        debugPrint('Failed to fetch user data. Status code: ${response.statusCode}');
+        if (mounted) {
+          setState(() {
+            _plan1Subscription = null;
+            _plan2Subscription = null;
+            _plan3Subscription = null;
+            _isLoadingSubscriptions = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching user subscriptions: $e');
+      if (mounted) {
+        setState(() {
+          _plan1Subscription = null;
+          _plan2Subscription = null;
+          _plan3Subscription = null;
+          _isLoadingSubscriptions = false;
+        });
+      }
+    }
+  }
+
+  /// Fetches product counts to calculate "Used" subscription counts
+  /// Counts products with isEnableEcommerce, isEnableCustomize, and isBooking enabled
+  Future<void> _fetchProductCounts() async {
+    try {
+      if (_customerId == null || _customerId!.isEmpty) {
+        return;
+      }
+
+      // Fetch products from store
+      final url = 'https://nicknameinfo.net/api/store/product/admin/getAllProductById/$_customerId';
+      final response = await SecureHttpClient.get(url);
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        final products = data['data'] as List<dynamic>?;
+
+        if (products != null) {
+          int ecommerceCount = 0;
+          int customizeCount = 0;
+          int bookingCount = 0;
+
+          for (var product in products) {
+            // Check if product has the subscription features enabled
+            if (product['product'] != null) {
+              final productData = product['product'] as Map<String, dynamic>;
+              
+              // Count Ecommerce (Plan1)
+              if (productData['isEnableEcommerce']?.toString() == '1') {
+                ecommerceCount++;
+              }
+              
+              // Count Customize (Plan2)
+              if (productData['isEnableCustomize']?.toString() == '1' || 
+                  productData['isEnableCustomize'] == 1) {
+                customizeCount++;
+              }
+              
+              // Count Booking (Plan3)
+              if (productData['isBooking']?.toString() == '1' || 
+                  productData['isBooking'] == 1) {
+                bookingCount++;
+              }
+            }
+          }
+
+          if (mounted) {
+            setState(() {
+              _ecommerceUsedCount = ecommerceCount;
+              _customizeUsedCount = customizeCount;
+              _bookingUsedCount = bookingCount;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching product counts: $e');
+      // Set counts to 0 on error
+      if (mounted) {
+        setState(() {
+          _ecommerceUsedCount = 0;
+          _customizeUsedCount = 0;
+          _bookingUsedCount = 0;
+        });
+      }
     }
   }
 
@@ -162,6 +375,10 @@ class _EditProductState extends State<EditProduct> {
     _discountPriceController.text = '';
     _totalController.text = '';
     _grandTotalController.text = '';
+    _sizeUnitSizeController.text = '';
+    _sizePriceController.text = '';
+    _sizeDiscountController.text = '';
+    _sizeQuantityController.text = '';
     _descriptionController.text = '';
     _brandController.text = '';
     
@@ -172,15 +389,23 @@ class _EditProductState extends State<EditProduct> {
     
     _loadSupplierId();
     _loadCustomerId(); // Call _loadCustomerId here
-    _fetchSubscriptionDetails();
     _fetchCategories().then((_) {
-      // Initialize product data only after categories are fetched
-      _initProductData();
+      // If editing, fetch full product details to get all photos
+      if (widget.productData != null && widget.productData!['id'] != null) {
+        _fetchFullProductDetails(widget.productData!['id']).then((_) {
+          // Initialize product data only after categories and full product details are fetched
+          _initProductData();
+        });
+      } else {
+        // Initialize product data only after categories are fetched
+        _initProductData();
+      }
     });
     
     _priceController.addListener(_calculateTotals);
+    _quantityController.addListener(_calculateTotals);
     _discountController.addListener(_calculateTotals);
-    _discountPriceController.addListener(_calculateTotals);
+    // _discountPriceController not listened - discount price is auto-calculated from discount %
     debugPrint('productImages on init: $productImages');
     debugPrint('isImagePicked on init: $isImagePicked');
   }
@@ -196,7 +421,7 @@ class _EditProductState extends State<EditProduct> {
 
   Future<void> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      final response = await SecureHttpClient.get('https://nicknameinfo.net/api/category/getAllCategory');
       if (response.statusCode == 200) {
         final decodedData = json.decode(response.body);
         if (decodedData['success'] == true) {
@@ -220,10 +445,45 @@ class _EditProductState extends State<EditProduct> {
     }
   }
 
-  Future<void> _fetchSubscriptionDetails() async {
-    // TODO: Implement subscription details fetching logic
-    debugPrint('Fetching subscription details...');
+  // Fetch full product details by ID to get all productphotos
+  Future<void> _fetchFullProductDetails(int productId) async {
+    try {
+      debugPrint('Fetching full product details for product ID: $productId');
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/product/getProductById/$productId',
+        timeout: const Duration(seconds: 10),
+      );
+      
+      if (response.statusCode == 200) {
+        final decodedData = json.decode(response.body);
+        if (decodedData['success'] == true && decodedData['data'] != null) {
+          final fullProductData = decodedData['data'];
+          debugPrint('Full product data fetched. productphotos count: ${fullProductData['productphotos'] is List ? (fullProductData['productphotos'] as List).length : 'not a list'}');
+          
+          // Update widget.productData with the full product data (including all photos)
+          // We'll merge the full product data into the existing productData
+          if (mounted && widget.productData != null) {
+            // Create a new map with merged data, prioritizing full product data
+            final updatedProductData = Map<String, dynamic>.from(widget.productData!);
+            updatedProductData.addAll(fullProductData);
+            
+            // Use a workaround: store in a state variable since we can't modify widget.productData
+            // We'll use this in _initProductData
+            _fullProductData = updatedProductData;
+            debugPrint('Full product data stored. Ready to initialize.');
+          }
+        } else {
+          debugPrint('Failed to fetch full product details: ${decodedData['message']}');
+        }
+      } else {
+        debugPrint('Failed to fetch full product details: Status ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('Error fetching full product details: $e');
+      // Continue with existing productData if fetch fails
+    }
   }
+
 
   // Find the subcategory list for the currently selected category ID
   void _updateSubcategoryList(String? categoryId) {
@@ -293,8 +553,13 @@ class _EditProductState extends State<EditProduct> {
   }
 
   void _initProductData() {
-    final productData = widget.productData;
+    // Use full product data if available (has all photos), otherwise use widget.productData
+    final productData = _fullProductData ?? widget.productData;
     if (productData != null) {
+      debugPrint('=== _initProductData called ===');
+      debugPrint('Using ${_fullProductData != null ? "full product data" : "widget.productData"}');
+      debugPrint('productData keys: ${productData.keys.toList()}');
+      
       _titleController.text = productData['name'] ?? '';
       _descriptionController.text = productData['sortDesc'] ?? '';
       _priceController.text = productData['price']?.toString() ?? '';
@@ -310,7 +575,85 @@ class _EditProductState extends State<EditProduct> {
       if (mounted) {
         setState(() {
           currentStatus = (productData['status'] == "1") ? ProductStatus.active : ProductStatus.inactive;
-          productImages = List<dynamic>.from(productData['productphotos'] ?? []);
+          
+          // Handle main product image
+          final mainPhoto = productData['photo'];
+          if (mainPhoto != null && mainPhoto.toString().isNotEmpty) {
+            productImages = [mainPhoto];
+            isImagePicked = true;
+          } else {
+            productImages = [];
+            isImagePicked = false;
+          }
+          
+          // Handle sub-images (productphotos) - extract URLs from JSON maps
+          existingSubImages = [];
+          try {
+            // Check both direct access and nested 'product' structure
+            dynamic productphotos = productData['productphotos'];
+            debugPrint('Direct productphotos access: ${productphotos != null ? (productphotos is List ? 'List with ${productphotos.length} items' : productphotos.runtimeType) : 'null'}');
+            
+            if (productphotos == null && productData['product'] != null) {
+              // Try nested structure
+              productphotos = productData['product']['productphotos'];
+              debugPrint('Nested productphotos access: ${productphotos != null ? (productphotos is List ? 'List with ${productphotos.length} items' : productphotos.runtimeType) : 'null'}');
+            }
+            
+            if (productphotos != null) {
+              if (productphotos is List) {
+                debugPrint('✅ Processing ${productphotos.length} product photos...');
+                for (int i = 0; i < productphotos.length; i++) {
+                  final photo = productphotos[i];
+                  String? imgUrl;
+                  if (photo is Map) {
+                    // Handle JSON map with imgUrl property
+                    imgUrl = photo['imgUrl']?.toString() ?? photo['url']?.toString();
+                    debugPrint('  [${i + 1}/${productphotos.length}] Extracted imgUrl from Map: $imgUrl');
+                  } else if (photo is String) {
+                    imgUrl = photo;
+                    debugPrint('  [${i + 1}/${productphotos.length}] Extracted imgUrl from String: $imgUrl');
+                  } else {
+                    debugPrint('  [${i + 1}/${productphotos.length}] Unknown photo type: ${photo.runtimeType}');
+                  }
+                  if (imgUrl != null && imgUrl.isNotEmpty) {
+                    existingSubImages.add(imgUrl);
+                    debugPrint('  ✅ Added to existingSubImages. Total count: ${existingSubImages.length}');
+                  } else {
+                    debugPrint('  ❌ Skipped photo (no valid URL): $photo');
+                  }
+                }
+                debugPrint('🎯 Final existingSubImages count: ${existingSubImages.length}');
+              } else if (productphotos is String) {
+                // Try to parse as JSON string
+                try {
+                  final parsed = jsonDecode(productphotos) as List;
+                  debugPrint('Parsed JSON string, found ${parsed.length} photos');
+                  for (var photo in parsed) {
+                    String? imgUrl;
+                    if (photo is Map) {
+                      imgUrl = photo['imgUrl']?.toString() ?? photo['url']?.toString();
+                    } else if (photo is String) {
+                      imgUrl = photo;
+                    }
+                    if (imgUrl != null && imgUrl.isNotEmpty) {
+                      existingSubImages.add(imgUrl);
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('Error parsing productphotos JSON string: $e');
+                }
+              } else {
+                debugPrint('❌ productphotos is neither List nor String: ${productphotos.runtimeType}');
+              }
+            } else {
+              debugPrint('❌ No productphotos found in productData');
+              debugPrint('Available keys in productData: ${productData.keys.toList()}');
+            }
+          } catch (e, stackTrace) {
+            debugPrint('❌ Error extracting productphotos: $e');
+            debugPrint('Stack trace: $stackTrace');
+          }
+          
           isEcommerceEnabled = (productData['isEnableEcommerce'] == "1");
           isCustomizeEnabled = (productData['isEnableCustomize'] == 1);
           isBookingEnabled = (productData['isBooking'] == "1");
@@ -318,10 +661,6 @@ class _EditProductState extends State<EditProduct> {
           // Service Type
           final String? serviceType = productData['serviceType']?.toString();
           currentServiceType = (serviceType == "Service") ? ServiceType.service : ServiceType.product;
-          
-          if (productImages.isNotEmpty) {
-            isImagePicked = true;
-          }
 
           // Category IDs (stored as strings)
           selectedCategoryId = productData['categoryId']?.toString();
@@ -429,33 +768,32 @@ class _EditProductState extends State<EditProduct> {
     _sizeUnitSizeController.dispose();
     _sizePriceController.dispose();
     _sizeDiscountController.dispose();
+    _sizeQuantityController.dispose();
     _priceController.removeListener(_calculateTotals);
+    _quantityController.removeListener(_calculateTotals);
     _discountController.removeListener(_calculateTotals);
-    _discountPriceController.removeListener(_calculateTotals);
     super.dispose();
   }
   
   void _calculateTotals() {
     final price = double.tryParse(_priceController.text.trim()) ?? 0;
-    final discountPer = double.tryParse(_discountController.text.trim()) ?? 0; 
-    final discountAmount = double.tryParse(_discountPriceController.text.trim()) ?? 0; 
-    
-    double finalPrice;
+    final quantity = double.tryParse(_quantityController.text.trim()) ?? 1;
+    final discountPer = double.tryParse(_discountController.text.trim()) ?? 0;
 
+    // Auto-calculate discount price from price and discount %
+    double discountAmount = 0;
     if (discountPer > 0) {
-      final discount = (price * discountPer) / 100;
-      finalPrice = price - discount;
-    } else if (discountAmount > 0) {
-      finalPrice = price - discountAmount;
-    } else {
-      finalPrice = price;
+      discountAmount = (price * discountPer) / 100;
     }
+    final priceAfterDiscount = price - discountAmount;
+    final total = priceAfterDiscount * quantity;
 
     if (mounted) {
       setState(() {
-        if (finalPrice >= 0) {
-          _totalController.text = finalPrice.toStringAsFixed(2);
-          _grandTotalController.text = finalPrice.toStringAsFixed(2);
+        _discountPriceController.text = discountAmount.toStringAsFixed(2);
+        if (total >= 0) {
+          _totalController.text = total.toStringAsFixed(2);
+          _grandTotalController.text = total.toStringAsFixed(2);
         }
       });
     }
@@ -471,10 +809,59 @@ class _EditProductState extends State<EditProduct> {
     super.didChangeDependencies();
   }
 
-  // for selecting photo (existing logic)
+  // for selecting main photo (existing logic)
   Future _selectPhoto() async {
-    List<XFile>? pickedImages;
-    pickedImages = await _picker.pickMultiImage(
+    final XFile? pickedImage = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 600,
+      maxHeight: 600,
+    );
+    if (pickedImage == null) {
+      return;
+    }
+
+    final fileSize = await pickedImage.length();
+    if (fileSize > 500 * 1024) { // 500 KB
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image is larger than 500KB and will not be uploaded.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      setState(() {
+        productImages = [pickedImage];
+        isImagePicked = true;
+        currentImage = 0;
+        imageDownloadLinks = [];
+      });
+    }
+  }
+
+  // for selecting sub-images (product photos)
+  Future _selectSubImages() async {
+    // Check total image limit (existing + new)
+    final currentTotal = existingSubImages.length + subImages.length;
+    const maxImages = 3;
+    
+    if (currentTotal >= maxImages) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Maximum $maxImages product photos allowed. Please remove some images before adding new ones.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    final List<XFile>? pickedImages = await _picker.pickMultiImage(
       maxWidth: 600,
       maxHeight: 600,
     );
@@ -482,9 +869,24 @@ class _EditProductState extends State<EditProduct> {
       return;
     }
 
+    // Calculate how many new images can be added
+    final remainingSlots = maxImages - currentTotal;
+    final imagesToAdd = pickedImages.take(remainingSlots).toList();
+    
+    if (pickedImages.length > remainingSlots) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('You can only add $remainingSlots more image(s). Maximum $maxImages product photos allowed.'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      }
+    }
+
     List<XFile> validImages = [];
-    for (XFile image in pickedImages) {
-      final fileSize = await image.length(); // Get file size in bytes
+    for (XFile image in imagesToAdd) {
+      final fileSize = await image.length();
       if (fileSize <= 500 * 1024) { // 500 KB
         validImages.add(image);
       } else {
@@ -501,10 +903,7 @@ class _EditProductState extends State<EditProduct> {
 
     if (mounted) {
       setState(() {
-        productImages = validImages.cast<dynamic>();
-        isImagePicked = validImages.isNotEmpty;
-        currentImage = 0; 
-        imageDownloadLinks = []; 
+        subImages.addAll(validImages);
       });
     }
   }
@@ -686,25 +1085,40 @@ class _EditProductState extends State<EditProduct> {
   }
 
   Future<String?> _uploadFile(XFile image) async {
-    final uri = Uri.parse('https://nicknameinfo.net/api/auth/upload-file');
-    final request = http.MultipartRequest('POST', uri);
-    request.fields['storeName'] = _supplierId ?? 'unknown_store';
-    if (kIsWeb) {
-      final bytes = await image.readAsBytes();
-      request.files.add(http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: image.name,
-      ));
-    } else {
-      request.files.add(await http.MultipartFile.fromPath('file', image.path));
-    }
-
     try {
-      final response = await request.send();
+      // Validate file before upload
+      final validationError = await FileValidation.validateXFile(image);
+      if (validationError != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(validationError)),
+          );
+        }
+        return null;
+      }
+
+      // Prepare file for upload
+      http.MultipartFile multipartFile;
+      if (kIsWeb) {
+        final bytes = await image.readAsBytes();
+        multipartFile = http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: image.name,
+        );
+      } else {
+        multipartFile = await http.MultipartFile.fromPath('file', image.path);
+      }
+      
+      final response = await SecureHttpClient.postFormData(
+        'https://nicknameinfo.net/api/auth/upload-file',
+        fields: {
+          'storeName': _supplierId ?? 'unknown_store',
+        },
+        files: [multipartFile],
+      );
       if (response.statusCode == 200) {
-        final responseData = await http.Response.fromStream(response);
-        final decodedData = json.decode(responseData.body);
+        final decodedData = json.decode(response.body);
         // FIX: The API response structure for file upload might use 'url' or 'fileUrl'
         // Let's assume the API returns 'fileUrl' based on common patterns.
         if (decodedData['success'] == true && decodedData['fileUrl'] != null) {
@@ -744,7 +1158,7 @@ class _EditProductState extends State<EditProduct> {
     }
 
     try {
-      // --- Image upload logic ---
+      // --- Main Image upload logic ---
       List<String> uploadedImageUrls = [];
       for (var image in productImages) {
         if (image is XFile) {
@@ -759,6 +1173,35 @@ class _EditProductState extends State<EditProduct> {
         }
       }
       imageDownloadLinks = uploadedImageUrls;
+      
+      // --- Sub-images upload logic (before product save) ---
+      List<String> uploadedSubImageUrls = [];
+      
+      // Keep existing sub-images if editing (only if they haven't been removed)
+      if (isUpdating && existingSubImages.isNotEmpty) {
+        uploadedSubImageUrls.addAll(existingSubImages);
+      }
+      
+      // Upload new sub-images
+      if (subImages.isNotEmpty) {
+        debugPrint('Starting upload of ${subImages.length} sub-images...');
+        for (var subImage in subImages) {
+          try {
+            final String? imageUrl = await _uploadFile(subImage);
+            if (imageUrl != null) {
+              debugPrint('Sub-image uploaded successfully: $imageUrl');
+              uploadedSubImageUrls.add(imageUrl);
+            } else {
+              debugPrint('Failed to upload sub-image: ${subImage.name}');
+            }
+          } catch (error) {
+            debugPrint('Error uploading sub-image ${subImage.name}: $error');
+            // Continue with other uploads even if one fails
+          }
+        }
+      }
+      
+      debugPrint('Final uploadedSubImageUrls: $uploadedSubImageUrls');
       
       // --- API Call to update product ---
      
@@ -828,19 +1271,15 @@ class _EditProductState extends State<EditProduct> {
         if (isUpdating) "createdAt": widget.productData!['createdAt'],
         "updatedAt": DateTime.now().toIso8601String(),
         "photo": imageDownloadLinks.isNotEmpty ? imageDownloadLinks.first : null, 
-        "productphotos": imageDownloadLinks, 
         "grand_total": grandTotal,
         "sizeUnitSizeMap": enableSizeManagement ? jsonEncode(sizeUnitSizeMap) : "", // Store size map as JSON string
       };
 
       debugPrint('Request Body: $requestBody');
 
-      final http.Response response = await http.post(
-        Uri.parse(apiUrl),
-        headers: <String, String>{
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode(requestBody),
+      final response = await SecureHttpClient.post(
+        apiUrl,
+        body: requestBody,
       );
 
       if (response.statusCode == 200) {
@@ -849,7 +1288,24 @@ class _EditProductState extends State<EditProduct> {
           // Call the second API to associate product with store (only needed on ADD, or if store association logic is always run)
           if (!isUpdating) {
             final productId = responseData['data']['id']; // Assuming the product ID is returned in this structure
-            final storeProductAddUrl = Uri.parse('https://nicknameinfo.net/api/store/product-add');
+            
+            // Verify token exists before making the API call
+            final prefs = await SharedPreferences.getInstance();
+            final token = prefs.getString('token');
+            final storeId = prefs.getString('storeId');
+            
+            debugPrint('[EditProduct] Store product-add - Token exists: ${token != null && token.isNotEmpty}');
+            debugPrint('[EditProduct] Store product-add - StoreId: $storeId');
+            debugPrint('[EditProduct] Store product-add - ProductId: $productId');
+            debugPrint('[EditProduct] Store product-add - SupplierId: $_supplierId');
+            
+            if (token == null || token.isEmpty) {
+              debugPrint('[EditProduct] ⚠️ No token found for store product-add API call');
+              showSnackBar('Product added, but authentication token missing. Please login again.');
+              if (mounted) Navigator.pop(context, true);
+              return;
+            }
+            
             final storeProductAddPayload = {
               "supplierId": _supplierId,
               "productId": productId,
@@ -857,24 +1313,96 @@ class _EditProductState extends State<EditProduct> {
               "buyerPrice": price,
             };
             
-            final storeProductAddResponse = await http.post(
-              storeProductAddUrl,
-              headers: {'Content-Type': 'application/json'},
-              body: json.encode(storeProductAddPayload),
-            );
+            debugPrint('[EditProduct] Calling store/product-add with payload: $storeProductAddPayload');
+            
+            try {
+              final storeProductAddResponse = await SecureHttpClient.post(
+                'https://nicknameinfo.net/api/store/product-add',
+                body: storeProductAddPayload,
+                context: context, // Pass context for 401 handling
+                timeout: const Duration(seconds: 15),
+              );
 
-            if (storeProductAddResponse.statusCode == 200) {
-              showSnackBar('Product added and associated with store successfully!');
-              if (mounted) Navigator.pop(context, true); 
-            } else {
-              debugPrint('Error associating product with store: ${storeProductAddResponse.body}');
-              showSnackBar('Product added, but error associating with store: ${storeProductAddResponse.statusCode}');
-              if (mounted) Navigator.pop(context, true); // Still pop even on partial failure
+              debugPrint('[EditProduct] Store product-add response status: ${storeProductAddResponse.statusCode}');
+              debugPrint('[EditProduct] Store product-add response body: ${storeProductAddResponse.body}');
+
+              if (storeProductAddResponse.statusCode == 200) {
+                final responseData = json.decode(storeProductAddResponse.body);
+                if (responseData['success'] == true) {
+                  // Upload product photos using the /upload-photos endpoint (after product is created and associated)
+                  if (productId != null && uploadedSubImageUrls.isNotEmpty) {
+                    try {
+                      final uploadPhotosResponse = await SecureHttpClient.post(
+                        'https://nicknameinfo.net/api/product/upload-photos',
+                        body: {
+                          'productId': productId.toString(),
+                          'productPhotos': jsonEncode(uploadedSubImageUrls), // Send as JSON string array
+                        },
+                      );
+                      
+                      if (uploadPhotosResponse.statusCode == 200) {
+                        final photoResponseData = json.decode(uploadPhotosResponse.body);
+                        debugPrint('Product photos uploaded successfully: $photoResponseData');
+                      } else {
+                        debugPrint('Failed to upload sub-images: ${uploadPhotosResponse.statusCode}');
+                        // Don't block success message if photo upload fails
+                      }
+                    } catch (e) {
+                      debugPrint('Error uploading product photos: $e');
+                      // Don't block success message if photo upload fails
+                    }
+                  }
+                  
+                  showSnackBar('Product added and associated with store successfully!');
+                  if (mounted) Navigator.pop(context, true);
+                } else {
+                  debugPrint('[EditProduct] Store product-add API returned success=false: ${responseData['message']}');
+                  showSnackBar('Product added, but store association failed: ${responseData['message'] ?? "Unknown error"}');
+                  if (mounted) Navigator.pop(context, true);
+                }
+              } else if (storeProductAddResponse.statusCode == 401) {
+                debugPrint('[EditProduct] ⚠️ 401 Unauthorized - Token may be invalid or expired');
+                showSnackBar('Product added, but authentication failed. Please login again.');
+                if (mounted) Navigator.pop(context, true);
+              } else {
+                final errorBody = storeProductAddResponse.body;
+                debugPrint('[EditProduct] Error associating product with store: Status ${storeProductAddResponse.statusCode}, Body: $errorBody');
+                showSnackBar('Product added, but error associating with store: ${storeProductAddResponse.statusCode}');
+                if (mounted) Navigator.pop(context, true);
+              }
+            } catch (e) {
+              debugPrint('[EditProduct] Exception during store product-add: $e');
+              showSnackBar('Product added, but error associating with store: ${e.toString()}');
+              if (mounted) Navigator.pop(context, true);
             }
           } else {
-            // For updating, just show success and pop
+            // For updating, upload product photos and then show success
+            final updatedProductId = responseData['data']?['id'] ?? widget.productData!['id'];
+            
+            if (updatedProductId != null && uploadedSubImageUrls.isNotEmpty) {
+              try {
+                final uploadPhotosResponse = await SecureHttpClient.post(
+                  'https://nicknameinfo.net/api/product/upload-photos',
+                  body: {
+                    'productId': updatedProductId.toString(),
+                    'productPhotos': jsonEncode(uploadedSubImageUrls), // Send as JSON string array
+                  },
+                );
+                
+                if (uploadPhotosResponse.statusCode == 200) {
+                  final photoResponseData = json.decode(uploadPhotosResponse.body);
+                  debugPrint('Product photos uploaded successfully: $photoResponseData');
+                } else {
+                  debugPrint('Failed to upload sub-images: ${uploadPhotosResponse.statusCode}');
+                  // Don't block success message if photo upload fails
+                }
+              } catch (e) {
+                debugPrint('Error uploading product photos: $e');
+                // Don't block success message if photo upload fails
+              }
+            }
+            
             showSnackBar('Product updated successfully!');
-            Navigator.pop(context, true);
             if (mounted) Navigator.pop(context, true);
           }
         } else {
@@ -935,22 +1463,24 @@ class _EditProductState extends State<EditProduct> {
 
   // Size Management Helper Functions
   void _addOrUpdateSizeEntry() {
-    if (selectedSize == null || selectedSize!.isEmpty || _sizeUnitSizeController.text.isEmpty || _sizePriceController.text.isEmpty) {
-      showSnackBar('Please fill all required fields (Size, Unit Size, Price)');
+    if (selectedSize == null || selectedSize!.isEmpty || _sizeUnitSizeController.text.isEmpty || _sizePriceController.text.isEmpty || _sizeQuantityController.text.isEmpty) {
+      showSnackBar('Please fill all required fields (Size, Unit Size, Price, Quantity)');
       return;
     }
     
     final unitSize = _sizeUnitSizeController.text;
     final price = double.tryParse(_sizePriceController.text) ?? 0.0;
     final discount = double.tryParse(_sizeDiscountController.text) ?? 0.0;
+    final quantity = double.tryParse(_sizeQuantityController.text) ?? 0.0;
     final discountAmount = (price * discount) / 100;
     final discountedPrice = price - discountAmount;
-    final qty = double.tryParse(unitSize) ?? 0.0;
+    final qty = quantity > 0 ? quantity : (double.tryParse(unitSize) ?? 0.0);
     final total = discountedPrice * qty;
     
     final sizeData = {
       'unitSize': unitSize,
       'qty': qty.toString(),
+      'quantity': quantity.toString(),
       'price': price.toString(),
       'discount': discount.toString(),
       'discountPer': discountAmount.toStringAsFixed(2),
@@ -985,6 +1515,7 @@ class _EditProductState extends State<EditProduct> {
       _sizeUnitSizeController.clear();
       _sizePriceController.clear();
       _sizeDiscountController.clear();
+      _sizeQuantityController.clear();
     });
   }
   
@@ -1005,30 +1536,422 @@ class _EditProductState extends State<EditProduct> {
       _sizeUnitSizeController.text = entry['unitSize']?.toString() ?? '';
       _sizePriceController.text = entry['price']?.toString() ?? '';
       _sizeDiscountController.text = entry['discount']?.toString() ?? '';
+      _sizeQuantityController.text = entry['quantity']?.toString() ?? entry['qty']?.toString() ?? '';
     });
   }
 
-  // New: Widget for Subscription Toggle
-  Widget _buildSubscriptionToggle(bool isChecked, String label, Function(bool?) onChanged, {SubscriptionPlan? subscriptionPlan, required bool initialEnabledState}) {
-    final bool isEnabled = (subscriptionPlan?.subscriptionCount ?? 0) > 0;
-    final bool wasInitiallyEnabledInEditMode = widget.productData != null && initialEnabledState;
+Future<void> _printBarcode(int count) async {
+  if (widget.productData == null) {
+    showSnackBar('Product data not available');
+    return;
+  }
+
+  if (count <= 0) {
+    showSnackBar('Count must be greater than 0');
+    return;
+  }
+
+  if (mounted) setState(() => isLoading = true);
+
+  try {
+    final productId = widget.productData!['id']?.toString() ?? '';
+    final productName = _titleController.text.isNotEmpty 
+        ? _titleController.text 
+        : (widget.productData!['name'] ?? 'Product');
+    final productColor = widget.productData!['color']?.toString() ?? 
+        widget.productData!['colour']?.toString() ?? 'N/A';
+    
+    // Get store name
+    String storeName = 'STORE';
+    try {
+      if (_supplierId != null && _supplierId!.isNotEmpty) {
+        final storeResponse = await SecureHttpClient.get(
+          'https://nicknameinfo.net/api/store/list/$_supplierId',
+          timeout: const Duration(seconds: 5),
+        );
+        if (storeResponse.statusCode == 200) {
+          final storeData = json.decode(storeResponse.body);
+          if (storeData['success'] == true && storeData['data'] != null) {
+            storeName = storeData['data']['storename']?.toString() ?? 
+                       storeData['data']['storeName']?.toString() ?? 'STORE';
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching store name: $e');
+      // Continue with default store name
+    }
+    
+    final List<Map<String, dynamic>> labelsToGenerate = [];
+    final useSizeEntries = enableSizeManagement && sizeEntries.isNotEmpty;
+    
+    if (useSizeEntries) {
+      for (var entry in sizeEntries) {
+        final unitSizeCount = int.tryParse(entry['unitSize']?.toString() ?? '1') ?? 1;
+        final totalPerSize = count * unitSizeCount;
+        for (int j = 0; j < totalPerSize; j++) {
+          labelsToGenerate.add({
+            'size': entry['size']?.toString().toUpperCase() ?? 'N/A',
+            'price': entry['price']?.toString() ?? '0',
+            'productId': productId,
+          });
+        }
+      }
+    } else {
+      for (int i = 0; i < count; i++) {
+        labelsToGenerate.add({
+          'size': (widget.productData!['size']?.toString() ?? 'N/A').toUpperCase(),
+          'price': _priceController.text.isNotEmpty 
+              ? _priceController.text 
+              : (widget.productData!['price']?.toString() ?? '0'),
+          'productId': productId,
+        });
+      }
+    }
+
+    // Pre-generate all barcode SVG strings BEFORE building PDF (this prevents hanging)
+    final barcode = Barcode.code128();
+    final Map<String, String> barcodeSvgCache = {};
+    
+    debugPrint('Pre-generating ${labelsToGenerate.length} barcode SVGs...');
+    for (var label in labelsToGenerate) {
+      final productIdStr = label['productId'].toString();
+      if (!barcodeSvgCache.containsKey(productIdStr)) {
+        try {
+          final barcodeSvg = barcode.toSvg(
+            productIdStr,
+            width: 180,
+            height: 60,
+            drawText: false,
+          );
+          barcodeSvgCache[productIdStr] = barcodeSvg;
+        } catch (e) {
+          debugPrint('Error generating barcode SVG for $productIdStr: $e');
+          barcodeSvgCache[productIdStr] = '<svg></svg>';
+        }
+      }
+    }
+    debugPrint('Barcode SVGs pre-generated successfully');
+
+    final pdf = pw.Document();
+
+    // Define Dimensions for a clean grid (Approx 3 labels per row on A4)
+    const double labelWidth = 60.0; 
+    const double labelHeight = 40.0; 
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(10),
+        build: (pw.Context context) {
+          return [
+            pw.Wrap(
+              spacing: 5, 
+              runSpacing: 5,
+              children: labelsToGenerate.map((label) {
+                final String pid = label['productId'];
+                final barcodeSvg = barcodeSvgCache[pid] ?? '<svg></svg>';
+                return pw.Container(
+                  width: labelWidth * PdfPageFormat.mm,
+                  height: labelHeight * PdfPageFormat.mm,
+                  decoration: pw.BoxDecoration(
+                    border: pw.Border.all(color: PdfColors.black, width: 1),
+                  ),
+                  padding: const pw.EdgeInsets.all(4),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(productName, 
+                              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+                              maxLines: 1, overflow: pw.TextOverflow.clip
+                            ),
+                          ),
+                          pw.Text(
+                            storeName.length > 8 ? '${storeName.substring(0, 8)}...' : storeName,
+                            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                      pw.Text(pid, style: const pw.TextStyle(fontSize: 7)),
+                      pw.Spacer(),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.center,
+                        children: [
+                          // Left side vertical ID
+                          pw.Transform.rotate(
+                            angle: 1.5708 * 3, // -90 degrees
+                            child: pw.Text(pid.length > 4 ? pid.substring(pid.length - 4) : pid, 
+                                style: const pw.TextStyle(fontSize: 6)),
+                          ),
+                          pw.SizedBox(width: 2),
+                          pw.Column(
+                            children: [
+                              pw.SizedBox(
+                                height: 18 * PdfPageFormat.mm,
+                                width: 35 * PdfPageFormat.mm,
+                                child: _buildBarcodeFromSvg(barcodeSvg, 35 * PdfPageFormat.mm, 18 * PdfPageFormat.mm),
+                              ),
+                              pw.Text(pid, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+                            ],
+                          ),
+                          pw.SizedBox(width: 2),
+                          // Right side vertical ID
+                          pw.Transform.rotate(
+                            angle: 1.5708, // 90 degrees
+                            child: pw.Text(pid.padLeft(8, '0'), style: const pw.TextStyle(fontSize: 6)),
+                          ),
+                        ],
+                      ),
+                      pw.Spacer(),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          _footerItem('M.R.P. ₹', label['price'].toString()),
+                          _footerItem('COLOUR', productColor),
+                          _footerItem('SIZE', label['size'].toString()),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            )
+          ];
+        },
+      ),
+    );
+
+    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+  } catch (e) {
+    debugPrint('Error: $e');
+    showSnackBar('Printing failed: $e');
+  } finally {
+    if (mounted) setState(() => isLoading = false);
+  }
+}
+
+// Helper function to draw barcode from SVG
+pw.Widget _buildBarcodeFromSvg(String svgString, double width, double height) {
+  try {
+    // First try using SvgImage directly
+    return pw.SizedBox(
+      width: width,
+      height: height,
+      child: pw.SvgImage(
+        svg: svgString,
+        fit: pw.BoxFit.contain,
+      ),
+    );
+  } catch (e) {
+    debugPrint('SvgImage failed, trying manual parsing: $e');
+  }
+  
+  // Fallback: Parse SVG and draw manually
+  try {
+    // Extract all rect elements from SVG - try different quote patterns
+    RegExp? rectPattern;
+    Iterable<RegExpMatch> matches = [];
+    
+    // Try pattern with double quotes
+    rectPattern = RegExp(r'<rect[^>]*x\s*=\s*"([0-9.]+)"[^>]*y\s*=\s*"([0-9.]+)"[^>]*width\s*=\s*"([0-9.]+)"[^>]*height\s*=\s*"([0-9.]+)"', caseSensitive: false);
+    matches = rectPattern.allMatches(svgString);
+    
+    // If no matches, try single quotes
+    if (matches.isEmpty) {
+      rectPattern = RegExp(r"<rect[^>]*x\s*=\s*'([0-9.]+)'[^>]*y\s*=\s*'([0-9.]+)'[^>]*width\s*=\s*'([0-9.]+)'[^>]*height\s*=\s*'([0-9.]+)'", caseSensitive: false);
+      matches = rectPattern.allMatches(svgString);
+    }
+    
+    // If still no matches, try without quotes
+    if (matches.isEmpty) {
+      rectPattern = RegExp(r'<rect[^>]*x\s*=\s*([0-9.]+)[^>]*y\s*=\s*([0-9.]+)[^>]*width\s*=\s*([0-9.]+)[^>]*height\s*=\s*([0-9.]+)', caseSensitive: false);
+      matches = rectPattern.allMatches(svgString);
+    }
+    
+    final bars = <Map<String, double>>[];
+    for (final match in matches) {
+      final x = double.tryParse(match.group(1) ?? '0') ?? 0.0;
+      final y = double.tryParse(match.group(2) ?? '0') ?? 0.0;
+      final barWidth = double.tryParse(match.group(3) ?? '0') ?? 0.0;
+      final barHeight = double.tryParse(match.group(4) ?? '0') ?? 0.0;
+      
+      if (barWidth > 0 && barHeight > 0) {
+        bars.add({
+          'x': x,
+          'y': y,
+          'width': barWidth,
+          'height': barHeight,
+        });
+      }
+    }
+    
+    debugPrint('Found ${bars.length} bars in SVG');
+    
+    if (bars.isEmpty) {
+      debugPrint('SVG content: ${svgString.substring(0, svgString.length > 200 ? 200 : svgString.length)}');
+      return pw.Center(
+        child: pw.Text(
+          'Barcode',
+          style: pw.TextStyle(fontSize: 10),
+        ),
+      );
+    }
+    
+    // Get SVG viewBox to calculate scaling - try different quote patterns
+    RegExpMatch? viewBoxMatch;
+    
+    // Try double quotes
+    final viewBoxPattern1 = RegExp(r'viewBox\s*=\s*"([^"]+)"', caseSensitive: false);
+    viewBoxMatch = viewBoxPattern1.firstMatch(svgString);
+    
+    // If no match, try single quotes
+    if (viewBoxMatch == null) {
+      final viewBoxPattern2 = RegExp(r"viewBox\s*=\s*'([^']+)'", caseSensitive: false);
+      viewBoxMatch = viewBoxPattern2.firstMatch(svgString);
+    }
+    
+    double scaleX = 1.0;
+    double scaleY = 1.0;
+    
+    if (viewBoxMatch != null) {
+      final viewBoxValues = viewBoxMatch.group(1)!.split(RegExp(r'[\s,]+'));
+      if (viewBoxValues.length >= 4) {
+        final vbWidth = double.tryParse(viewBoxValues[2]) ?? width;
+        final vbHeight = double.tryParse(viewBoxValues[3]) ?? height;
+        scaleX = width / vbWidth;
+        scaleY = height / vbHeight;
+      }
+    }
+    
+    // Use CustomPaint to draw the barcode
+    return pw.SizedBox(
+      width: width,
+      height: height,
+      child: pw.CustomPaint(
+        size: PdfPoint(width, height),
+        painter: (PdfGraphics canvas, PdfPoint size) {
+          canvas.setColor(PdfColors.black);
+          for (final bar in bars) {
+            final x = bar['x']! * scaleX;
+            final y = bar['y']! * scaleY;
+            final barWidth = bar['width']! * scaleX;
+            final barHeight = bar['height']! * scaleY;
+            canvas.drawRect(x, y, barWidth, barHeight);
+            canvas.fillPath();
+          }
+        },
+      ),
+    );
+  } catch (e) {
+    debugPrint('Error parsing SVG barcode: $e');
+    return pw.Center(
+      child: pw.Text(
+        'Barcode Error',
+        style: pw.TextStyle(fontSize: 10),
+      ),
+    );
+  }
+}
+
+// Helper for Footer items
+pw.Widget _footerItem(String label, String value) {
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Text(label, style: pw.TextStyle(fontSize: 6, fontWeight: pw.FontWeight.bold)),
+      pw.Text(value, style: const pw.TextStyle(fontSize: 7)),
+    ],
+  );
+}
+  
+  void _showPrintBarcodeDialog() {
+    final countController = TextEditingController(text: '1');
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Print Barcode'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: countController,
+              decoration: const InputDecoration(
+                labelText: 'Count',
+                hintText: 'Enter number of barcodes to print',
+              ),
+              keyboardType: TextInputType.number,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final count = int.tryParse(countController.text) ?? 1;
+              Navigator.pop(context);
+              _printBarcode(count);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
+            child: const Text('Print', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Subscription toggle: enabled only when total count > 0.
+  // Restrict turning ON so that used count cannot exceed total (only allow enable when usedCount < totalCount).
+  Widget _buildSubscriptionToggle(bool isChecked, String label, Function(bool?) onChanged, {SubscriptionPlan? subscriptionPlan, required bool initialEnabledState, int usedCount = 0}) {
+    final int totalCount = subscriptionPlan?.subscriptionCount ?? 0;
+    final bool hasSubscription = totalCount > 0;
+    final bool hasQuotaLeft = usedCount < totalCount;
+    // Allow turning ON only when there is quota (used < total)
+    final bool canTurnOn = hasSubscription && hasQuotaLeft;
 
     return Opacity(
-      opacity: isEnabled ? 1.0 : 0.5, // Reduce opacity when disabled
+      opacity: hasSubscription ? 1.0 : 0.5,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Switch(
             value: isChecked,
-            onChanged: (isEnabled && !wasInitiallyEnabledInEditMode) ? onChanged : null,
+            onChanged: hasSubscription
+                ? (bool? newValue) {
+                    if (newValue == true && !hasQuotaLeft) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Subscription limit reached ($totalCount). You cannot enable more products.',
+                            ),
+                            backgroundColor: Colors.orange,
+                          ),
+                        );
+                      }
+                      return;
+                    }
+                    onChanged(newValue);
+                  }
+                : null,
             activeColor: primaryColor,
           ),
-          Text(
-            isEnabled ? label : 'Get subscription',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: isEnabled ? Colors.black : Colors.grey,
+          Flexible(
+            child: Text(
+              hasSubscription ? label : 'Get subscription',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: hasSubscription ? Colors.black : Colors.grey,
+              ),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -1059,6 +1982,15 @@ class _EditProductState extends State<EditProduct> {
           ),
         ),
         actions: [
+          if (widget.productData != null)
+            IconButton(
+              onPressed: () => _showPrintBarcodeDialog(),
+              icon: const Icon(
+                Icons.print,
+                color: Colors.white,
+              ),
+              tooltip: 'Print Barcode',
+            ),
           IconButton(
             onPressed: () => _saveProduct(),
             icon: const Icon(
@@ -1099,29 +2031,38 @@ class _EditProductState extends State<EditProduct> {
                                     child: SizedBox(
                                       width: 160,
                                       height: 160,
-                                      child: isImagePicked && productImages[currentImage] is XFile
-                                          ? kIsWeb
-                                              // Web uses XFile path as network URL
-                                              ? Image.network(
-                                                  (productImages[currentImage] as XFile).path,
+                                      child: productImages.isNotEmpty && currentImage < productImages.length
+                                          ? (productImages[currentImage] is XFile
+                                              ? (kIsWeb
+                                                  // Web uses XFile path as network URL
+                                                  ? Image.network(
+                                                      (productImages[currentImage] as XFile).path,
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                                                        'assets/images/holder.png',
+                                                        color: primaryColor,
+                                                      ),
+                                                    )
+                                                  : Image.file(
+                                                      // Mobile/Desktop uses File
+                                                      File((productImages[currentImage] as XFile).path),
+                                                      fit: BoxFit.cover,
+                                                      errorBuilder: (context, error, stackTrace) => Image.asset(
+                                                        'assets/images/holder.png',
+                                                        color: primaryColor,
+                                                      ),
+                                                    ))
+                                              : Image.network(
+                                                  productImages[currentImage].toString(),
                                                   fit: BoxFit.cover,
                                                   errorBuilder: (context, error, stackTrace) => Image.asset(
                                                     'assets/images/holder.png',
                                                     color: primaryColor,
                                                   ),
-                                                )
-                                              : Image.file(
-                                                  // Mobile/Desktop uses File
-                                                  File((productImages[currentImage] as XFile).path),
-                                                  fit: BoxFit.cover,
-                                                )
-                                          : Image.network(
-                                              productImages[currentImage].toString(),
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) => Image.asset(
-                                                'assets/images/holder.png',
-                                                color: primaryColor,
-                                              ),
+                                                ))
+                                          : Image.asset(
+                                              'assets/images/holder.png',
+                                              color: primaryColor,
                                             ),
                                     ),
                                   ),
@@ -1176,7 +2117,8 @@ class _EditProductState extends State<EditProduct> {
                         scrollDirection: Axis.horizontal,
                         itemCount: productImages.length,
                         itemBuilder: (context, index) {
-                          final isNetworkImage = productImages[index] is String;
+                          final image = productImages[index];
+                          final isNetworkImage = image is String;
                           return Padding(
                             padding: const EdgeInsets.only(right: 8.0),
                             child: GestureDetector(
@@ -1191,22 +2133,35 @@ class _EditProductState extends State<EditProduct> {
                                   border: currentImage == index
                                     ? Border.all(color: primaryColor, width: 3)
                                     : null,
-                                  image: isNetworkImage
-                                      ? DecorationImage(
-                                          image: NetworkImage(
-                                            productImages[index],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: isNetworkImage
+                                      ? Image.network(
+                                          image.toString(),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            color: Colors.grey.shade200,
+                                            child: const Icon(Icons.broken_image, size: 30),
                                           ),
-                                          fit: BoxFit.cover,
                                         )
-                                      : DecorationImage(
-                                          // FIX: Use Image.network path for web, Image.file for others
-                                          image: kIsWeb
-                                            ? NetworkImage((productImages[index] as XFile).path) as ImageProvider
-                                            : FileImage(
-                                                File((productImages[index] as XFile).path),
+                                      : (kIsWeb
+                                          ? Image.network(
+                                              (image as XFile).path,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(Icons.broken_image, size: 30),
                                               ),
-                                          fit: BoxFit.cover,
-                                        ),
+                                            )
+                                          : Image.file(
+                                              File((image as XFile).path),
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(Icons.broken_image, size: 30),
+                                              ),
+                                            )),
                                 ),
                               ),
                             ),
@@ -1226,7 +2181,9 @@ class _EditProductState extends State<EditProduct> {
                       _SubscriptionPill(
                         color: Colors.blue,
                         title: 'Total Ecommerce Subscription',
-                        planFuture: _plan1SubscriptionFuture,
+                        subscriptionPlan: _plan1Subscription,
+                        isLoading: _isLoadingSubscriptions,
+                        usedCount: _ecommerceUsedCount,
                         onTap: () {
                           // Handle tap for Plan1
                           print('Ecommerce Subscription tapped');
@@ -1235,7 +2192,9 @@ class _EditProductState extends State<EditProduct> {
                       _SubscriptionPill(
                         color: Colors.pink,
                         title: 'Total Customize Subscription',
-                        planFuture: _plan2SubscriptionFuture,
+                        subscriptionPlan: _plan2Subscription,
+                        isLoading: _isLoadingSubscriptions,
+                        usedCount: _customizeUsedCount,
                         onTap: () {
                           // Handle tap for Plan2
                           print('Customize Subscription tapped');
@@ -1244,7 +2203,9 @@ class _EditProductState extends State<EditProduct> {
                       _SubscriptionPill(
                         color: Colors.green,
                         title: 'Total Book Service Subscription',
-                        planFuture: _plan3SubscriptionFuture,
+                        subscriptionPlan: _plan3Subscription,
+                        isLoading: _isLoadingSubscriptions,
+                        usedCount: _bookingUsedCount,
                         onTap: () {
                           // Handle tap for Plan3
                           print('Book Service Subscription tapped');
@@ -1459,7 +2420,7 @@ class _EditProductState extends State<EditProduct> {
                           ),
                           const SizedBox(height: 20),
                           
-                          // Row 6: Discount Price & Total
+                          // Row 6: Discount Price (auto-calculated) & Total
                           Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -1467,10 +2428,11 @@ class _EditProductState extends State<EditProduct> {
                                 flex: 1,
                                 child: kTextField(
                                   _discountPriceController,
-                                  '900',
+                                  '0',
                                   'Discount Price *',
                                   Field.discountPer,
                                   1,
+                                  readOnly: true, // Auto-calculated from Price and Discount(%)
                                 ),
                               ),
                               const SizedBox(width: 15),
@@ -1523,7 +2485,45 @@ class _EditProductState extends State<EditProduct> {
                                     child: const Text('Choose File', style: TextStyle(color: Colors.black)),
                                   ),
                                   const SizedBox(height: 5),
-                                  const Text('No file selected', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                  if (productImages.isNotEmpty && productImages[0] is XFile) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: kIsWeb
+                                          ? Image.network(
+                                              (productImages[0] as XFile).path,
+                                              height: 120,
+                                              width: double.infinity,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (_, __, ___) => const SizedBox(
+                                                height: 120,
+                                                child: Center(child: Text('Failed to load image')),
+                                              ),
+                                            )
+                                          : Image.file(
+                                              File((productImages[0] as XFile).path),
+                                              height: 120,
+                                              width: double.infinity,
+                                              fit: BoxFit.cover,
+                                            ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                  ] else if (imageDownloadLinks.isNotEmpty) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        imageDownloadLinks[0],
+                                        height: 120,
+                                        width: double.infinity,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => const SizedBox(
+                                          height: 120,
+                                          child: Center(child: Text('Failed to load image')),
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 3),
+                                  ] else
+                                    const Text('No file selected', style: TextStyle(fontSize: 12, color: Colors.grey)),
                                   const SizedBox(height: 3),
                                   const Text('Max image upload size: 500KB', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w500)),
                                 ],
@@ -1549,10 +2549,48 @@ class _EditProductState extends State<EditProduct> {
                                           side: BorderSide(color: Colors.grey.shade400)
                                         ),
                                       ),
-                                      child: const Text('Choose File', style: TextStyle(color: Colors.black)),
+                                      child: const Text('Choose Main Image', style: TextStyle(color: Colors.black)),
                                     ),
                                     const SizedBox(height: 5),
-                                    const Text('No file selected', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                                    if (productImages.isNotEmpty && productImages[0] is XFile) ...[
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: kIsWeb
+                                            ? Image.network(
+                                                (productImages[0] as XFile).path,
+                                                height: 120,
+                                                width: double.infinity,
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (_, __, ___) => const SizedBox(
+                                                  height: 120,
+                                                  child: Center(child: Text('Failed to load image')),
+                                                ),
+                                              )
+                                            : Image.file(
+                                                File((productImages[0] as XFile).path),
+                                                height: 120,
+                                                width: double.infinity,
+                                                fit: BoxFit.cover,
+                                              ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                    ] else if (imageDownloadLinks.isNotEmpty) ...[
+                                      ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network(
+                                          imageDownloadLinks[0],
+                                          height: 120,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => const SizedBox(
+                                            height: 120,
+                                            child: Center(child: Text('Failed to load image')),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                    ] else
+                                      const Text('No file selected', style: TextStyle(fontSize: 12, color: Colors.grey)),
                                     const SizedBox(height: 3),
                                     const Text('Max image upload size: 500KB', style: TextStyle(fontSize: 11, color: Colors.redAccent, fontWeight: FontWeight.w500)),
                                   ],
@@ -1561,6 +2599,268 @@ class _EditProductState extends State<EditProduct> {
                             ],
                           ),
                         ],
+                        
+                        // Sub Images (Product Photos) Section
+                        const SizedBox(height: 20),
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Product Photos',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: primaryColor,
+                                    ),
+                                  ),
+                                  Text(
+                                    '${existingSubImages.length + subImages.length}${existingSubImages.length + subImages.length > 3 ? ' (max 3 for new uploads)' : '/3'}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                      color: (existingSubImages.length + subImages.length) > 3 
+                                          ? Colors.red 
+                                          : primaryColor,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton(
+                                onPressed: (existingSubImages.length + subImages.length) >= 3 
+                                    ? null 
+                                    : _selectSubImages,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: (existingSubImages.length + subImages.length) >= 3 
+                                      ? Colors.grey.shade300 
+                                      : primaryColor,
+                                  minimumSize: const Size(double.infinity, 45),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                                child: Text(
+                                  '+ Add Product Photos',
+                                  style: TextStyle(
+                                    color: (existingSubImages.length + subImages.length) >= 3 
+                                        ? Colors.grey.shade600 
+                                        : Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              if ((existingSubImages.length + subImages.length) >= 3)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    'Maximum 3 product photos allowed for new uploads',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.red.shade700,
+                                    ),
+                                  ),
+                                ),
+                              if (existingSubImages.length > 3)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 8.0),
+                                  child: Text(
+                                    'Note: You have ${existingSubImages.length} existing photos. You can remove some to add new ones (max 3 total).',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.orange.shade700,
+                                      fontStyle: FontStyle.italic,
+                                    ),
+                                  ),
+                                ),
+                              
+                              // Display Existing Sub Images
+                              if (existingSubImages.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Existing Images:',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: existingSubImages.asMap().entries.map((entry) {
+                                    final index = entry.key;
+                                    final imageUrl = entry.value;
+                                    return Stack(
+                                      children: [
+                                        Container(
+                                          width: 80,
+                                          height: 80,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.grey.shade300),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(7),
+                                            child: Image.network(
+                                              imageUrl,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) => Container(
+                                                color: Colors.grey.shade200,
+                                                child: const Icon(Icons.broken_image, size: 30),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 0,
+                                          right: 0,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                existingSubImages.removeAt(index);
+                                              });
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                              
+                              // Display New Sub Images
+                              if (subImages.isNotEmpty) ...[
+                                const SizedBox(height: 16),
+                                const Text(
+                                  'Selected Images (will be uploaded on save):',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: subImages.asMap().entries.map((entry) {
+                                    final index = entry.key;
+                                    final image = entry.value;
+                                    return Stack(
+                                      children: [
+                                        Container(
+                                          width: 80,
+                                          height: 80,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.grey.shade300),
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(7),
+                                            child: kIsWeb
+                                                ? Image.network(
+                                                    image.path,
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) => Container(
+                                                      color: Colors.grey.shade200,
+                                                      child: const Icon(Icons.broken_image, size: 30),
+                                                    ),
+                                                  )
+                                                : Image.file(
+                                                    File(image.path),
+                                                    fit: BoxFit.cover,
+                                                    errorBuilder: (context, error, stackTrace) => Container(
+                                                      color: Colors.grey.shade200,
+                                                      child: const Icon(Icons.broken_image, size: 30),
+                                                    ),
+                                                  ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          bottom: 0,
+                                          left: 0,
+                                          right: 0,
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.black.withOpacity(0.6),
+                                              borderRadius: const BorderRadius.only(
+                                                bottomLeft: Radius.circular(7),
+                                                bottomRight: Radius.circular(7),
+                                              ),
+                                            ),
+                                            child: FutureBuilder<int>(
+                                              future: image.length(),
+                                              builder: (context, snapshot) {
+                                                if (snapshot.hasData) {
+                                                  final sizeKB = (snapshot.data! / 1024).toStringAsFixed(1);
+                                                  return Text(
+                                                    '$sizeKB KB',
+                                                    textAlign: TextAlign.center,
+                                                    style: const TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 10,
+                                                    ),
+                                                  );
+                                                }
+                                                return const SizedBox.shrink();
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        Positioned(
+                                          top: 0,
+                                          right: 0,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                subImages.removeAt(index);
+                                              });
+                                            },
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              decoration: const BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: const Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                                size: 16,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
                         const SizedBox(height: 30),
 
                         // Row 7.5: Service Type Selection
@@ -1732,6 +3032,7 @@ class _EditProductState extends State<EditProduct> {
                                           _sizeUnitSizeController.clear();
                                           _sizePriceController.clear();
                                           _sizeDiscountController.clear();
+                                          _sizeQuantityController.clear();
                                           selectedSize = availableSizes.isNotEmpty ? availableSizes.first : null;
                                         } else {
                                           // Initialize selectedSize when enabling
@@ -1872,9 +3173,25 @@ class _EditProductState extends State<EditProduct> {
                                     ),
                                     const SizedBox(height: 12),
                                     
-                                    // Row 3: Discount and Add Button
+                                    // Row 3: Quantity and Discount
                                     Row(
                                       children: [
+                                        Expanded(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey.shade50,
+                                              borderRadius: BorderRadius.circular(12),
+                                            ),
+                                            child: kTextField(
+                                              _sizeQuantityController,
+                                              '1',
+                                              'Quantity *',
+                                              Field.quantity,
+                                              1,
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
                                         Expanded(
                                           child: Container(
                                             decoration: BoxDecoration(
@@ -1890,9 +3207,14 @@ class _EditProductState extends State<EditProduct> {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 12),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 12),
+                                    
+                                    // Row 4: Add Button
+                                    Row(
+                                      children: [
                                         Expanded(
-                                          flex: 1,
                                           child: ElevatedButton(
                                             onPressed: _addOrUpdateSizeEntry,
                                             style: ElevatedButton.styleFrom(
@@ -2102,71 +3424,47 @@ class _EditProductState extends State<EditProduct> {
                                       color: Colors.grey,
                                     ),
                                   ),
-                                  FutureBuilder<SubscriptionPlan?>(
-                                    future: _plan1SubscriptionFuture,
-                                    builder: (context, snapshot) {
-                                      SubscriptionPlan? plan;
-                                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-                                        plan = snapshot.data;
+                                  _buildSubscriptionToggle(
+                                    isEcommerceEnabled,
+                                    'Enable Ecommerce',
+                                    (newValue) {
+                                      if (mounted) {
+                                        setState(() {
+                                          isEcommerceEnabled = newValue ?? false;
+                                        });
                                       }
-                                      return _buildSubscriptionToggle(
-                                        isEcommerceEnabled,
-                                        'Enable Ecommerce',
-                                        (newValue) {
-                                          if (mounted) {
-                                            setState(() {
-                                              isEcommerceEnabled = newValue ?? false;
-                                            });
-                                          }
-                                        },
-                                        subscriptionPlan: plan,
-                                        initialEnabledState: widget.productData?['isEnableEcommerce'] == "1",
-                                      );
                                     },
+                                    subscriptionPlan: _plan1Subscription,
+                                    initialEnabledState: widget.productData?['isEnableEcommerce'] == "1",
+                                    usedCount: _ecommerceUsedCount,
                                   ),
-                                  FutureBuilder<SubscriptionPlan?>(
-                                    future: _plan2SubscriptionFuture,
-                                    builder: (context, snapshot) {
-                                      SubscriptionPlan? plan;
-                                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-                                        plan = snapshot.data;
+                                  _buildSubscriptionToggle(
+                                    isCustomizeEnabled,
+                                    'Enable Customize',
+                                    (newValue) {
+                                      if (mounted) {
+                                        setState(() {
+                                          isCustomizeEnabled = newValue ?? false;
+                                        });
                                       }
-                                      return _buildSubscriptionToggle(
-                                        isCustomizeEnabled,
-                                        'Enable Customize',
-                                        (newValue) {
-                                          if (mounted) {
-                                            setState(() {
-                                              isCustomizeEnabled = newValue ?? false;
-                                            });
-                                          }
-                                        },
-                                        subscriptionPlan: plan,
-                                        initialEnabledState: widget.productData?['isEnableCustomize'] == 1,
-                                      );
                                     },
+                                    subscriptionPlan: _plan2Subscription,
+                                    initialEnabledState: widget.productData?['isEnableCustomize'] == 1,
+                                    usedCount: _customizeUsedCount,
                                   ),
-                                  FutureBuilder<SubscriptionPlan?>(
-                                    future: _plan3SubscriptionFuture,
-                                    builder: (context, snapshot) {
-                                      SubscriptionPlan? plan;
-                                      if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-                                        plan = snapshot.data;
+                                  _buildSubscriptionToggle(
+                                    isBookingEnabled,
+                                    'Enable Booking',
+                                    (newValue) {
+                                      if (mounted) {
+                                        setState(() {
+                                          isBookingEnabled = newValue ?? false;
+                                        });
                                       }
-                                      return _buildSubscriptionToggle(
-                                        isBookingEnabled,
-                                        'Enable Booking',
-                                        (newValue) {
-                                          if (mounted) {
-                                            setState(() {
-                                              isBookingEnabled = newValue ?? false;
-                                            });
-                                          }
-                                        },
-                                        subscriptionPlan: plan,
-                                        initialEnabledState: widget.productData?['isBooking'] == "1",
-                                      );
                                     },
+                                    subscriptionPlan: _plan3Subscription,
+                                    initialEnabledState: widget.productData?['isBooking'] == "1",
+                                    usedCount: _bookingUsedCount,
                                   ),
                                 ],
                               ),
@@ -2188,13 +3486,17 @@ class _EditProductState extends State<EditProduct> {
 class _SubscriptionPill extends StatelessWidget {
   final Color color;
   final String title;
-  final Future<SubscriptionPlan?> planFuture;
+  final SubscriptionPlan? subscriptionPlan;
+  final bool isLoading;
+  final int usedCount;
   final VoidCallback onTap;
 
-  const _SubscriptionPill({
+  _SubscriptionPill({
     required this.color,
     required this.title,
-    required this.planFuture,
+    required this.subscriptionPlan,
+    required this.isLoading,
+    required this.usedCount,
     required this.onTap,
   });
 
@@ -2202,14 +3504,16 @@ class _SubscriptionPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: FutureBuilder<SubscriptionPlan?>(
-        future: planFuture,
-        builder: (context, snapshot) {
-          String total = 'N/A';
-          String used = 'N/A';
-          if (snapshot.connectionState == ConnectionState.done && snapshot.hasData) {
-            total = snapshot.data!.subscriptionCount.toString();
-            used = (snapshot.data!.subscriptionCount - snapshot.data!.freeCount).toString();
+      child: Builder(
+        builder: (context) {
+          String total = '0';
+          String used = '0';
+          if (isLoading) {
+            total = '...';
+            used = '...';
+          } else if (subscriptionPlan != null) {
+            total = subscriptionPlan!.subscriptionCount.toString();
+            used = usedCount.toString();
           }
           return Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),

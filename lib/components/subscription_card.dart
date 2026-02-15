@@ -1,12 +1,16 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart'; // platform check
-import 'dart:io'; // Platform.isAndroid/iOS
-import 'package:razorpay_flutter/razorpay_flutter.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nickname_portal/models/subscription_model.dart';
 import 'package:nickname_portal/helpers/subscription_service.dart';
+import 'package:nickname_portal/constants/app_config.dart';
+
+// Conditional imports for Razorpay - use appropriate package based on platform
+import 'razorpay_stub.dart'
+    if (dart.library.io) 'razorpay_mobile.dart'
+    if (dart.library.html) 'razorpay_web_impl.dart';
 class AppColors {
   static const Color success = Colors.green;
   static const Color primary = Colors.blue;
@@ -142,32 +146,45 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
     final email = prefs.getString('email') ?? "guest@example.com";
     final phone = prefs.getString('phone') ?? "9999999999";
 
+    final razorpayKey = AppConfig.razorpayKey;
+    
+    // Validate Razorpay key
+    if (razorpayKey.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Razorpay key is not configured. Please set RAZORPAY_KEY in .env file')),
+      );
+      return;
+    }
+
+    // Validate phone number format (Razorpay requires 10 digits)
+    String formattedPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    if (formattedPhone.length < 10) {
+      formattedPhone = "9999999999";
+    } else if (formattedPhone.length > 10) {
+      formattedPhone = formattedPhone.substring(formattedPhone.length - 10);
+    }
+
     final options = {
-      'key': 'rzp_live_RgPc8rKEOZbHgf', // Replace with your actual key
+      'key': razorpayKey,
       'amount': amountInPaisa,
       'currency': 'INR',
       'name': 'Nickname Infotech',
-      'description': 'For Subscriptions',
-      'prefill': {'name': firstName, 'email': email, 'contact': phone},
+      'description': 'Subscription Payment - ${widget.item.name}',
+      'prefill': {
+        'name': firstName,
+        'email': email,
+        'contact': formattedPhone,
+      },
       'theme': {'color': AppColors.primaryHex},
       'payment_capture': 1,
     };
 
-    final supportsRazorpay = !kIsWeb && (Platform.isAndroid || Platform.isIOS);
-
+    // razorpay_web supports both web and mobile platforms
     try {
-      if (supportsRazorpay) {
-        _razorpay.open(options);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Payment UI not supported here; simulating success.')),
-        );
-        // Simulate payment success for unsupported platforms
-        await _afterPaymentSuccess("TEMP_PAYMENT_ID_DEV", amountInPaisa);
-      }
+      _razorpay.open(options);
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error initializing Razorpay: $e')),
+        SnackBar(content: Text('Error opening payment gateway: ${e.toString()}')),
       );
     }
   }

@@ -10,6 +10,7 @@ import 'package:nickname_portal/views/main/seller/add_category_screen.dart';
 import 'package:nickname_portal/models/category_model.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../../../helpers/secure_http_client.dart';
 
 class CategoryScreen extends StatefulWidget {
   const CategoryScreen({super.key});
@@ -30,7 +31,10 @@ class _CategoryScreenState extends State<CategoryScreen> {
 
   Future<void> _fetchCategories() async {
     try {
-      final response = await http.get(Uri.parse('https://nicknameinfo.net/api/category/getAllCategory'));
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/category/getAllCategory',
+        context: context,
+      );
       if (response.statusCode == 200) {
         final decodedData = json.decode(response.body);
         if (decodedData['success'] == true && decodedData['data'] != null) {

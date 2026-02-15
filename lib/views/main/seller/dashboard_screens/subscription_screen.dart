@@ -2,8 +2,25 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nickname_portal/models/subscription_model.dart';
-import 'package:nickname_portal/helpers/subscription_service.dart'; // Assumed service for fetching data
-import 'package:nickname_portal/components/subscription_card.dart' hide SubscriptionService;
+import 'package:nickname_portal/components/subscription_card.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
+import 'dart:convert';
+
+// AppColors class for consistent styling
+class AppColors {
+  static const Color success = Colors.green;
+  static const Color primary = Colors.blue;
+  static const Color secondary = Colors.purple;
+  static const Color error = Colors.red;
+  static const Color warning = Colors.orange;
+  static const Color warningLight = Color(0xFFFFE0B2);
+  static const Color warningBg = Color(0xFFFFF3E0);
+  static const Color textLight = Colors.grey;
+  static const Color white = Colors.white;
+  static const Color borderColor = Colors.black12;
+  static const Color cardBackground = Colors.white;
+  static const String primaryHex = "#3399cc";
+}
 
 // Helper function to build Book Service features widget
 Widget _buildBookServiceFeatures() {
@@ -118,9 +135,10 @@ class SubscriptionScreen extends StatefulWidget {
 }
 
 class _SubscriptionScreenState extends State<SubscriptionScreen> {
-  // Map to hold Futures for current plan details by category key
-  Map<String, Future<SubscriptionPlan?>> _subscriptionFutures = {};
+  // Map to hold current subscription details by category key
+  Map<String, SubscriptionPlan?> _subscriptions = {};
   String? _customerId;
+  bool _isLoadingSubscriptions = true;
 
   @override
   void initState() {
@@ -135,32 +153,134 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     if (mounted) {
       setState(() {
         _customerId = loadedCustomerId;
-        if (_customerId != null) {
-          _refetchSubscriptions();
-        } else {
-          // Handle missing ID case gracefully
-          final errorFuture = Future<SubscriptionPlan?>.error('Customer ID not found.');
-          _subscriptionFutures = {
-            'Plan1': errorFuture,
-            'Plan2': errorFuture,
-            'Plan3': errorFuture,
-          };
-        }
       });
+      
+      if (_customerId != null) {
+        await _fetchUserSubscriptions();
+      } else {
+        if (mounted) {
+          setState(() {
+            _subscriptions = {};
+            _isLoadingSubscriptions = false;
+          });
+        }
+      }
+    }
+  }
+
+  /// Fetches user subscriptions from the API endpoint: https://nicknameinfo.net/api/auth/user/{userId}
+  /// 
+  /// API Response Structure:
+  /// {
+  ///   "success": true,
+  ///   "data": {
+  ///     "id": 119,
+  ///     "subscriptions": [
+  ///       {
+  ///         "id": 137,
+  ///         "subscriptionType": "Plan1" | "Plan2" | "Plan3",
+  ///         "subscriptionPlan": "PL1_005",
+  ///         "subscriptionPrice": "10016.00",
+  ///         "customerId": 55,
+  ///         "status": "1",
+  ///         "subscriptionCount": 200,
+  ///         "freeCount": 0
+  ///       }
+  ///     ]
+  ///   }
+  /// }
+  Future<void> _fetchUserSubscriptions() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      
+      if (userId == null || userId.isEmpty || userId == '0') {
+        if (mounted) {
+          setState(() {
+            _subscriptions = {};
+            _isLoadingSubscriptions = false;
+          });
+        }
+        return;
+      }
+
+      // Fetch user data with subscriptions from api/auth/user/{userId}
+      final url = 'https://nicknameinfo.net/api/auth/user/$userId';
+      final response = await SecureHttpClient.get(url);
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        
+        if (data['success'] == true && data['data'] != null) {
+          final userData = data['data'];
+          final subscriptions = userData['subscriptions'] as List<dynamic>?;
+          
+          Map<String, SubscriptionPlan?> subscriptionMap = {};
+          
+          if (subscriptions != null && subscriptions.isNotEmpty) {
+            // Find Plan1 subscription (Ecommerce)
+            final plan1List = subscriptions.where(
+              (sub) => sub['subscriptionType'] == 'Plan1' && sub['status'] == '1',
+            ).toList();
+            if (plan1List.isNotEmpty) {
+              subscriptionMap['Plan1'] = SubscriptionPlan.fromJson(plan1List.first);
+            }
+            
+            // Find Plan2 subscription (Customize)
+            final plan2List = subscriptions.where(
+              (sub) => sub['subscriptionType'] == 'Plan2' && sub['status'] == '1',
+            ).toList();
+            if (plan2List.isNotEmpty) {
+              subscriptionMap['Plan2'] = SubscriptionPlan.fromJson(plan2List.first);
+            }
+            
+            // Find Plan3 subscription (Booking)
+            final plan3List = subscriptions.where(
+              (sub) => sub['subscriptionType'] == 'Plan3' && sub['status'] == '1',
+            ).toList();
+            if (plan3List.isNotEmpty) {
+              subscriptionMap['Plan3'] = SubscriptionPlan.fromJson(plan3List.first);
+            }
+          }
+          
+          if (mounted) {
+            setState(() {
+              _subscriptions = subscriptionMap;
+              _isLoadingSubscriptions = false;
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _subscriptions = {};
+              _isLoadingSubscriptions = false;
+            });
+          }
+        }
+      } else {
+        debugPrint('Failed to fetch user data. Status code: ${response.statusCode}');
+        if (mounted) {
+          setState(() {
+            _subscriptions = {};
+            _isLoadingSubscriptions = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching user subscriptions: $e');
+      if (mounted) {
+        setState(() {
+          _subscriptions = {};
+          _isLoadingSubscriptions = false;
+        });
+      }
     }
   }
 
   // Method to re-fetch subscription details after a purchase
   void _refetchSubscriptions() {
     if (_customerId != null) {
-      setState(() {
-        // Only fetch for categories that have plans and need the status checked
-        for (var category in subscriptionData) {
-          if (category.plans != null && category.plans!.isNotEmpty && !category.commingSoon) {
-            _subscriptionFutures[category.key] = SubscriptionService.getSubscriptionDetails(_customerId!, category.key);
-          }
-        }
-      });
+      _fetchUserSubscriptions();
     }
   }
 
@@ -172,9 +292,9 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
         padding: const EdgeInsets.all(8.0),
         child: ListView(
           children: subscriptionData.map((subscription) {
-            final future = _subscriptionFutures[subscription.key] ?? Future.value(null);
+            final currentPlan = _subscriptions[subscription.key];
             
-            return _buildSubscriptionCategory(subscription, future);
+            return _buildSubscriptionCategory(subscription, currentPlan);
           }).toList(),
         ),
       ),
@@ -184,7 +304,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   // Helper to build the ExpansionTile (AccordionItem equivalent)
   Widget _buildSubscriptionCategory(
     SubscriptionCategory subscription,
-    Future<SubscriptionPlan?> currentPlanFuture,
+    SubscriptionPlan? currentPlan,
   ) {
     // For categories with no plans or coming soon, show a simple ListTile
     if (subscription.plans == null || subscription.commingSoon) {
@@ -204,62 +324,52 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       );
     }
 
-    return FutureBuilder<SubscriptionPlan?>(
-      future: currentPlanFuture,
-      builder: (context, snapshot) {
-        final currentPlanDetails = snapshot.data;
-    
-        return Padding(
-          padding: const EdgeInsets.only(top: 8.0),
-          child: ExpansionTile(
-            title: Text(subscription.name),
-            collapsedBackgroundColor: AppColors.cardBackground,
-            backgroundColor: AppColors.cardBackground,
-            childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.borderColor)),
-            collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.borderColor)),
-            
-            children: [
-              if (snapshot.connectionState == ConnectionState.waiting)
-                const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator())),
-              
-              if (snapshot.hasError && snapshot.error is! String) 
-                Center(child: Padding(padding: const EdgeInsets.all(16.0), child: Text('Error loading current plan: ${snapshot.error}'))),
-              
-              // Grid layout equivalent to the React component's grid
-              Builder(
-                builder: (context) {
-                  final width = MediaQuery.of(context).size.width;
-                  final isTablet = width >= 600;
-                  // Lower ratio = taller tiles. Tune these if needed.
-                  final childAspectRatio = isTablet ? 0.55 : 0.64;
-    
-                  return GridView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
-                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 400,
-                      childAspectRatio: childAspectRatio,
-                      mainAxisSpacing: 10,
-                      crossAxisSpacing: 10,
-                    ),
-                    itemCount: subscription.plans!.length,
-                    itemBuilder: (context, index) {
-                      final item = subscription.plans![index];
-                      return SubscriptionCard(
-                        item: item,
-                        subscription: subscription,
-                        currentSubscriptionDetails: currentPlanDetails,
-                        onPaymentSuccess: _refetchSubscriptions,
-                      );
-                    },
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: ExpansionTile(
+        title: Text(subscription.name),
+        collapsedBackgroundColor: AppColors.cardBackground,
+        backgroundColor: AppColors.cardBackground,
+        childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.borderColor)),
+        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.borderColor)),
+        
+        children: [
+          if (_isLoadingSubscriptions)
+            const Center(child: Padding(padding: EdgeInsets.all(16.0), child: CircularProgressIndicator())),
+          
+          // Grid layout equivalent to the React component's grid
+          Builder(
+            builder: (context) {
+              final width = MediaQuery.of(context).size.width;
+              final isTablet = width >= 600;
+              // Lower ratio = taller tiles. Tune these if needed.
+              final childAspectRatio = isTablet ? 0.55 : 0.64;
+  
+              return GridView.builder(
+                physics: const NeverScrollableScrollPhysics(),
+                shrinkWrap: true,
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 400,
+                  childAspectRatio: childAspectRatio,
+                  mainAxisSpacing: 10,
+                  crossAxisSpacing: 10,
+                ),
+                itemCount: subscription.plans!.length,
+                itemBuilder: (context, index) {
+                  final item = subscription.plans![index];
+                  return SubscriptionCard(
+                    item: item,
+                    subscription: subscription,
+                    currentSubscriptionDetails: currentPlan,
+                    onPaymentSuccess: _refetchSubscriptions,
                   );
                 },
-              ),
-            ],
+              );
+            },
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

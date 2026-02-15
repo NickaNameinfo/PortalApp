@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'secure_http_client.dart';
 
 Future<http.Response> fetchCartItems(String userId) async {
-  final url = Uri.parse('https://nicknameinfo.net/api/cart/list/$userId');
-  return await http.get(url);
+  return await SecureHttpClient.get(
+    'https://nicknameinfo.net/api/cart/list/$userId',
+  );
 }
 
 Future<Map<String, dynamic>> updateCart({
@@ -46,10 +48,9 @@ Future<Map<String, dynamic>> updateCart({
     requestBody['weight'] = productData['weight'].toString();
   }
 
-  final response = await http.post(
-    Uri.parse(url),
-    headers: {'Content-Type': 'application/json'},
-    body: json.encode(requestBody),
+  final response = await SecureHttpClient.post(
+    url,
+    body: requestBody,
   );
 
   if (response.statusCode == 200 || response.statusCode == 201) {

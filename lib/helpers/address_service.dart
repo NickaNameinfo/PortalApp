@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'secure_http_client.dart';
+import 'error_handler.dart';
 
 class Address {
   final String id;
@@ -59,41 +61,41 @@ class Address {
 
 class AddressService {
   Future<List<Address>> fetchAddresses(String userId) async {
-    final response = await http.get(Uri.parse('https://nicknameinfo.net/api/address/list/$userId'));
+    final response = await SecureHttpClient.get(
+      'https://nicknameinfo.net/api/address/list/$userId',
+    );
 
     if (response.statusCode == 200) {
       Iterable list = json.decode(response.body)['data'];
       return list.map((model) => Address.fromJson(model)).toList();
     } else {
-      throw Exception('Failed to load addresses');
+      throw Exception(ErrorHandler.getErrorMessage(response));
     }
   }
 
   Future<Address> createAddress(Address address) async {
-    final response = await http.post(
-      Uri.parse('https://nicknameinfo.net/api/address/create'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(address.toJson()),
+    final response = await SecureHttpClient.post(
+      'https://nicknameinfo.net/api/address/create',
+      body: address.toJson(),
     );
 
-    if (response.statusCode == 201) {
+    if (response.statusCode == 201 || response.statusCode == 200) {
       return Address.fromJson(json.decode(response.body)['data']);
     } else {
-      throw Exception('Failed to create address');
+      throw Exception(ErrorHandler.getErrorMessage(response));
     }
   }
 
   Future<Address> updateAddress(Address address) async {
-    final response = await http.post(
-      Uri.parse('https://nicknameinfo.net/api/address/update/${address.id}'),
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode(address.toJson()),
+    final response = await SecureHttpClient.post(
+      'https://nicknameinfo.net/api/address/update/${address.id}',
+      body: address.toJson(),
     );
 
     if (response.statusCode == 200) {
       return Address.fromJson(json.decode(response.body)['data']);
     } else {
-      throw Exception('Failed to update address');
+      throw Exception(ErrorHandler.getErrorMessage(response));
     }
   }
 }

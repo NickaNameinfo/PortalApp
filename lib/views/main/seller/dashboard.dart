@@ -8,11 +8,24 @@ import 'dashboard_screens/store_setup.dart';
 import 'dashboard_screens/upload_product.dart';
 import 'dashboard_screens/subscription_screen.dart';
 import 'dashboard_screens/billing_list_screen.dart';
-class DashboardScreen extends StatelessWidget {
-  DashboardScreen({super.key});
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
+import 'dart:convert';
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  bool _hasValidBillingSubscription = false;
+  bool _isLoadingSubscription = true;
 
   // Updated menu list with an additional placeholder service for 'Admin/Services'
-  final List<dynamic> menuList = [
+  List<dynamic> get menuList {
+    final baseMenuList = [
     // {
     //   'title': 'Store Setup',
     //   'icon': Icons.settings_outlined, // Modern icon
@@ -33,11 +46,12 @@ class DashboardScreen extends StatelessWidget {
       'icon': Icons.shopping_bag_outlined, // Modern icon
       'routeName': OrdersScreen.routeName,
     },
-    {
-      'title': 'Billing (Only for subscribed stores)',
-      'icon': Icons.receipt_long_outlined, // Modern icon
-      // 'routeName': '/billing-list',
-    },
+    if (_hasValidBillingSubscription)
+      {
+        'title': 'Billing',
+        'icon': Icons.receipt_long_outlined, // Modern icon
+        'routeName': '/billing-list',
+      },
     {
       'title': 'Statistics (Coming Soon)',
       'icon': Icons.bar_chart_outlined, // Modern icon
@@ -54,7 +68,78 @@ class DashboardScreen extends StatelessWidget {
       'icon': Icons.business_center_outlined, // Placeholder for multi-services
       // 'routeName': StoreSetupScreen.routeName, // Placeholder route
     },
-  ];
+    ];
+    return baseMenuList;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBillingSubscription();
+  }
+
+  Future<void> _checkBillingSubscription() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('userId');
+      
+      if (userId == null || userId.isEmpty || userId == '0') {
+        setState(() {
+          _hasValidBillingSubscription = false;
+          _isLoadingSubscription = false;
+        });
+        return;
+      }
+
+      // Fetch user data with subscriptions from api/auth/user/{userId}
+      final url = 'https://nicknameinfo.net/api/auth/user/$userId';
+      final response = await SecureHttpClient.get(url);
+      
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = json.decode(response.body);
+        
+        if (data['success'] == true && data['data'] != null) {
+          final userData = data['data'];
+          final subscriptions = userData['subscriptions'] as List<dynamic>?;
+          
+          if (mounted) {
+            setState(() {
+              // Check if any subscription matches PL1_005 and Plan1 with active status
+              _hasValidBillingSubscription = subscriptions != null &&
+                  subscriptions.any((sub) =>
+                      sub['subscriptionPlan'] == 'PL1_005' &&
+                      sub['subscriptionType'] == 'Plan1' &&
+                      sub['status'] == '1');
+              _isLoadingSubscription = false;
+            });
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _hasValidBillingSubscription = false;
+              _isLoadingSubscription = false;
+            });
+          }
+        }
+      } else {
+        debugPrint('Failed to fetch user data. Status code: ${response.statusCode}');
+        if (mounted) {
+          setState(() {
+            _hasValidBillingSubscription = false;
+            _isLoadingSubscription = false;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking billing subscription: $e');
+      if (mounted) {
+        setState(() {
+          _hasValidBillingSubscription = false;
+          _isLoadingSubscription = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -55,15 +55,43 @@ Future<void> openMap(String location) async {
 // --- NEW ---
 // --- For WhatsApp ---
 Future<void> launchWhatsApp(String phone, [String message = ""]) async {
-  // Assumes phone number includes country code (e.g., 91xxxxxxxxxx for India)
-  final String encodedMessage = Uri.encodeComponent(message);
-  final Uri launchUri = Uri.parse('http://googleusercontent.com/maps.google.com/$phone?text=$encodedMessage');
-
-  if (await canLaunchUrl(launchUri)) {
-    await launchUrl(launchUri, mode: LaunchMode.externalApplication);
-  } else {
+  try {
+    // Clean phone number: remove spaces, dashes, plus signs, parentheses, etc.
+    String cleanPhone = phone.replaceAll(RegExp(r'[\s\-+()]'), '');
+    
+    // Remove leading zeros if present
+    if (cleanPhone.startsWith('0')) {
+      cleanPhone = cleanPhone.substring(1);
+    }
+    
+    // Build WhatsApp URL
+    String whatsappUrl = 'https://wa.me/$cleanPhone';
+    if (message.isNotEmpty) {
+      final String encodedMessage = Uri.encodeComponent(message);
+      whatsappUrl = 'https://wa.me/$cleanPhone?text=$encodedMessage';
+    }
+    
+    final Uri launchUri = Uri.parse(whatsappUrl);
+    
+    if (await canLaunchUrl(launchUri)) {
+      await launchUrl(launchUri, mode: LaunchMode.externalApplication);
+    } else {
+      if (kDebugMode) {
+        print('Could not launch WhatsApp: $launchUri');
+      }
+      // Try alternative format: whatsapp://send?phone=
+      final Uri altUri = Uri.parse('whatsapp://send?phone=$cleanPhone${message.isNotEmpty ? '&text=${Uri.encodeComponent(message)}' : ''}');
+      if (await canLaunchUrl(altUri)) {
+        await launchUrl(altUri, mode: LaunchMode.externalApplication);
+      } else {
+        if (kDebugMode) {
+          print('Could not launch WhatsApp with alternative format: $altUri');
+        }
+      }
+    }
+  } catch (e) {
     if (kDebugMode) {
-      print('Could not launch $launchUri');
+      print('Error launching WhatsApp: $e');
     }
   }
 }

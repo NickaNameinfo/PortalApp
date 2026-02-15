@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'secure_http_client.dart';
+import 'error_handler.dart';
 
 class OrderService {
   static Future<Map<String, dynamic>> placeOrder({
@@ -10,33 +12,32 @@ class OrderService {
     required List<int> productIds,
     required List<int> quantities,
   }) async {
-    final url = Uri.parse('https://nicknameinfo.net/api/order/create');
-    final response = await http.post(
-      url,
-      headers: {'Content-Type': 'application/json'},
-      body: json.encode({
+    final response = await SecureHttpClient.post(
+      'https://nicknameinfo.net/api/order/create',
+      body: {
         'customerId': customerId,
         'paymentmethod': paymentMethod,
         'orderId': orderId,
         'grandTotal': grandTotal,
         'productIds': productIds,
         'qty': quantities,
-      }),
+      },
     );
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return json.decode(response.body);
     } else {
-      throw Exception('Failed to place order: ${response.statusCode}');
+      throw Exception(ErrorHandler.getErrorMessage(response));
     }
   }
 
   static Future<void> deleteCartItem({required String userId, required int productId}) async {
-    final url = Uri.parse('https://nicknameinfo.net/api/cart/delete/$userId/$productId');
-    final response = await http.delete(url);
+    final response = await SecureHttpClient.delete(
+      'https://nicknameinfo.net/api/cart/delete/$userId/$productId',
+    );
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to delete cart item: ${response.statusCode}');
+      throw Exception(ErrorHandler.getErrorMessage(response));
     }
   }
 }

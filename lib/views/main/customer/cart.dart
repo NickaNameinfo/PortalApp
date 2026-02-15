@@ -10,6 +10,8 @@ import 'package:nickname_portal/constants/colors.dart';
 import 'package:nickname_portal/components/loading.dart';
 import 'package:nickname_portal/components/gradient_background.dart';
 import 'package:nickname_portal/helpers/cart_api_helper.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
+import 'package:nickname_portal/helpers/error_handler.dart';
 import 'package:nickname_portal/views/main/customer/new_product_details_screen.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -78,13 +80,10 @@ class _CartScreenState extends State<CartScreen> {
 
   Future<void> _removeFromCart(int productId, String productName) async {
     try {
-      final response = await http.delete(
-        Uri.parse('https://nicknameinfo.net/api/cart/delete/$_userId/$productId')
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Request timeout');
-        },
+      final response = await SecureHttpClient.delete(
+        'https://nicknameinfo.net/api/cart/delete/$_userId/$productId',
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
       
       if (response.statusCode == 200) {
@@ -98,7 +97,7 @@ class _CartScreenState extends State<CartScreen> {
           throw Exception(responseData['message'] ?? 'Failed to remove item from cart.');
         }
       } else {
-        throw Exception('Failed to remove item from cart: ${response.statusCode}');
+        throw Exception(ErrorHandler.getErrorMessage(response));
       }
     } on TimeoutException {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -134,13 +133,10 @@ class _CartScreenState extends State<CartScreen> {
   Future<List<dynamic>> _fetchCartItems() async {
     print('Fetching cart items for userId: $_userId');
     try {
-      final response = await http.get(
-        Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId')
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Request timeout');
-        },
+      final response = await SecureHttpClient.get(
+        'https://nicknameinfo.net/api/cart/list/$_userId',
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
       
       if (response.statusCode == 200) {
@@ -151,7 +147,7 @@ class _CartScreenState extends State<CartScreen> {
           return [];
         }
       } else {
-        throw Exception('Failed to load cart items');
+        throw Exception(ErrorHandler.getErrorMessage(response));
       }
     } on TimeoutException {
       throw Exception('Request timeout. Please check your internet connection.');
@@ -201,13 +197,10 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _clearCart() async {
     // Implement API call to clear cart
     try {
-      final response = await http.delete(
-        Uri.parse('https://nicknameinfo.net/api/cart/clear/$_userId')
-      ).timeout(
-        const Duration(seconds: 15),
-        onTimeout: () {
-          throw TimeoutException('Request timeout');
-        },
+      final response = await SecureHttpClient.delete(
+        'https://nicknameinfo.net/api/cart/clear/$_userId',
+        timeout: const Duration(seconds: 15),
+        context: context,
       );
       
       if (response.statusCode == 200) {

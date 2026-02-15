@@ -4,6 +4,7 @@ import 'package:nickname_portal/constants/colors.dart';
 import 'package:nickname_portal/routes/routes.dart';
 import 'package:nickname_portal/views/auth/auth.dart';
 import 'package:nickname_portal/views/auth/account_type_selector.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthHelper {
   /// Check if user is logged in
@@ -120,6 +121,53 @@ class AuthHelper {
       return shouldLogin;
     }
     return true;
+  }
+
+  /// Logout user - clear all auth data
+  /// Based on Dashboard authUtils.mjs logout()
+  static Future<void> logout(BuildContext context) async {
+    debugPrint('[AuthHelper] Logging out user');
+    
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    
+    debugPrint('[AuthHelper] Auth data cleared');
+    
+    // Navigate to login screen
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const Auth(),
+          settings: const RouteSettings(name: '/login'),
+        ),
+        (Route<dynamic> route) => false,
+      );
+    }
+  }
+
+  /// Get user role
+  static Future<String?> getUserRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('userRole');
+  }
+
+  /// Get store ID
+  static Future<String?> getStoreId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('storeId');
+  }
+
+  /// Get vendor ID
+  static Future<String?> getVendorId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('vendorId');
+  }
+
+  /// Check if token exists
+  static Future<bool> hasToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    return token != null && token.isNotEmpty;
   }
 }
 

@@ -7,6 +7,7 @@ import '../../../../models/billing_model.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../../../../helpers/secure_http_client.dart';
 
 class ViewBillingScreen extends StatefulWidget {
   final int billId;
@@ -43,12 +44,11 @@ class _ViewBillingScreenState extends State<ViewBillingScreen> {
         final storeId = prefs.getString('storeId') ?? prefs.getInt('storeid')?.toString();
 
         if (storeId != null) {
-          final storeResponse = await http.get(
-            Uri.parse('https://nicknameinfo.net/api/store/list/$storeId'),
-            headers: {
-              'Content-Type': 'application/json',
-            },
-          ).timeout(const Duration(seconds: 15));
+          final storeResponse = await SecureHttpClient.get(
+            'https://nicknameinfo.net/api/store/list/$storeId',
+            timeout: const Duration(seconds: 15),
+            context: context,
+          );
 
           if (storeResponse.statusCode == 200) {
             final storeData = jsonDecode(storeResponse.body);
