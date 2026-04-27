@@ -17,7 +17,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:nickname_portal/utils/dev_tools_protection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:nickname_portal/utils/dev_tools_protection.dart';
-import 'package:flutter/foundation.dart';
+import 'package:nickname_portal/services/new_order_service.dart';
+import 'package:nickname_portal/services/app_update_service.dart';
 
 // Global navigator key for 401 handling
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -76,7 +77,25 @@ class MultiVendor extends StatefulWidget {
   State<MultiVendor> createState() => _MultiVendorState();
 }
 
+void _runAppUpdateCheck() {
+  Future.delayed(const Duration(milliseconds: 1500), () {
+    final context = navigatorKey.currentContext;
+    if (context != null) {
+      AppUpdateService.instance.checkAndNotify(context);
+    }
+  });
+}
+
 class _MultiVendorState extends State<MultiVendor> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      NewOrderService.instance.start();
+      _runAppUpdateCheck();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -85,6 +104,13 @@ class _MultiVendorState extends State<MultiVendor> {
       theme: ThemeData(
         fontFamily: 'Roboto',
         primaryColor: primaryColor,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primaryColor,
+          primary: primaryColor,
+          secondary: accentColor,
+          tertiary: successColor,
+        ),
+        scaffoldBackgroundColor: Colors.white,
       ),
       debugShowCheckedModeBanner: false,
       builder: (context, child) {

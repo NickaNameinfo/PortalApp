@@ -1,86 +1,75 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'secure_http_client.dart';
-import 'error_handler.dart';
+import 'package:nickname_portal/constants/app_config.dart';
+import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 class CheckoutApiHelper {
-  static const String _baseUrl = "https://nicknameinfo.net/api";
+  static bool _isSuccessStatus(int code) => code >= 200 && code < 300;
 
-  static Future<Map<String, dynamic>> _post(String endpoint, Map<String, dynamic> body) async {
-    final response = await SecureHttpClient.post(
-      '$_baseUrl$endpoint',
+  static Map<String, dynamic> _decodeJson(String body) {
+    final decoded = json.decode(body);
+    if (decoded is Map<String, dynamic>) return decoded;
+    return <String, dynamic>{'success': false, 'message': 'Invalid response'};
+  }
+
+  /// Create an order record (backend: POST /order/create).
+  /// Backend may respond with 201 Created; treat any 2xx as success.
+  static Future<Map<String, dynamic>> createOrder(Map<String, dynamic> body) async {
+    final http.Response response = await SecureHttpClient.post(
+      '${AppConfig.baseApi}/order/create',
       body: body,
     );
-
-    if (response.statusCode == 200) {
-      return json.decode(response.body);
-    } else {
-      throw Exception(ErrorHandler.getErrorMessage(response));
-    }
+    final out = _decodeJson(response.body);
+    if (_isSuccessStatus(response.statusCode)) return out;
+    throw Exception(out['message'] ?? out['error'] ?? 'Order create failed');
   }
 
-  // Corresponds to 'addPyament' (addPayment) in JS
-  static Future<Map<String, dynamic>> createRazorpayOrder(double amount, String userId) async {
-    final body = {
-      "amount": amount,
-      "currency": "INR",
-      "order_id": userId, // Note: JS code uses userId, ideally this is a unique ID
-      "payment_capture": 1
-    };
-    // Maps to /payment/orders
-    return await _post('/payment/orders', body);
+  /// Delete cart item (backend: DELETE /cart/delete/:orderId/:productId).
+  static Future<Map<String, dynamic>> deleteCartItem(String orderId, dynamic productId) async {
+    final pid = productId is num
+        ? productId.toInt()
+        : int.tryParse(productId?.toString() ?? '') ?? 0;
+    final http.Response response = await SecureHttpClient.delete(
+      '${AppConfig.baseApi}/cart/delete/$orderId/$pid',
+    );
+    final out = _decodeJson(response.body);
+    if (_isSuccessStatus(response.statusCode)) return out;
+    throw Exception(out['message'] ?? out['error'] ?? 'Delete cart item failed');
   }
 
-  // Corresponds to 'addOrderlist' in JS
+  /// Create Razorpay order (backend: POST /payment/orders).
+  /// Used only for online payment flows.
+  static Future<Map<String, dynamic>> createRazorpayOrder(double amount, String orderId) async {
+    final http.Response response = await SecureHttpClient.post(
+      '${AppConfig.baseApi}/payment/orders',
+      body: {
+        'amount': amount,
+        'currency': 'INR',
+        'order_id': orderId,
+        'payment_capture': 1,
+      },
+    );
+    final out = _decodeJson(response.body);
+    if (_isSuccessStatus(response.statusCode)) return out;
+    throw Exception(out['message'] ?? out['error'] ?? 'Payment order create failed');
+  }
+
+  /// Update payment record after Razorpay success (backend: POST /payment/orderlist).
   static Future<Map<String, dynamic>> updatePaymentRecord({
     required String orderCreationId,
     required String razorpayPaymentId,
     required String razorpayOrderId,
   }) async {
-    final body = {
-      "orderCreationId": orderCreationId,
-      "razorpayPaymentId": razorpayPaymentId,
-      "razorpayOrderId": razorpayOrderId,
-    };
-    // Maps to /payment/orderlist
-    return await _post('/payment/orderlist', body);
-  }
-
-  // Corresponds to 'addOrder' in JS
-  static Future<Map<String, dynamic>> createOrder(Map<String, dynamic> apiParams) async {
-    // Maps to /order/create
-    return await _post('/order/create', apiParams);
-  }
-
-  // --- Cart Management (from CartScreen) ---
-
-  static Future<List<dynamic>> fetchCartItems(String userId) async {
-    final response = await SecureHttpClient.get('$_baseUrl/cart/list/$userId');
-    if (response.statusCode == 200) {
-      final Map<String, dynamic> data = json.decode(response.body);
-      if (data['success'] == true && data['data'] != null) {
-        return data['data'];
-      } else {
-        return [];
-      }
-    } else {
-      throw Exception(ErrorHandler.getErrorMessage(response));
-    }
-  }
-  
-  static Future<void> deleteCartItem(String userId, int productId) async {
-     try {
-      final response = await SecureHttpClient.delete('$_baseUrl/cart/delete/$userId/$productId');
-      if (response.statusCode != 200) {
-         throw Exception(ErrorHandler.getErrorMessage(response));
-      }
-      final responseData = json.decode(response.body);
-      if (responseData['success'] != true) {
-         throw Exception(responseData['message'] ?? 'Failed to delete item from cart.');
-      }
-    } catch (e) {
-      print("Error removing from cart: $e");
-      // Don't re-throw, allow other deletions to proceed
-    }
+    final http.Response response = await SecureHttpClient.post(
+      '${AppConfig.baseApi}/payment/orderlist',
+      body: {
+        'orderCreationId': orderCreationId,
+        'razorpayPaymentId': razorpayPaymentId,
+        'razorpayOrderId': razorpayOrderId,
+      },
+    );
+    final out = _decodeJson(response.body);
+    if (_isSuccessStatus(response.statusCode)) return out;
+    throw Exception(out['message'] ?? out['error'] ?? 'Payment update failed');
   }
 }

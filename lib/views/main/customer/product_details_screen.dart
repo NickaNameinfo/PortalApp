@@ -14,6 +14,7 @@ import 'package:nickname_portal/views/main/store/store_details.dart';
 import 'package:nickname_portal/views/main/customer/checkout_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nickname_portal/utilities/auth_helper.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 class ProductDetailsScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _ProductDetailsScreenState extends State<ProductDetailsScreen> {
   Map<int, String?> _cartSizes = {}; // Store size from cart for each product
   Set<int> _cartLoadingIds = {};
   late String _userId = ''; // Initialize with an empty string
-  // The cart API endpoint for listing is 'https://nicknameinfo.net/api/cart/list/$_userId'
+  // Cart list uses AppConfig.baseApi
   
   // Size selection state
   String? _selectedSize;
@@ -229,7 +230,7 @@ Widget _buildCircleIcon(IconData icon, Color color) {
 }
 
 Future<void> _fetchCartQuantities() async {
-    final url = Uri.parse('https://nicknameinfo.net/api/cart/list/$_userId');
+    final url = Uri.parse('${AppConfig.baseApi}/cart/list/$_userId');
 
     try {
       final response = await SecureHttpClient.get(
@@ -285,11 +286,11 @@ Future<void> _fetchStoreData() async {
     }
     try {
       final storeFuture = SecureHttpClient.get(
-        'https://nicknameinfo.net/api/store/list/${widget.product['store']['id']}',
+        '${AppConfig.baseApi}/store/list/${widget.product['store']['id']}',
         context: context,
       );
       final productFuture = SecureHttpClient.get(
-        'https://nicknameinfo.net/api/store/product/getAllProductById/${widget.product['store']['id']}',
+        '${AppConfig.baseApi}/store/product/getAllProductById/${widget.product['store']['id']}',
         context: context,
       );
       final responses = await Future.wait([storeFuture, productFuture]);
@@ -1146,7 +1147,7 @@ Widget buildStoreHeader() {
       };
 
       final response = await SecureHttpClient.post(
-        'https://nicknameinfo.net/api/productFeedback/create',
+        '${AppConfig.baseApi}/productFeedback/create',
         body: feedbackData,
         context: context,
       );

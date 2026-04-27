@@ -202,7 +202,11 @@ class _SubscriptionCardState extends State<SubscriptionCard> {
     }
 
     final finalAmountInPaisa = amountInPaisa ?? (_calculateTotalPrice() * 100).round();
-    final customerId = widget.currentSubscriptionDetails?.customerId ?? widget.item.customerId;
+    dynamic customerId = widget.currentSubscriptionDetails?.customerId ?? widget.item.customerId;
+    if (customerId == null || customerId.toString().trim().isEmpty) {
+      final prefs = await SharedPreferences.getInstance();
+      customerId = prefs.getString('storeId');
+    }
 
     final payload = {
       "subscriptionCount": subscriptionCount,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:convex_bottom_bar/convex_bottom_bar.dart';
 import 'package:flutter/services.dart';
 import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
 import 'dashboard.dart';
 import 'home.dart';
 import 'profile.dart';
@@ -25,6 +26,7 @@ class _SellerBottomNavState extends State<SellerBottomNav> {
     // const StoreScreen(),
     const ProfileScreen(),
   ];
+  static const _titles = ["Dashboard", "Categories", "Profile"];
 
   void selectPage(var index) {
     setState(() {
@@ -54,29 +56,66 @@ class _SellerBottomNavState extends State<SellerBottomNav> {
         return true; // Allow popping the route (e.g., to login screen)
       },
       child: Scaffold(
-        bottomNavigationBar: ConvexAppBar(
-          backgroundColor: primaryColor,
-          activeColor: Colors.white,
-          initialActiveIndex: currentPageIndex,
-          style: TabStyle.reactCircle,
-          items: const [
-            TabItem(
-              icon: Icons.dashboard_outlined,
+        appBar: AppBar(
+          elevation: 0,
+          toolbarHeight: 48,
+          flexibleSpace: Container(
+            decoration: const BoxDecoration(
+              gradient: brandHeaderGradient,
             ),
-            TabItem(
-              icon: Icons.category_outlined,
+          ),
+          title: Text(
+            _titles[currentPageIndex],
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+              fontSize: 18,
             ),
-            // TabItem(
-            //   icon: Icons.storefront,
-            // ),
-            TabItem(
-              icon: Icons.person_outline,
-            )
-          ],
-          onTap: selectPage,
+          ),
+          centerTitle: true,
+          iconTheme: const IconThemeData(color: Colors.white),
         ),
-        backgroundColor: Colors.grey.shade200,
-        body: _pages[currentPageIndex],
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(26),
+              child: ConvexAppBar(
+                backgroundColor: primaryColor,
+                gradient: brandFooterGradient,
+                shadowColor: Colors.transparent,
+                elevation: 0,
+                height: 50,
+                top: -2,
+                color: Colors.white70,
+                activeColor: accentColor,
+                initialActiveIndex: currentPageIndex,
+                style: TabStyle.react,
+                items: const [
+                  TabItem(
+                    icon: Icons.dashboard_outlined,
+                    activeIcon: Icon(Icons.dashboard_outlined, size: 20, color: Colors.white),
+                  ),
+                  TabItem(
+                    icon: Icons.category_outlined,
+                    activeIcon: Icon(Icons.category_outlined, size: 20, color: Colors.white),
+                  ),
+                  TabItem(
+                    icon: Icons.person_outline,
+                    activeIcon: Icon(Icons.person_outline, size: 20, color: Colors.white),
+                  ),
+                ],
+                onTap: selectPage,
+              ),
+            ),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        body: Container(
+          decoration: gradientBackgroundDecoration,
+          child: _pages[currentPageIndex],
+        ),
       ),
     );
   }

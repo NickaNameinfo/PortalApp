@@ -1,40 +1,18 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:nickname_portal/constants/app_config.dart';
 import 'package:nickname_portal/models/subscription_model.dart';
 import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 class SubscriptionService {
-  /// Base URL for user API endpoint
-  /// API: https://nicknameinfo.net/api/auth/user/{userId}
-  /// Response structure:
-  /// {
-  ///   "success": true,
-  ///   "data": {
-  ///     "id": 119,
-  ///     "subscriptions": [
-  ///       {
-  ///         "id": 137,
-  ///         "subscriptionType": "Plan1" | "Plan2" | "Plan3",
-  ///         "subscriptionPlan": "PL1_005",
-  ///         "subscriptionPrice": "10016.00",
-  ///         "customerId": 55,
-  ///         "status": "1",
-  ///         "subscriptionCount": 200,
-  ///         "freeCount": 0
-  ///       }
-  ///     ]
-  ///   }
-  /// }
-  static const String _baseUrl = 'https://nicknameinfo.net/api/auth/user';
-
-  /// Fetches subscription details from user API endpoint
+  /// Fetches subscription details from user API endpoint (auth/user/{userId})
   /// 
   /// [userId] - The user ID to fetch subscriptions for
   /// [subscriptionType] - The subscription type to find ("Plan1", "Plan2", or "Plan3")
   /// 
   /// Returns the SubscriptionPlan if found, null otherwise
   static Future<SubscriptionPlan?> getSubscriptionDetails(String userId, String subscriptionType) async {
-    final url = '$_baseUrl/$userId';
+    final url = '${AppConfig.baseApi}/auth/user/$userId';
     try {
       final response = await SecureHttpClient.get(url);
 
@@ -52,7 +30,7 @@ class SubscriptionService {
             ).toList();
             
             if (matchingSubscriptions.isNotEmpty) {
-              return SubscriptionPlan.fromJson(matchingSubscriptions.first);
+              return SubscriptionPlan.mergedFromList(matchingSubscriptions);
             } else {
               print('No active subscription found for type: $subscriptionType');
               return null;
@@ -91,7 +69,7 @@ class SubscriptionService {
   /// Returns true if subscription was created successfully, false otherwise
   static Future<bool> createSubscription(Map<String, dynamic> payload) async {
     // Use subscription API endpoint for creating subscriptions
-    const subscriptionApiUrl = 'https://nicknameinfo.net/api/subscription/create';
+    final subscriptionApiUrl = '${AppConfig.baseApi}/subscription/create';
     try {
       final response = await SecureHttpClient.post(
         subscriptionApiUrl,

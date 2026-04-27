@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/app_config.dart';
 import 'secure_http_client.dart';
 import 'error_handler.dart';
 
@@ -13,7 +14,7 @@ class OrderService {
     required List<int> quantities,
   }) async {
     final response = await SecureHttpClient.post(
-      'https://nicknameinfo.net/api/order/create',
+      '${AppConfig.baseApi}/order/create',
       body: {
         'customerId': customerId,
         'paymentmethod': paymentMethod,
@@ -33,7 +34,7 @@ class OrderService {
 
   static Future<void> deleteCartItem({required String userId, required int productId}) async {
     final response = await SecureHttpClient.delete(
-      'https://nicknameinfo.net/api/cart/delete/$userId/$productId',
+      '${AppConfig.baseApi}/cart/delete/$userId/$productId',
     );
 
     if (response.statusCode != 200) {

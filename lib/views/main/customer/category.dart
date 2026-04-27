@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../../../helpers/secure_http_client.dart'; 
 
 import '../../../constants/colors.dart';
+import '../../../constants/app_config.dart';
 import '../../../components/loading.dart';
 import 'product_details_screen.dart'; 
 import 'package:nickname_portal/components/gradient_background.dart';
@@ -97,7 +98,7 @@ class _ProductScreenState extends State<ProductScreen> {
   Future<List<dynamic>> _fetchCategories() async {
     try {
       final response = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/category/getAllCategory',
+        '${AppConfig.baseApi}/category/getAllCategory',
         context: context,
       );
       if (response.statusCode == 200) {
@@ -123,9 +124,9 @@ class _ProductScreenState extends State<ProductScreen> {
     // Build the URL based on whether filters are active or not
     if (categoryIds != null && categoryIds.isNotEmpty) {
       final idString = categoryIds.join(',');
-      url = 'https://nicknameinfo.net/api/product/getAllByCategory?categoryIds=$idString';
+      url = '${AppConfig.baseApi}/product/getAllByCategory?categoryIds=$idString';
     } else {
-      url = 'https://nicknameinfo.net/api/product/getAllproductList';
+      url = '${AppConfig.baseApi}/product/getAllproductList';
     }
     
     final response = await SecureHttpClient.get(

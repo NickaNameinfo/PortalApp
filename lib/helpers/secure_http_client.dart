@@ -19,16 +19,81 @@ class SecureHttpClient {
     '/api/auth/rootLogin',
     '/api/customer/register',
     '/api/customer/login',
+    // Public catalog endpoints (do not require auth)
+    '/api/category/getAllCategory',
+    // Public analytics / tracking
+    '/api/store/visit',
+    // Public store browsing
+    '/api/store/list',
+    '/api/store/product/getAllProductById',
+    // NOTE: `/api/store/public/by-ids` is NOT public on the server — it requires
+    // `Authorization` (customer token). Do not add it here or requests will get 401.
   ];
   
   /// Check if a route is public (doesn't require authentication)
   static bool isPublicRoute(String url) {
     return publicRoutes.any((route) => url.contains(route));
   }
+
+  /// Pull JWT / session string from prefs (login flows vary by screen).
+  static String? _extractTokenFromJson(dynamic decoded) {
+    if (decoded is! Map) return null;
+    final m = Map<String, dynamic>.from(decoded);
+    final data = m['data'];
+    final dataMap = data is Map ? Map<String, dynamic>.from(data) : null;
+    final candidates = <dynamic>[
+      m['token'],
+      m['accessToken'],
+      m['access_token'],
+      if (dataMap != null) ...[
+        dataMap['token'],
+        dataMap['accessToken'],
+        dataMap['access_token'],
+      ],
+    ];
+    for (final c in candidates) {
+      final s = c?.toString().trim();
+      if (s != null && s.isNotEmpty) return s;
+    }
+    return null;
+  }
+
+  static String? _resolveRawToken(SharedPreferences prefs) {
+    const flatKeys = [
+      'token',
+      'accessToken',
+      'access_token',
+      'authToken',
+      'jwt',
+    ];
+    for (final k in flatKeys) {
+      final v = prefs.getString(k)?.trim();
+      if (v != null && v.isNotEmpty) return v;
+    }
+
+    const jsonKeys = ['user', 'userData', 'loginData', 'authData', 'loginResponse'];
+    for (final k in jsonKeys) {
+      final raw = prefs.getString(k);
+      if (raw == null || raw.trim().isEmpty) continue;
+      try {
+        final decoded = json.decode(raw);
+        final t = _extractTokenFromJson(decoded);
+        if (t != null) return t;
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  /// Match web customer API: `Frontend/src/utils/authHelper.mjs` uses `Bearer <token>`.
+  static String _authorizationHeaderValue(String rawToken) {
+    final t = rawToken.trim();
+    if (t.isEmpty) return t;
+    if (t.toLowerCase().startsWith('bearer ')) return t;
+    return 'Bearer $t';
+  }
   
   /// Get authentication headers
-  /// Based on Dashboard authHelper.mjs prepareHeaders()
-  /// Note: Dashboard uses plain token (no Bearer prefix) - line 151
+  /// Aligns with web `prepareHeaders`: Authorization Bearer + shared prefs token.
   static Future<Map<String, String>> _getHeaders({String? url}) async {
     final headers = <String, String>{
       'Content-Type': 'application/json',
@@ -40,12 +105,10 @@ class SecureHttpClient {
     }
     
     final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
+    final raw = _resolveRawToken(prefs);
     
-    if (token != null && token.isNotEmpty) {
-      // Dashboard authHelper.mjs line 151 uses: headers.set("Authorization", `${token}`)
-      // No Bearer prefix - backend middleware expects plain token
-      headers['Authorization'] = token;
+    if (raw != null && raw.isNotEmpty) {
+      headers['Authorization'] = _authorizationHeaderValue(raw);
     }
     
     return headers;

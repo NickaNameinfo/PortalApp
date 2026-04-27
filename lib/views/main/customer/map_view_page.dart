@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart'; // <-- NEW: Import geolocator
+import '../../../constants/app_config.dart';
 import '../../../helpers/secure_http_client.dart';
 
 // ASSUMED: Your Utility Functions
@@ -236,7 +237,7 @@ class _MapViewPageState extends State<MapViewPage> {
   Future<List<dynamic>> _fetchCategories() async {
     try {
       final response = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/category/getAllCategory',
+        '${AppConfig.baseApi}/category/getAllCategory',
         context: context,
       );
       if (response.statusCode == 200) {
@@ -265,13 +266,13 @@ class _MapViewPageState extends State<MapViewPage> {
 
     if (categoryIds != null && categoryIds.isNotEmpty) {
       final idString = categoryIds.join(','); 
-      url = 'https://nicknameinfo.net/api/store/service/filterByCategory?categoryIds=$idString';
+      url = '${AppConfig.baseApi}/store/service/filterByCategory?categoryIds=$idString';
     } else if (searchQuery != null && searchQuery.isNotEmpty) {
-      url = 'https://nicknameinfo.net/api/store/service/getAllStoresByFilters?search=${Uri.encodeQueryComponent(searchQuery)}';
+      url = '${AppConfig.baseApi}/store/service/getAllStoresByFilters?search=${Uri.encodeQueryComponent(searchQuery)}';
     } else if (paymentMode != null) {
-      url = 'https://nicknameinfo.net/api/store/service/getAllStoresByFilters?paymentModes=$paymentMode';
+      url = '${AppConfig.baseApi}/store/service/getAllStoresByFilters?paymentModes=$paymentMode';
     } else {
-      url = 'https://nicknameinfo.net/api/store/service/list';
+      url = '${AppConfig.baseApi}/store/service/list';
       // --- MODIFIED: Append location to the default list endpoint ---
       if (location != null && location.isNotEmpty) {
         url = '$url?currentLocation=${Uri.encodeQueryComponent(location)}'; 

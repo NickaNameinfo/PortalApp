@@ -7,6 +7,7 @@ import '../../../../models/billing_model.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../../../../constants/app_config.dart';
 import '../../../../helpers/secure_http_client.dart';
 
 class ViewBillingScreen extends StatefulWidget {
@@ -45,7 +46,7 @@ class _ViewBillingScreenState extends State<ViewBillingScreen> {
 
         if (storeId != null) {
           final storeResponse = await SecureHttpClient.get(
-            'https://nicknameinfo.net/api/store/list/$storeId',
+            '${AppConfig.baseApi}/store/list/$storeId',
             timeout: const Duration(seconds: 15),
             context: context,
           );

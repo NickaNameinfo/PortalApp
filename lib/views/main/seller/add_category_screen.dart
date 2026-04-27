@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:nickname_portal/constants/colors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 import '../../../helpers/secure_http_client.dart';
 
 class AddCategoryScreen extends StatefulWidget {
@@ -53,7 +54,7 @@ class _AddCategoryScreenState extends State<AddCategoryScreen> {
 
     try {
       final response = await SecureHttpClient.post(
-        'https://nicknameinfo.net/api/category/create',
+        '${AppConfig.baseApi}/category/create',
         body: payload,
         context: context,
       );

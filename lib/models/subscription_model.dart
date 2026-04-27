@@ -44,6 +44,19 @@ class SubscriptionPlan {
     this.freeCount = 0,
   });
 
+  /// Builds one SubscriptionPlan from a list of same-type subscriptions (e.g. all Plan1),
+  /// with subscriptionCount = sum of all records. Use for quota: total allowed = sum of all same plan.
+  static SubscriptionPlan? mergedFromList(List<dynamic> list) {
+    if (list.isEmpty) return null;
+    int totalCount = 0;
+    for (var s in list) {
+      totalCount += int.tryParse(s['subscriptionCount']?.toString() ?? '0') ?? 0;
+    }
+    final firstMap = Map<String, dynamic>.from(list.first as Map);
+    firstMap['subscriptionCount'] = totalCount;
+    return SubscriptionPlan.fromJson(firstMap);
+  }
+
   factory SubscriptionPlan.fromJson(Map<String, dynamic> json) {
     double parseDouble(dynamic v) {
       if (v is num) return v.toDouble();

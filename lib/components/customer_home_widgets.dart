@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 import 'package:nickname_portal/components/loading.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
@@ -91,27 +92,20 @@ void _logout(BuildContext context) async {
 
       // Modern profile button with gradient
       child: Container(
-        width: 50,
-        height: 50,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              primaryColor,
-              primaryColor.withOpacity(0.8),
-            ],
-          ),
+          gradient: brandHeaderGradient,
           shape: BoxShape.circle,
           boxShadow: [
             BoxShadow(
-              color: primaryColor.withOpacity(0.3),
+              color: primaryColor.withOpacity(0.25),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: const Icon(Icons.person, color: Colors.white, size: 24),
+        child: const Icon(Icons.person, color: Colors.white, size: 22),
       ),
     );
   }
@@ -189,16 +183,9 @@ class HomeTopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            primaryColor,
-            primaryColor.withOpacity(0.8),
-          ],
-        ),
+        gradient: brandHeaderGradient,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -209,7 +196,7 @@ class HomeTopBar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(25),
+                borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withOpacity(0.1),
@@ -222,13 +209,13 @@ class HomeTopBar extends StatelessWidget {
                 controller: searchController,
                 textInputAction: TextInputAction.search,
                 onSubmitted: onSearchSubmitted,
-                style: const TextStyle(fontSize: 15),
+                style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Search stores...',
                   hintStyle: TextStyle(color: Colors.grey[400]),
                   border: InputBorder.none,
-                  icon: Icon(Icons.search, color: primaryColor, size: 22),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  icon: Icon(Icons.search, color: primaryColor, size: 20),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   suffixIcon: ValueListenableBuilder<TextEditingValue>(
                     valueListenable: searchController,
                     builder: (context, value, child) {
@@ -253,7 +240,7 @@ class HomeTopBar extends StatelessWidget {
               Scaffold.of(context).openEndDrawer();
             },
             child: Container(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
@@ -265,7 +252,7 @@ class HomeTopBar extends StatelessWidget {
                   ),
                 ],
               ),
-              child: Icon(Icons.tune, size: 22, color: primaryColor),
+              child: Icon(Icons.tune, size: 20, color: primaryColor),
             ),
           ),
         ],
@@ -405,7 +392,7 @@ class CategoryTab extends StatelessWidget {
             duration: const Duration(milliseconds: 300),
             curve: Curves.easeInOut,
             margin: const EdgeInsets.symmetric(horizontal: 6),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             decoration: BoxDecoration(
               gradient: isSelected
                   ? LinearGradient(
@@ -418,7 +405,7 @@ class CategoryTab extends StatelessWidget {
                     )
                   : null,
               color: isSelected ? null : Colors.white,
-              borderRadius: BorderRadius.circular(25),
+              borderRadius: BorderRadius.circular(18),
               border: isSelected
                   ? null
                   : Border.all(
@@ -446,7 +433,7 @@ class CategoryTab extends StatelessWidget {
                 text,
                 style: TextStyle(
                   color: isSelected ? Colors.white : Colors.black87,
-                  fontSize: 14,
+                  fontSize: 12.5,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                 ),
               ),
@@ -489,7 +476,7 @@ class CategoriesWidget extends StatelessWidget {
         ];
 
         return SizedBox(
-          height: 50,
+          height: 40,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 5.0),
             child: ListView.builder(
@@ -909,7 +896,7 @@ class _CategoriesExpansionFilterState extends State<CategoriesExpansionFilter> {
     try {
       // Use context from build method - SecureHttpClient will use global navigator if context is null
       final response = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/category/getAllCategory',
+        '${AppConfig.baseApi}/category/getAllCategory',
         context: null, // Category API is public, context not needed
       );
       if (response.statusCode == 200) {

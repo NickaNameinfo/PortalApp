@@ -11,6 +11,7 @@ import 'package:nickname_portal/views/main/customer/order.dart';
 import 'package:nickname_portal/views/main/store/store_details.dart';
 import 'package:nickname_portal/utilities/url_launcher_utils.dart';
 import 'package:nickname_portal/utilities/auth_helper.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 import 'package:nickname_portal/helpers/secure_http_client.dart';
 
 class NewProductDetailsScreen extends StatefulWidget {
@@ -249,11 +250,11 @@ int? storeId;
       }
       
       final storeFuture = SecureHttpClient.get(
-        'https://nicknameinfo.net/api/store/list/$storeId',
+        '${AppConfig.baseApi}/store/list/$storeId',
         context: context,
       );
       final productFuture = SecureHttpClient.get(
-        'https://nicknameinfo.net/api/store/product/getAllProductById/$storeId',
+        '${AppConfig.baseApi}/store/product/getAllProductById/$storeId',
         context: context,
       );
       final responses = await Future.wait([storeFuture, productFuture]);
@@ -1915,7 +1916,7 @@ int? storeId;
       };
 
       final response = await SecureHttpClient.post(
-        'https://nicknameinfo.net/api/productFeedback/create',
+        '${AppConfig.baseApi}/productFeedback/create',
         body: feedbackData,
         context: context,
       );

@@ -1,14 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/app_config.dart';
 import 'secure_http_client.dart';
 import 'error_handler.dart';
 
 class CategoryService {
-  static const String _baseUrl = 'https://nicknameinfo.net/api/category';
-
   static Future<List<Map<String, dynamic>>> getAllCategories() async {
     try {
-      final response = await SecureHttpClient.get('$_baseUrl/getAllCategory');
+      final response = await SecureHttpClient.get('${AppConfig.baseApi}/category/getAllCategory');
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         if (data['success'] == true) {

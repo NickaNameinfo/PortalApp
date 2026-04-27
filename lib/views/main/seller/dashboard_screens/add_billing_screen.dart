@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../../../models/billing_model.dart';
 import '../../../../helpers/billing_service.dart';
+import '../../../../constants/app_config.dart';
 import '../../../../helpers/secure_http_client.dart';
 
 class AddBillingScreen extends StatefulWidget {
@@ -82,7 +83,7 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final url = 'https://nicknameinfo.net/api/store/product/admin/getAllProductById/$_storeId';
+      final url = '${AppConfig.baseApi}/store/product/admin/getAllProductById/$_storeId';
       print('Fetching products from: $url'); // Debug log
       
       final response = await SecureHttpClient.get(
@@ -254,7 +255,7 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
 
         // Fetch current product data
         final productResponse = await SecureHttpClient.get(
-          'https://nicknameinfo.net/api/product/getProductById/${product.productId}',
+          '${AppConfig.baseApi}/product/getProductById/${product.productId}',
           timeout: const Duration(seconds: 15),
           context: context,
         );
@@ -332,7 +333,7 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
                 };
 
                 final response = await SecureHttpClient.post(
-                  'https://nicknameinfo.net/api/product/update',
+                  '${AppConfig.baseApi}/product/update',
                   body: updateData,
                   timeout: const Duration(seconds: 15),
                   context: context,
@@ -368,7 +369,7 @@ class _AddBillingScreenState extends State<AddBillingScreen> {
         };
 
         final response = await SecureHttpClient.post(
-          'https://nicknameinfo.net/api/product/update',
+          '${AppConfig.baseApi}/product/update',
           body: updateData,
           timeout: const Duration(seconds: 15),
           context: context,

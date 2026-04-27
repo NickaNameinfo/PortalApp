@@ -114,73 +114,55 @@ class _CustomerBottomNavState extends State<CustomerBottomNav> {
     return WillPopScope(
       onWillPop: _onWillPop,
       child: Scaffold(
-        bottomNavigationBar: ConvexAppBar(
-          backgroundColor: primaryColor,
-          color: Colors.white70,
-          activeColor: Colors.white,
-          initialActiveIndex: currentPageIndex,
-          style: TabStyle.reactCircle,
-          items: [
-            TabItem(
-              icon: Icon(
-                Icons.store,
-                size: currentPageIndex == 0 ? 22 : 18,
-                color: currentPageIndex == 0 ? primaryColor : Colors.white70,
+        bottomNavigationBar: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(26),
+              child: ConvexAppBar(
+                // Gradient pill: we clip ourselves instead of using `cornerRadius`
+                // (cornerRadius only supports fixed/fixedCircle styles).
+                backgroundColor: primaryColor,
+                gradient: brandFooterGradient,
+                shadowColor: Colors.transparent,
+                elevation: 0,
+                height: 50,
+                top: -2,
+                color: Colors.white70,
+                activeColor: accentColor,
+                initialActiveIndex: currentPageIndex,
+                style: TabStyle.react,
+                items: const [
+                  TabItem(
+                    icon: Icons.store,
+                    activeIcon: Icon(Icons.store, size: 20, color: Colors.white),
+                  ),
+                  TabItem(
+                    icon: Icons.local_shipping,
+                    activeIcon: Icon(Icons.local_shipping, size: 20, color: Colors.white),
+                  ),
+                  TabItem(
+                    icon: Icons.dashboard_outlined,
+                    activeIcon: Icon(Icons.dashboard_outlined, size: 20, color: Colors.white),
+                  ),
+                  TabItem(
+                    icon: Icons.shopping_bag_outlined,
+                    activeIcon: Icon(Icons.shopping_bag_outlined, size: 20, color: Colors.white),
+                  ),
+                  TabItem(
+                    icon: Icons.receipt_long,
+                    activeIcon: Icon(Icons.receipt_long, size: 20, color: Colors.white),
+                  ),
+                  TabItem(
+                    icon: Icons.person_outline,
+                    activeIcon: Icon(Icons.person_outline, size: 20, color: Colors.white),
+                  ),
+                ],
+                onTap: selectPage,
               ),
             ),
-            TabItem(
-              icon: Icon(
-                Icons.local_shipping,
-                size: currentPageIndex == 1 ? 22 : 18,
-                color: currentPageIndex == 1 ? primaryColor : Colors.white70,
-              ),
-            ),
-            TabItem(
-              icon: Icon(
-                Icons.dashboard_outlined,
-                size: currentPageIndex == 2 ? 22 : 18,
-                color: currentPageIndex == 2 ? primaryColor : Colors.white70,
-              ),
-            ),
-            TabItem(
-              icon: Icon(
-                Icons.shopping_bag_outlined,
-                size: currentPageIndex == 3 ? 22 : 18,
-                color: currentPageIndex == 3 ? primaryColor : Colors.white70,
-              ),
-            ),
-            // TabItem(
-            //   icon: Consumer<CartData>(
-            //     builder: (context, data, child) => badges_lib.Badge(
-            //       badgeContent: Text(
-            //         cartData.cartItemCount.toString(),
-            //         style: const TextStyle(color: primaryColor),
-            //       ),
-            //       showBadge: cartData.cartItems.isNotEmpty,
-            //       child: Icon(
-            //         Icons.shopping_bag_outlined,
-            //         size: currentPageIndex == 3 ? 22 : 18,
-            //         color: currentPageIndex == 3 ? primaryColor : Colors.white70,
-            //       ),
-            //     ),
-            //   ),
-            // ),
-            TabItem(
-              icon: Icon(
-                Icons.receipt_long,
-                size: currentPageIndex == 4 ? 22 : 18,
-                color: currentPageIndex == 4 ? primaryColor : Colors.white70,
-              ),
-            ),
-            TabItem(
-              icon: Icon(
-                Icons.person_outline,
-                size: currentPageIndex == 5 ? 22 : 18,
-                color: currentPageIndex == 5 ? primaryColor : Colors.white70,
-              ),
-            ),
-          ],
-          onTap: selectPage,
+          ),
         ),
         backgroundColor: Colors.grey.shade200,
         body: Navigator(

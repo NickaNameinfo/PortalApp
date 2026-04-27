@@ -13,16 +13,19 @@ import 'package:nickname_portal/components/loading.dart';
 import 'package:nickname_portal/helpers/category_service.dart'; // Added for CategoryService
 import 'package:nickname_portal/helpers/secure_http_client.dart'; // Secure HTTP client with authentication
 import 'package:nickname_portal/helpers/file_validation.dart'; // File validation utilities
+import 'package:nickname_portal/components/gradient_background.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Added for SharedPreferences
 import '../../../../utilities/categories_list.dart'; // Still needed for legacy/default values
 import 'package:path/path.dart' as path;
 import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 import 'package:nickname_portal/models/subscription_model.dart'; // Import SubscriptionPlan
 import 'dart:typed_data';
 import 'package:barcode/barcode.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import '../add_category_screen.dart';
 
 // New: Enum for Product Status
 enum ProductStatus { active, inactive }
@@ -130,6 +133,7 @@ class _EditProductState extends State<EditProduct> {
   List<dynamic> _subcategories = []; // Subcategory List for selected category
   List<dynamic> _childCategories = []; // Child Category List for selected subcategory
   bool _isCategoryLoading = true; 
+  final TextEditingController _categorySearchController = TextEditingController();
 
   String? _customerId;
   SubscriptionPlan? _plan1Subscription;
@@ -167,7 +171,7 @@ class _EditProductState extends State<EditProduct> {
     }
   }
 
-  /// Fetches user subscriptions from the API endpoint: https://nicknameinfo.net/api/auth/user/{userId}
+  /// Fetches user subscriptions from the API endpoint: auth/user/{userId}
   /// 
   /// API Response Structure:
   /// {
@@ -206,7 +210,7 @@ class _EditProductState extends State<EditProduct> {
       }
 
       // Fetch user data with subscriptions from api/auth/user/{userId}
-      final url = 'https://nicknameinfo.net/api/auth/user/$userId';
+      final url = '${AppConfig.baseApi}/auth/user/$userId';
       debugPrint('Fetching user subscriptions from: $url');
       final response = await SecureHttpClient.get(url);
       
@@ -229,8 +233,8 @@ class _EditProductState extends State<EditProduct> {
               (sub) => sub['subscriptionType'] == 'Plan1' && sub['status'] == '1',
             ).toList();
             if (plan1List.isNotEmpty) {
-              plan1 = SubscriptionPlan.fromJson(plan1List.first);
-              debugPrint('Plan1 subscription found: ${plan1?.subscriptionPlan} with count: ${plan1?.subscriptionCount}');
+              plan1 = SubscriptionPlan.mergedFromList(plan1List);
+              debugPrint('Plan1 subscription found: ${plan1?.subscriptionPlan} with total count: ${plan1?.subscriptionCount}');
             }
             
             // Find Plan2 subscription (Customize)
@@ -238,8 +242,8 @@ class _EditProductState extends State<EditProduct> {
               (sub) => sub['subscriptionType'] == 'Plan2' && sub['status'] == '1',
             ).toList();
             if (plan2List.isNotEmpty) {
-              plan2 = SubscriptionPlan.fromJson(plan2List.first);
-              debugPrint('Plan2 subscription found: ${plan2?.subscriptionPlan} with count: ${plan2?.subscriptionCount}');
+              plan2 = SubscriptionPlan.mergedFromList(plan2List);
+              debugPrint('Plan2 subscription found: ${plan2?.subscriptionPlan} with total count: ${plan2?.subscriptionCount}');
             }
             
             // Find Plan3 subscription (Booking)
@@ -247,8 +251,8 @@ class _EditProductState extends State<EditProduct> {
               (sub) => sub['subscriptionType'] == 'Plan3' && sub['status'] == '1',
             ).toList();
             if (plan3List.isNotEmpty) {
-              plan3 = SubscriptionPlan.fromJson(plan3List.first);
-              debugPrint('Plan3 subscription found: ${plan3?.subscriptionPlan} with count: ${plan3?.subscriptionCount}');
+              plan3 = SubscriptionPlan.mergedFromList(plan3List);
+              debugPrint('Plan3 subscription found: ${plan3?.subscriptionPlan} with total count: ${plan3?.subscriptionCount}');
             }
           } else {
             debugPrint('No subscriptions found in user data');
@@ -305,7 +309,7 @@ class _EditProductState extends State<EditProduct> {
       }
 
       // Fetch products from store
-      final url = 'https://nicknameinfo.net/api/store/product/admin/getAllProductById/$_customerId';
+      final url = '${AppConfig.baseApi}/store/product/admin/getAllProductById/$_customerId';
       final response = await SecureHttpClient.get(url);
 
       if (response.statusCode == 200) {
@@ -410,6 +414,136 @@ class _EditProductState extends State<EditProduct> {
     debugPrint('isImagePicked on init: $isImagePicked');
   }
 
+  String _categoryNameById(String? id) {
+    if (id == null) return '';
+    final match = _categories.where((c) => c is Map && c['id']?.toString() == id).toList();
+    if (match.isEmpty) return '';
+    final m = match.first as Map;
+    return (m['name'] ?? '').toString();
+  }
+
+  Future<void> _openCategoryPicker() async {
+    if (_isCategoryLoading) return;
+    _categorySearchController.text = '';
+    final selected = await showModalBottomSheet<String?>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        String q = '';
+        return StatefulBuilder(
+          builder: (context, setSheet) {
+            final list = _categories
+                .whereType<Map<String, dynamic>>()
+                .where((c) => (c['name'] ?? '').toString().toLowerCase().contains(q))
+                .toList();
+            return Container(
+              padding: EdgeInsets.only(
+                left: 14,
+                right: 14,
+                top: 10,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+              ),
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 44,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          "Select category",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: () async {
+                          Navigator.of(context).pop(null);
+                          await Navigator.of(this.context).push(
+                            MaterialPageRoute(builder: (_) => const AddCategoryScreen()),
+                          );
+                          await _fetchCategories();
+                          if (mounted) setState(() {});
+                        },
+                        icon: const Icon(Icons.add, size: 18, color: primaryColor),
+                        label: const Text(
+                          "New",
+                          style: TextStyle(color: primaryColor, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _categorySearchController,
+                    onChanged: (v) => setSheet(() => q = v.trim().toLowerCase()),
+                    decoration: InputDecoration(
+                      prefixIcon: const Icon(Icons.search),
+                      filled: true,
+                      fillColor: Colors.black.withOpacity(0.04),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(18),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => Divider(height: 1, color: Colors.black.withOpacity(0.06)),
+                      itemBuilder: (context, i) {
+                        final c = list[i];
+                        final id = c['id']?.toString();
+                        final name = (c['name'] ?? '').toString();
+                        final isSel = id != null && id == selectedCategoryId;
+                        return ListTile(
+                          title: Text(
+                            name,
+                            style: TextStyle(
+                              fontWeight: isSel ? FontWeight.w900 : FontWeight.w700,
+                            ),
+                          ),
+                          trailing: isSel ? const Icon(Icons.check_circle, color: successColor) : null,
+                          onTap: () => Navigator.of(context).pop(id),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (selected != null && mounted) {
+      setState(() {
+        selectedCategoryId = selected;
+        _updateSubcategoryList(selectedCategoryId);
+        selectedSubCategoryId = null;
+        selectedChildCategoryId = null;
+      });
+    }
+  }
+
   Future<void> _loadSupplierId() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     if (mounted) {
@@ -421,13 +555,19 @@ class _EditProductState extends State<EditProduct> {
 
   Future<void> _fetchCategories() async {
     try {
-      final response = await SecureHttpClient.get('https://nicknameinfo.net/api/category/getAllCategory');
+      final url = '${AppConfig.baseApi}/category/getAllCategory';
+      final response = await SecureHttpClient.get(
+        url,
+        timeout: const Duration(seconds: 15),
+        context: context,
+      );
       if (response.statusCode == 200) {
         final decodedData = json.decode(response.body);
         if (decodedData['success'] == true) {
           if (mounted) {
             setState(() {
-              _categories = decodedData['data'] ?? [];
+              final raw = decodedData['data'];
+              _categories = raw is List ? raw : [];
               _isCategoryLoading = false;
             });
           }
@@ -436,7 +576,7 @@ class _EditProductState extends State<EditProduct> {
           if (mounted) setState(() => _isCategoryLoading = false);
         }
       } else {
-        debugPrint('Failed to fetch categories: ${response.statusCode}');
+        debugPrint('Failed to fetch categories: ${response.statusCode} body=${response.body}');
         if (mounted) setState(() => _isCategoryLoading = false);
       }
     } catch (e) {
@@ -450,7 +590,7 @@ class _EditProductState extends State<EditProduct> {
     try {
       debugPrint('Fetching full product details for product ID: $productId');
       final response = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/product/getProductById/$productId',
+        '${AppConfig.baseApi}/product/getProductById/$productId',
         timeout: const Duration(seconds: 10),
       );
       
@@ -755,6 +895,7 @@ class _EditProductState extends State<EditProduct> {
 
   @override
   void dispose() {
+    _categorySearchController.dispose();
     _titleController.dispose();
     _unitController.dispose();
     _priceController.dispose();
@@ -845,15 +986,15 @@ class _EditProductState extends State<EditProduct> {
 
   // for selecting sub-images (product photos)
   Future _selectSubImages() async {
-    // Check total image limit (existing + new)
-    final currentTotal = existingSubImages.length + subImages.length;
-    const maxImages = 3;
+    // Limit ONLY new uploads (existing images can be more).
+    const maxNewUploads = 3;
+    final currentNew = subImages.length;
     
-    if (currentTotal >= maxImages) {
+    if (currentNew >= maxNewUploads) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Maximum $maxImages product photos allowed. Please remove some images before adding new ones.'),
+            content: Text('Maximum $maxNewUploads new product photos allowed.'),
             backgroundColor: Colors.red,
           ),
         );
@@ -870,14 +1011,14 @@ class _EditProductState extends State<EditProduct> {
     }
 
     // Calculate how many new images can be added
-    final remainingSlots = maxImages - currentTotal;
+    final remainingSlots = maxNewUploads - currentNew;
     final imagesToAdd = pickedImages.take(remainingSlots).toList();
     
     if (pickedImages.length > remainingSlots) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('You can only add $remainingSlots more image(s). Maximum $maxImages product photos allowed.'),
+            content: Text('You can only add $remainingSlots more image(s). Maximum $maxNewUploads new uploads allowed.'),
             backgroundColor: Colors.orange,
           ),
         );
@@ -1025,7 +1166,8 @@ class _EditProductState extends State<EditProduct> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: const TextStyle(color: primaryColor),
-        hintText: hint,
+        // No placeholders: rely on label + actual controller text
+        hintText: null,
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
           borderSide: const BorderSide(
@@ -1084,15 +1226,63 @@ class _EditProductState extends State<EditProduct> {
     );
   }
 
+  void showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white),
+        ),
+        backgroundColor: Colors.red.shade700,
+        action: SnackBarAction(
+          onPressed: () => ScaffoldMessenger.of(context).hideCurrentSnackBar(),
+          label: 'Dismiss',
+          textColor: Colors.white,
+        ),
+      ),
+    );
+  }
+
+  Map<String, dynamic>? _tryDecodeJsonObject(String body) {
+    try {
+      final decoded = json.decode(body);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    return null;
+  }
+
+  String _extractBackendMessageFromBody(String body) {
+    final obj = _tryDecodeJsonObject(body);
+    if (obj == null) return body.trim();
+    final msg = obj['message'] ?? obj['msg'] ?? obj['error'];
+    if (msg != null && msg.toString().trim().isNotEmpty) return msg.toString().trim();
+    final errs = obj['errors'];
+    if (errs is List && errs.isNotEmpty) {
+      final s = errs.map((e) => e?.toString().trim()).where((e) => e != null && e!.isNotEmpty).toList();
+      if (s.isNotEmpty) return s.join('\n');
+    }
+    return body.trim();
+  }
+
+  String _httpErrorMessage(http.Response response, {String fallback = 'Request failed'}) {
+    final status = response.statusCode;
+    final body = response.body;
+    final backendMsg = _extractBackendMessageFromBody(body);
+    if (backendMsg.isNotEmpty && backendMsg != body.trim()) return backendMsg;
+    if (backendMsg.isNotEmpty && backendMsg.length <= 180) return backendMsg;
+    if (status == 401) return 'Authentication failed. Please login again.';
+    if (status == 413) return 'File too large. Please choose a smaller image.';
+    if (status >= 500) return 'Server error. Please try again.';
+    return '$fallback (HTTP $status)';
+  }
+
   Future<String?> _uploadFile(XFile image) async {
     try {
       // Validate file before upload
       final validationError = await FileValidation.validateXFile(image);
       if (validationError != null) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(validationError)),
-          );
+          showErrorSnackBar(validationError);
         }
         return null;
       }
@@ -1111,7 +1301,7 @@ class _EditProductState extends State<EditProduct> {
       }
       
       final response = await SecureHttpClient.postFormData(
-        'https://nicknameinfo.net/api/auth/upload-file',
+        '${AppConfig.baseApi}/auth/upload-file',
         fields: {
           'storeName': _supplierId ?? 'unknown_store',
         },
@@ -1125,14 +1315,25 @@ class _EditProductState extends State<EditProduct> {
           return decodedData['fileUrl'];
         } else {
           debugPrint('File upload API returned success: false or missing URL.');
+          if (mounted) {
+            showErrorSnackBar(_extractBackendMessageFromBody(response.body).isNotEmpty
+                ? _extractBackendMessageFromBody(response.body)
+                : 'Upload failed. Please try again.');
+          }
           return null;
         }
       } else {
         debugPrint('File upload failed with status: ${response.statusCode}');
+        if (mounted) {
+          showErrorSnackBar(_httpErrorMessage(response, fallback: 'Upload failed'));
+        }
         return null;
       }
     } catch (e) {
       debugPrint('Error uploading file: $e');
+      if (mounted) {
+        showErrorSnackBar('Upload error: ${e.toString()}');
+      }
       return null;
     }
   }
@@ -1206,8 +1407,8 @@ class _EditProductState extends State<EditProduct> {
       // --- API Call to update product ---
      
       final String apiUrl = isUpdating
-          ? 'https://nicknameinfo.net/api/product/update'
-          : 'https://nicknameinfo.net/api/product/add';
+          ? '${AppConfig.baseApi}/product/update'
+          : '${AppConfig.baseApi}/product/add';
 
       // Payment mode processing: Convert boolean states back to API string format ("1,3")
       String paymentModeString = '';
@@ -1273,6 +1474,9 @@ class _EditProductState extends State<EditProduct> {
         "photo": imageDownloadLinks.isNotEmpty ? imageDownloadLinks.first : null, 
         "grand_total": grandTotal,
         "sizeUnitSizeMap": enableSizeManagement ? jsonEncode(sizeUnitSizeMap) : "", // Store size map as JSON string
+        // Persist sub-images back to backend so removals/additions are saved.
+        // Backend provides `productphotos` as a list of { imgUrl }, so keep the same shape.
+        "productphotos": uploadedSubImageUrls.map((u) => {"imgUrl": u}).toList(),
       };
 
       debugPrint('Request Body: $requestBody');
@@ -1317,7 +1521,7 @@ class _EditProductState extends State<EditProduct> {
             
             try {
               final storeProductAddResponse = await SecureHttpClient.post(
-                'https://nicknameinfo.net/api/store/product-add',
+                '${AppConfig.baseApi}/store/product-add',
                 body: storeProductAddPayload,
                 context: context, // Pass context for 401 handling
                 timeout: const Duration(seconds: 15),
@@ -1333,7 +1537,7 @@ class _EditProductState extends State<EditProduct> {
                   if (productId != null && uploadedSubImageUrls.isNotEmpty) {
                     try {
                       final uploadPhotosResponse = await SecureHttpClient.post(
-                        'https://nicknameinfo.net/api/product/upload-photos',
+                        '${AppConfig.baseApi}/product/upload-photos',
                         body: {
                           'productId': productId.toString(),
                           'productPhotos': jsonEncode(uploadedSubImageUrls), // Send as JSON string array
@@ -1379,10 +1583,11 @@ class _EditProductState extends State<EditProduct> {
             // For updating, upload product photos and then show success
             final updatedProductId = responseData['data']?['id'] ?? widget.productData!['id'];
             
-            if (updatedProductId != null && uploadedSubImageUrls.isNotEmpty) {
+            // Always sync product photos on update (even empty) so deletes persist.
+            if (updatedProductId != null) {
               try {
                 final uploadPhotosResponse = await SecureHttpClient.post(
-                  'https://nicknameinfo.net/api/product/upload-photos',
+                  '${AppConfig.baseApi}/product/upload-photos',
                   body: {
                     'productId': updatedProductId.toString(),
                     'productPhotos': jsonEncode(uploadedSubImageUrls), // Send as JSON string array
@@ -1406,15 +1611,17 @@ class _EditProductState extends State<EditProduct> {
             if (mounted) Navigator.pop(context, true);
           }
         } else {
-          showSnackBar('Failed to save product: ${responseData['message']}');
+          showErrorSnackBar(
+            'Failed to save product: ${responseData['message'] ?? responseData['msg'] ?? 'Unknown error'}',
+          );
         }
       } else {
         debugPrint('Error saving product: ${response.body}');
-        showSnackBar('Error saving product: ${response.statusCode}');
+        showErrorSnackBar(_httpErrorMessage(response, fallback: 'Error saving product'));
       }
     } catch (e) {
       debugPrint('Error saving product: $e');
-      showSnackBar('Error saving product: ${e.toString()}');
+      showErrorSnackBar('Error saving product: ${e.toString()}');
     } finally {
       if (mounted) {
         setState(() {
@@ -1566,7 +1773,7 @@ Future<void> _printBarcode(int count) async {
     try {
       if (_supplierId != null && _supplierId!.isNotEmpty) {
         final storeResponse = await SecureHttpClient.get(
-          'https://nicknameinfo.net/api/store/list/$_supplierId',
+          '${AppConfig.baseApi}/store/list/$_supplierId',
           timeout: const Duration(seconds: 5),
         );
         if (storeResponse.statusCode == 200) {
@@ -1882,7 +2089,6 @@ pw.Widget _footerItem(String label, String value) {
               controller: countController,
               decoration: const InputDecoration(
                 labelText: 'Count',
-                hintText: 'Enter number of barcodes to print',
               ),
               keyboardType: TextInputType.number,
             ),
@@ -1973,12 +2179,18 @@ pw.Widget _footerItem(String label, String value) {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        elevation: 0,
+        toolbarHeight: 48,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: brandHeaderGradient,
+          ),
+        ),
         title: Text(
           'Editing $productTitle', // Use the safely accessed title
           style: const TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w900,
           ),
         ),
         actions: [
@@ -2000,17 +2212,15 @@ pw.Widget _footerItem(String label, String value) {
           )
         ],
       ),
-      body: isLoading
-          ? const Loading(color: primaryColor, kSize: 50)
-          : SingleChildScrollView(
-              padding: const EdgeInsets.only(
-                top: 18.0,
-                left: 18,
-                right: 18,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+      body: Container(
+        decoration: gradientBackgroundDecoration,
+        child: isLoading
+            ? const Center(child: Loading(color: primaryColor, kSize: 50))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 120),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                   
                   // Image/Avatar Section
                   Center(
@@ -2226,25 +2436,41 @@ pw.Widget _footerItem(String label, String value) {
                           children: [
                             Flexible(
                               flex: 1,
-                              child: _isCategoryLoading
-                                  ? const Center(child: CircularProgressIndicator())
-                                  : _buildCategoryDropdown<dynamic>(
-                                      type: DropDownType.category,
-                                      list: _categories,
-                                      currentValue: selectedCategoryId,
-                                      label: 'Select Category',
-                                      onChanged: (newId) {
-                                        if (mounted) {
-                                          setState(() {
-                                            selectedCategoryId = newId;
-                                            _updateSubcategoryList(newId);
-                                            // Reset sub/child IDs when main category changes
-                                            selectedSubCategoryId = null; 
-                                            selectedChildCategoryId = null;
-                                          });
-                                        }
-                                      },
-                                    ),
+                                child: _isCategoryLoading
+                                    ? const Center(child: CircularProgressIndicator())
+                                    : InkWell(
+                                        borderRadius: BorderRadius.circular(20),
+                                        onTap: _openCategoryPicker,
+                                        child: InputDecorator(
+                                          decoration: InputDecoration(
+                                            labelText: 'Select Category',
+                                            labelStyle: const TextStyle(color: primaryColor),
+                                            focusedBorder: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(20),
+                                              borderSide: const BorderSide(width: 2, color: primaryColor),
+                                            ),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(20),
+                                              borderSide: const BorderSide(width: 1, color: Colors.grey),
+                                            ),
+                                            suffixIcon: IconButton(
+                                              icon: const Icon(Icons.search, color: primaryColor),
+                                              onPressed: _openCategoryPicker,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _categoryNameById(selectedCategoryId).isEmpty
+                                                ? "Tap to choose"
+                                                : _categoryNameById(selectedCategoryId),
+                                            style: TextStyle(
+                                              color: _categoryNameById(selectedCategoryId).isEmpty
+                                                  ? Colors.black45
+                                                  : Colors.black87,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
                             ),
                             const SizedBox(width: 15),
                             Flexible(
@@ -2319,7 +2545,7 @@ pw.Widget _footerItem(String label, String value) {
                               flex: 1,
                               child: kTextField(
                                 _titleController,
-                                'Mobile',
+                                '',
                                 'Name *',
                                 Field.title,
                                 1,
@@ -2330,7 +2556,7 @@ pw.Widget _footerItem(String label, String value) {
                               flex: 1,
                               child: kTextField(
                                 _unitController,
-                                '10',
+                                '',
                                 'Unit *',
                                 Field.unit,
                                 1,
@@ -2348,7 +2574,7 @@ pw.Widget _footerItem(String label, String value) {
                               flex: 1,
                               child: kTextField(
                                 _descriptionController,
-                                'Mobile test product',
+                                '',
                                 'Sort Description *',
                                 Field.description,
                                 1,
@@ -2359,7 +2585,7 @@ pw.Widget _footerItem(String label, String value) {
                               flex: 1,
                               child: kTextField(
                                 _priceController,
-                                '45000',
+                                '',
                                 'Price *',
                                 Field.price,
                                 1,
@@ -2376,7 +2602,7 @@ pw.Widget _footerItem(String label, String value) {
                               flex: 1,
                               child: kTextField(
                                 _brandController,
-                                'Samsung',
+                                '',
                                 'Brand',
                                 Field.title,
                                 1,
@@ -2399,7 +2625,7 @@ pw.Widget _footerItem(String label, String value) {
                                 flex: 1,
                                 child: kTextField(
                                   _quantityController,
-                                  '1',
+                                  '',
                                   'Quantity *',
                                   Field.quantity,
                                   1,
@@ -2410,7 +2636,7 @@ pw.Widget _footerItem(String label, String value) {
                                 flex: 1,
                                 child: kTextField(
                                   _discountController,
-                                  '2',
+                                  '',
                                   'Discont(%) *',
                                   Field.discount,
                                   1,
@@ -2428,7 +2654,7 @@ pw.Widget _footerItem(String label, String value) {
                                 flex: 1,
                                 child: kTextField(
                                   _discountPriceController,
-                                  '0',
+                                  '',
                                   'Discount Price *',
                                   Field.discountPer,
                                   1,
@@ -2440,7 +2666,7 @@ pw.Widget _footerItem(String label, String value) {
                                 flex: 1,
                                 child: kTextField(
                                   _totalController,
-                                  '44100',
+                                  '',
                                   'Total',
                                   Field.price, 
                                   1,
@@ -2459,7 +2685,7 @@ pw.Widget _footerItem(String label, String value) {
                               flex: 1,
                               child: kTextField(
                                 _grandTotalController,
-                                '44100',
+                                '',
                                 'Grant total',
                                 Field.price, 
                                 1,
@@ -2623,24 +2849,22 @@ pw.Widget _footerItem(String label, String value) {
                                     ),
                                   ),
                                   Text(
-                                    '${existingSubImages.length + subImages.length}${existingSubImages.length + subImages.length > 3 ? ' (max 3 for new uploads)' : '/3'}',
+                                    '${existingSubImages.length + subImages.length} (new uploads: ${subImages.length}/3)',
                                     style: TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
-                                      color: (existingSubImages.length + subImages.length) > 3 
-                                          ? Colors.red 
-                                          : primaryColor,
+                                      color: subImages.length > 3 ? Colors.red : primaryColor,
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 12),
                               ElevatedButton(
-                                onPressed: (existingSubImages.length + subImages.length) >= 3 
+                                onPressed: subImages.length >= 3
                                     ? null 
                                     : _selectSubImages,
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: (existingSubImages.length + subImages.length) >= 3 
+                                  backgroundColor: subImages.length >= 3
                                       ? Colors.grey.shade300 
                                       : primaryColor,
                                   minimumSize: const Size(double.infinity, 45),
@@ -2651,14 +2875,14 @@ pw.Widget _footerItem(String label, String value) {
                                 child: Text(
                                   '+ Add Product Photos',
                                   style: TextStyle(
-                                    color: (existingSubImages.length + subImages.length) >= 3 
+                                    color: subImages.length >= 3
                                         ? Colors.grey.shade600 
                                         : Colors.white,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
-                              if ((existingSubImages.length + subImages.length) >= 3)
+                              if (subImages.length >= 3)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8.0),
                                   child: Text(
@@ -2669,11 +2893,11 @@ pw.Widget _footerItem(String label, String value) {
                                     ),
                                   ),
                                 ),
-                              if (existingSubImages.length > 3)
+                              if (existingSubImages.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8.0),
                                   child: Text(
-                                    'Note: You have ${existingSubImages.length} existing photos. You can remove some to add new ones (max 3 total).',
+                                    'Note: You can keep existing photos, and add up to 3 new photos per edit.',
                                     style: TextStyle(
                                       fontSize: 12,
                                       color: Colors.orange.shade700,
@@ -3094,7 +3318,6 @@ pw.Widget _footerItem(String label, String value) {
                                         decoration: InputDecoration(
                                           labelText: 'Select Size *',
                                           labelStyle: const TextStyle(color: primaryColor, fontWeight: FontWeight.w600),
-                                          hintText: 'Choose a size',
                                           filled: true,
                                           fillColor: Colors.grey.shade50,
                                           focusedBorder: OutlineInputBorder(
@@ -3405,7 +3628,7 @@ pw.Widget _footerItem(String label, String value) {
                                   ),
                                   _buildPaymentCheckbox(PaymentType.perOrder, isPerOrderEnabled, 'Per Order'),
                                   _buildPaymentCheckbox(PaymentType.onlinePayment, isOnlinePaymentEnabled, 'Online Payment'),
-                                  _buildPaymentCheckbox(PaymentType.cashOnDelivery, isCashOnDeliveryEnabled, 'Cash'),
+                                  // _buildPaymentCheckbox(PaymentType.cashOnDelivery, isCashOnDeliveryEnabled, 'Cash'),
                                 ],
                               ),
                             ),
@@ -3475,9 +3698,45 @@ pw.Widget _footerItem(String label, String value) {
                       ],
                     ),
                   ),
+                  ],
+                ),
+              ),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+          child: SizedBox(
+            height: 52,
+            child: ElevatedButton(
+              onPressed: isLoading ? null : _saveProduct,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: primaryColor,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Text(
+                    "Save",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 14,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  SizedBox(width: 10),
+                  Icon(Icons.save, color: Colors.white, size: 18),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
     );
   }
 }

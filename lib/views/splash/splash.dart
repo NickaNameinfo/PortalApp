@@ -174,7 +174,9 @@ class _SplashScreenState extends State<SplashScreen> {
             itemBuilder: (context, index) {
               return Container(
                 width: double.infinity,
-                color: pages[index].color,
+                decoration: pages[index].color == primaryColor
+                    ? const BoxDecoration(gradient: brandHeaderGradient)
+                    : BoxDecoration(color: pages[index].color),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   mainAxisSize: MainAxisSize.max,

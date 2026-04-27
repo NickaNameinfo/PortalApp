@@ -102,7 +102,9 @@ class _EntryScreenState extends State<EntryScreen> {
     return Scaffold(
       body: Container(
         constraints: const BoxConstraints.expand(),
-        color: primaryColor,
+        decoration: const BoxDecoration(
+          gradient: brandHeaderGradient,
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [

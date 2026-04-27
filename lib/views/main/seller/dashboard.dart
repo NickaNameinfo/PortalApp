@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../constants/colors.dart';
+import '../../../constants/app_config.dart';
 import 'dashboard_screens/account_balance.dart';
 import 'dashboard_screens/manage_products.dart';
 import 'dashboard_screens/orders.dart';
@@ -92,7 +93,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       }
 
       // Fetch user data with subscriptions from api/auth/user/{userId}
-      final url = 'https://nicknameinfo.net/api/auth/user/$userId';
+      final url = '${AppConfig.baseApi}/auth/user/$userId';
       final response = await SecureHttpClient.get(url);
       
       if (response.statusCode == 200) {
@@ -143,84 +144,144 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Updated Grid View for Seller Dashboard
-          Expanded(
-            child: GridView.builder(
-              padding: const EdgeInsets.symmetric(vertical: 20),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16, // Increased spacing
-                mainAxisSpacing: 16, // Increased spacing
-                childAspectRatio: 1, // Make the cards square
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: brandBackgroundGradient,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 14),
+            Text(
+              "Seller dashboard",
+              style: TextStyle(
+                color: Colors.black.withOpacity(0.85),
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
               ),
-              itemCount: menuList.length,
-              itemBuilder: (context, index) {
-                final item = menuList[index];
-                return GestureDetector(
-                  onTap: () {
-                    if (item['routeName'] != null) {
-                      if (item['routeName'] == '/billing-list') {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const BillingListScreen(),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _isLoadingSubscription ? "Checking subscription…" : "Quick actions",
+              style: TextStyle(
+                color: Colors.black.withOpacity(0.55),
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: GridView.builder(
+                padding: const EdgeInsets.only(bottom: 18),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  crossAxisSpacing: 14,
+                  mainAxisSpacing: 14,
+                  childAspectRatio: 1.02,
+                ),
+                itemCount: menuList.length,
+                itemBuilder: (context, index) {
+                  final item = menuList[index];
+                  final bool isDisabled = item['routeName'] == null;
+
+                  return InkWell(
+                    borderRadius: BorderRadius.circular(26),
+                    onTap: isDisabled
+                        ? null
+                        : () {
+                            if (item['routeName'] == '/billing-list') {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => const BillingListScreen(),
+                                ),
+                              );
+                            } else {
+                              Navigator.of(context).pushNamed(
+                                item['routeName'],
+                                arguments: {
+                                  'customerId': 'temp_customer_id',
+                                  'subscriptionType': 'Plan1'
+                                },
+                              );
+                            }
+                          },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(26),
+                        color: Colors.white.withOpacity(isDisabled ? 0.70 : 0.92),
+                        border: Border.all(
+                          color: Colors.black.withOpacity(0.06),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.08),
+                            blurRadius: 18,
+                            offset: const Offset(0, 10),
                           ),
-                        );
-                      } else {
-                        Navigator.of(context).pushNamed(
-                          item['routeName'], 
-                          arguments: {'customerId': 'temp_customer_id', 'subscriptionType': 'Plan1'}
-                        );
-                      }
-                    }
-                  },
-                  child: Card(
-                    // Modern elevated card style
-                    elevation: 10,
-                    shadowColor: primaryColor.withOpacity(0.2),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20), // More rounded corners
-                      side: BorderSide(
-                        color: primaryColor.withOpacity(0.1),
-                        width: 1,
+                        ],
                       ),
-                    ),
-                    color: Colors.white,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            item['icon'],
-                            size: 48, // Slightly larger icon
-                            color: primaryColor,
+                          Container(
+                            width: 58,
+                            height: 58,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              gradient: LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  primaryColor.withOpacity(0.18),
+                                  successColor.withOpacity(0.14),
+                                  accentColor.withOpacity(0.16),
+                                ],
+                              ),
+                            ),
+                            child: Icon(
+                              item['icon'],
+                              size: 30,
+                              color: isDisabled ? Colors.black26 : primaryColor,
+                            ),
                           ),
-                          const SizedBox(
-                            height: 12,
-                          ),
+                          const SizedBox(height: 12),
                           Text(
                             item['title'],
                             textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.grey.shade700,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 16,
+                              color: isDisabled ? Colors.black38 : Colors.black.withOpacity(0.78),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 13.5,
+                              height: 1.15,
                             ),
-                          )
+                          ),
+                          const SizedBox(height: 6),
+                          if (isDisabled)
+                            Text(
+                              "Coming soon",
+                              style: TextStyle(
+                                color: Colors.black.withOpacity(0.35),
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                         ],
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-          )
-        ],
+                  );
+                },
+              ),
+            )
+          ],
+        ),
       ),
     );
   }

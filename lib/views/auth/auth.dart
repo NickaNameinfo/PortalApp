@@ -7,6 +7,7 @@ import 'package:nickname_portal/views/auth/forgot_password.dart';
 import 'package:http/http.dart' as http;
 import '../../components/loading.dart';
 import '../../constants/colors.dart';
+import '../../constants/app_config.dart';
 import '../../helpers/image_picker.dart';
 import '../../helpers/secure_http_client.dart';
 import '../../helpers/error_handler.dart';
@@ -95,32 +96,42 @@ class _AuthState extends State<Auth> {
           field == Field.password ? TextInputAction.done : TextInputAction.next,
       autofocus: field == Field.email ? true : false,
       decoration: InputDecoration(
-        labelText: label,
-        labelStyle: const TextStyle(color: primaryColor),
+        hintText: label,
+        hintStyle: TextStyle(
+          color: Colors.black.withOpacity(0.35),
+          fontWeight: FontWeight.w700,
+        ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        prefixIcon: field == Field.email
+            ? const Icon(Icons.email_outlined, color: Colors.black54)
+            : field == Field.password
+                ? const Icon(Icons.lock_outline, color: Colors.black54)
+                : field == Field.phone
+                    ? const Icon(Icons.phone_outlined, color: Colors.black54)
+                    : const Icon(Icons.person_outline, color: Colors.black54),
         suffixIcon: field == Field.password
-            ? (controller.text.isNotEmpty)
-                ? IconButton(
-                    onPressed: () => _togglePasswordObscure(),
-                    icon: Icon(
-                      obscure ? Icons.visibility : Icons.visibility_off,
-                      color: primaryColor,
-                    ),
-                  )
-                : const SizedBox.shrink()
-            : const SizedBox.shrink(),
-        hintText: hint,
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(
-            width: 2,
-            color: primaryColor,
+            ? IconButton(
+                onPressed: () => _togglePasswordObscure(),
+                icon: Icon(
+                  obscure ? Icons.visibility : Icons.visibility_off,
+                  color: primaryColor,
+                ),
+              )
+            : null,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
+          borderSide: BorderSide(
+            width: 1.2,
+            color: Colors.black.withOpacity(0.12),
           ),
         ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(28),
           borderSide: const BorderSide(
-            width: 1,
-            color: Colors.grey,
+            width: 1.8,
+            color: primaryColor,
           ),
         ),
       ),
@@ -207,7 +218,7 @@ class _AuthState extends State<Auth> {
         // Custom Login API with timeout
         // Note: Login endpoint doesn't require auth token (used to get token)
         final response = await SecureHttpClient.post(
-          'https://nicknameinfo.net/api/auth/rootLogin',
+          '${AppConfig.baseApi}/auth/rootLogin',
           body: {
             'email': _emailController.text.trim(),
             'password': _passwordController.text.trim(),
@@ -310,7 +321,7 @@ class _AuthState extends State<Auth> {
             try {
               // Store creation - may need auth if user is already logged in
               final storeResponse = await SecureHttpClient.post(
-                'https://nicknameinfo.net/api/store/create',
+                '${AppConfig.baseApi}/store/create',
                 body: {
                   'storename': _fullnameController.text.trim(),
                   'email': _emailController.text.trim(),
@@ -331,7 +342,7 @@ class _AuthState extends State<Auth> {
                 // Custom Registration API with timeout
                 // Registration endpoint doesn't require auth token
                 final response = await SecureHttpClient.post(
-                  'https://nicknameinfo.net/api/auth/register',
+                  '${AppConfig.baseApi}/auth/register',
                   body: {
                     'role': "3",
                     'firstName': _fullnameController.text.trim(),
@@ -361,7 +372,7 @@ class _AuthState extends State<Auth> {
           // Custom Registration API with timeout
             // Registration endpoint doesn't require auth token
             final response = await SecureHttpClient.post(
-              'https://nicknameinfo.net/api/auth/register',
+              '${AppConfig.baseApi}/auth/register',
               body: {
                 'role': "1",
                 'firstName': _fullnameController.text.trim(),
@@ -395,7 +406,7 @@ class _AuthState extends State<Auth> {
 
   // navigate to forgot password screen
   void _forgotPassword() {
-    Navigator.of(context).pushNamed(ForgotPassword.routeName);
+    Navigator.of(context, rootNavigator: true).pushNamed(ForgotPassword.routeName);
   }
 
   void _switchLog() {
@@ -428,201 +439,199 @@ class _AuthState extends State<Auth> {
     return Scaffold(
       body: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(18.0),
-            child: Center(
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                        Center(
+          Container(
+            decoration: const BoxDecoration(
+              gradient: brandHeaderGradient,
+            ),
+          ),
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
+              child: Center(
+                child: SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Container(
+                      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.98),
+                        borderRadius: BorderRadius.circular(28),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.10),
+                            blurRadius: 26,
+                            offset: const Offset(0, 14),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Center(
                             child: CircleAvatar(
                               backgroundColor: Colors.white,
-                              radius: 60,
+                              radius: 40,
                               child: Image.asset('assets/images/login.png'),
                             ),
                           ),
-                    const SizedBox(height: 20),
-                    Center(
-                      child: Text(
-                        widget.isSellerReg
-                            ? isLogin
-                                ? 'Seller Signin'
-                                : 'Seller Signup'
-                            : isLogin
-                                ? 'Signin'
-                                : 'Signup',
-                        style: const TextStyle(
-                          color: primaryColor,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    isLoading
-                        ? const Center(
-                            child: Loading(
-                              color: primaryColor,
-                              kSize: 70,
+                          const SizedBox(height: 12),
+                          Center(
+                            child: Text(
+                              widget.isSellerReg
+                                  ? isLogin
+                                      ? 'Seller Signin'
+                                      : 'Seller Signup'
+                                  : isLogin
+                                      ? 'Signin'
+                                      : 'Signup',
+                              style: const TextStyle(
+                                color: primaryColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
-                          )
-                        : Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                kTextField(
-                                  _emailController,
-                                  'doe@gmail.com',
-                                  'Email Address',
-                                  Field.email,
-                                  false,
-                                ),
-                                const SizedBox(height: 10),
-                                !isLogin
-                                    ? kTextField(
-                                        _fullnameController,
-                                        'John Doe',
-                                        'Fullname',
-                                        Field.fullname,
+                          ),
+                          const SizedBox(height: 16),
+                          isLoading
+                              ? const Center(
+                                  child: Loading(
+                                    color: primaryColor,
+                                    kSize: 70,
+                                  ),
+                                )
+                              : Form(
+                                  key: _formKey,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      kTextField(
+                                        _emailController,
+                                        'doe@gmail.com',
+                                        'Email Address',
+                                        Field.email,
                                         false,
-                                      )
-                                    : const SizedBox.shrink(),
-                                SizedBox(height: isLogin ? 0 : 10),
-                                !isLogin
-                                    ? kTextField(
-                                        _phoneController,
-                                        '0712345678',
-                                        'Phone Number',
-                                        Field.phone,
-                                        false,
-                                      )
-                                    : const SizedBox.shrink(),
-                                SizedBox(height: isLogin ? 0 : 10),
-                                kTextField(
-                                  _passwordController,
-                                  '********',
-                                  'Password',
-                                  Field.password,
-                                  obscure,
-                                ),
-                                const SizedBox(height: 10), // Added for spacing
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Checkbox(
-                                          value: _rememberMe,
-                                          onChanged: (value) {
-                                            setState(() {
-                                              _rememberMe = value!;
-                                            });
-                                          },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      if (!isLogin) ...[
+                                        kTextField(
+                                          _fullnameController,
+                                          'John Doe',
+                                          'Fullname',
+                                          Field.fullname,
+                                          false,
                                         ),
-                                        const Text('Remember Me'),
+                                        const SizedBox(height: 12),
+                                        kTextField(
+                                          _phoneController,
+                                          '0712345678',
+                                          'Phone Number',
+                                          Field.phone,
+                                          false,
+                                        ),
+                                        const SizedBox(height: 12),
                                       ],
-                                    ),
-                                    TextButton(
-                                      onPressed: () => _forgotPassword(),
-                                      child: const Text(
-                                        'Forgot Password?',
-                                        style: TextStyle(
-                                          color: primaryColor,
-                                          fontWeight: FontWeight.w600,
+                                      kTextField(
+                                        _passwordController,
+                                        '********',
+                                        'Password',
+                                        Field.password,
+                                        obscure,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Checkbox(
+                                                value: _rememberMe,
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    _rememberMe = value ?? false;
+                                                  });
+                                                },
+                                              ),
+                                              const Text(
+                                                'Remember Me',
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.black87,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          TextButton(
+                                            onPressed: _forgotPassword,
+                                            child: const Text(
+                                              'Forgot Password?',
+                                              style: TextStyle(
+                                                color: primaryColor,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 10),
+                                      SizedBox(
+                                        height: 50,
+                                        child: ElevatedButton(
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: primaryColor,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(999),
+                                            ),
+                                            elevation: 0,
+                                          ),
+                                          onPressed: _handleAuth,
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment.center,
+                                            children: [
+                                              Text(
+                                                isLogin ? "LOGIN" : "REGISTER",
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 14,
+                                                  letterSpacing: 0.4,
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              const Icon(Icons.arrow_forward, color: Colors.white, size: 18),
+                                            ],
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 20), // Adjusted spacing
-                                Directionality(
-                                  textDirection: TextDirection.rtl,
-                                  child: ElevatedButton.icon(
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: primaryColor,
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(20),
+                                      const SizedBox(height: 10),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            isLogin ? 'Not A Member ?' : 'Already have an account ?',
+                                            style: const TextStyle(
+                                              color: Colors.black87,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                          TextButton(
+                                            onPressed: _switchLog,
+                                            child: Text(
+                                              isLogin ? 'Register Now' : 'Login Now',
+                                              style: const TextStyle(
+                                                color: primaryColor,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
-                                      padding: const EdgeInsets.all(15),
-                                    ),
-                                    icon: const Icon(
-                                      // Changed to const Icon
-                                      Icons
-                                          .arrow_forward, // Changed icon to arrow_forward
-                                      color: Colors.white,
-                                    ),
-                                    onPressed: () => _handleAuth(),
-                                    label: const Text(
-                                      // Changed to const Text
-                                      'LOGIN', // Changed text to LOGIN
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                      ),
-                                    ),
+                                    ],
                                   ),
                                 ),
-                                // const SizedBox(height: 10),
-                                // ElevatedButton(
-                                //   style: ElevatedButton.styleFrom(
-                                //     backgroundColor: Colors.white,
-                                //     shape: RoundedRectangleBorder(
-                                //       borderRadius: BorderRadius.circular(20),
-                                //     ),
-                                //     padding: const EdgeInsets.all(15),
-                                //   ),
-                                //   onPressed: () => _googleAuth(),
-                                //   child: Row(
-                                //     mainAxisAlignment: MainAxisAlignment.center,
-                                //     children: [
-                                //       Image.asset(
-                                //         'assets/images/google.png',
-                                //         width: 20,
-                                //       ),
-                                //       const SizedBox(width: 20),
-                                //       Text(
-                                //         isLogin
-                                //             ? 'Signin with google'
-                                //             : 'Signup with google',
-                                //         style: const TextStyle(
-                                //             color: Colors.grey,
-                                //             fontWeight: FontWeight.w600),
-                                //       ),
-                                //     ],
-                                //   ),
-                                // ),
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment
-                                      .center, // Centered the row
-                                  children: [
-                                    const Text(
-                                      // Added const
-                                      'Not A Member ?', // Changed text
-                                      style: TextStyle(
-                                        color: primaryColor,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => _switchLog(),
-                                      child: Text(
-                                        // Changed to const Text
-                                        isLogin ? 'Register Now' : 'Login Now', // Changed text
-                                        style: TextStyle(
-                                          color: primaryColor,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              ],
-                            ),
-                          )
-                  ],
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -630,7 +639,7 @@ class _AuthState extends State<Auth> {
           Align(
             alignment: Alignment.topRight,
             child: IconButton(
-              icon: const Icon(Icons.close),
+              icon: const Icon(Icons.close, color: Colors.black87),
               onPressed: () {
                 Navigator.of(context).pop();
               },

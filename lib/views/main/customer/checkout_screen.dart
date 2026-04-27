@@ -4,6 +4,7 @@ import 'package:nickname_portal/utilities/show_message.dart';
 import 'package:provider/provider.dart';
 import 'package:nickname_portal/routes/routes.dart';
 import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'dart:convert';
 import 'package:nickname_portal/helpers/address_service.dart';
 import 'package:nickname_portal/helpers/order_service.dart'; // We keep this for Address class
@@ -53,14 +54,20 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   final _addressLine2Controller = TextEditingController();
   final _cityController = TextEditingController();
   final _postalCodeController = TextEditingController();
+  final _pincodeController = TextEditingController();
   
   late String _userId = '';
-  int _selectedPaymentOption = 2; // Default to COD
+  int _selectedPaymentOption = 2; // Default to Pre Order (matches web option "2")
   DateTime? _selectedDeliveryDate;
   List<Address> _addresses = [];
   Address? _selectedAddress;
   final AddressService _addressService = AddressService();
   List<dynamic> _cartItems = [];
+  final Map<String, Map<String, dynamic>> _storesById = {};
+  final Map<String, String> _shiprocketEtaByStoreId = {};
+  bool _shiprocketEtaLoading = false;
+  Timer? _shiprocketDebounce;
+  int _shiprocketMetaToken = 0;
   
   // --- New State Variables for Payment Logic ---
   late Razorpay _razorpay;
@@ -71,6 +78,18 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Map<String, dynamic>? _pendingApiParams;
   Map<String, dynamic>? _pendingPaymentResult;
 
+  double _cartTotal() {
+    if (_cartItems.isEmpty) return 0.0;
+    return _cartItems.fold(0.0, (sum, item) {
+      final double price = (item['price'] is num)
+          ? (item['price'] as num).toDouble()
+          : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
+      final int qty = (item['qty'] is num)
+          ? (item['qty'] as num).toInt()
+          : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
+      return sum + (price * qty);
+    });
+  }
 
   @override
   void initState() {
@@ -129,6 +148,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   @override
   void dispose() {
+    _shiprocketDebounce?.cancel();
     _nameController.dispose();
     _phoneNumberController.dispose();
     _districtController.dispose();
@@ -136,10 +156,275 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _addressLine2Controller.dispose();
     _cityController.dispose();
     _postalCodeController.dispose();
+    _pincodeController.dispose();
     
     // --- Dispose Razorpay ---
     _razorpay.clear();
     super.dispose();
+  }
+
+  void _scheduleShiprocketRefresh() {
+    _shiprocketDebounce?.cancel();
+    _shiprocketDebounce = Timer(const Duration(milliseconds: 350), () async {
+      if (!mounted) return;
+      await _refreshShiprocketMeta();
+    });
+  }
+
+  String _extractPincode(String? text) {
+    final m = RegExp(r'\b(\d{6})\b').firstMatch(text ?? '');
+    return m != null ? m.group(1)! : '';
+  }
+
+  List<int> _uniqueStoreIdsFromCart() {
+    final ids = <int>[];
+    for (final raw in _cartItems) {
+      if (raw is! Map) continue;
+      final item = Map<String, dynamic>.from(raw);
+      final sid = item['storeId'] ?? item['store_id'];
+      final n = (sid is num) ? sid.toInt() : int.tryParse(sid?.toString() ?? '');
+      if (n != null && n > 0) ids.add(n);
+    }
+    return ids.toSet().toList()..sort();
+  }
+
+  String _pickupPincodeForStoreRow(Map<String, dynamic> s) {
+    final fromAddress = _extractPincode(
+      '${s['storeaddress'] ?? ''} ${s['shopaddress'] ?? ''} ${s['owneraddress'] ?? ''} ${s['location'] ?? ''}',
+    );
+    if (fromAddress.isNotEmpty) return fromAddress;
+    final z = s['areaZipcode'] ?? s['zipcode'] ?? (s['area'] is Map ? (s['area'] as Map)['zipcode'] : null);
+    final zs = z?.toString().trim() ?? '';
+    return zs;
+  }
+
+  String _deliveryPincodeForEta() {
+    final fromSelected = _selectedAddress?.pincode?.trim();
+    final fromField = _pincodeController.text.trim();
+    final pin = (fromSelected != null && fromSelected.isNotEmpty) ? fromSelected : fromField;
+    return pin;
+  }
+
+  int _codFlagForShiprocket() {
+    // Match web BuyCard: COD is payment method "3"
+    return _selectedPaymentOption == 3 ? 1 : 0;
+  }
+
+  String _formatEtaFromShiprocketPayload(dynamic rawOut) {
+    final sr = rawOut is Map<String, dynamic> ? rawOut : null;
+    if (sr == null) return 'Not available';
+
+    final data = sr['data'];
+    final inner = data is Map<String, dynamic> ? data : sr;
+
+    final list = inner['available_courier_companies'] ??
+        sr['available_courier_companies'] ??
+        inner['available_courier_companies'];
+
+    if (list is! List || list.isEmpty) return 'Not available';
+
+    final withDays = list
+        .map((c) {
+          if (c is! Map) return null;
+          final company = c['courier_name'] ?? c['courier_company_name'] ?? c['name'];
+          final days = num.tryParse(c['estimated_delivery_days']?.toString() ?? '');
+          final etd = c['etd'];
+          if (days == null || !days.isFinite || days < 0) return null;
+          return <String, dynamic>{
+            'company': company?.toString(),
+            'days': days.toInt(),
+            'etd': etd,
+          };
+        })
+        .whereType<Map<String, dynamic>>()
+        .toList();
+
+    if (withDays.isNotEmpty) {
+      var min = withDays.first;
+      for (final x in withDays) {
+        final d = x['days'] as int;
+        if (d < (min['days'] as int)) min = x;
+      }
+      final days = min['days'] as int;
+      final d = DateTime.now().add(Duration(days: days));
+      final company = min['company']?.toString();
+      final suffix = (company != null && company.isNotEmpty) ? ' • $company' : '';
+      return '${d.day}/${d.month}/${d.year} ($days day(s))$suffix';
+    }
+
+    for (final c in list) {
+      if (c is Map && c['etd'] != null && c['etd'].toString().trim().isNotEmpty) {
+        return c['etd'].toString();
+      }
+    }
+    return 'Not available';
+  }
+
+  Future<void> _loadStoresForCart(int metaToken) async {
+    final ids = _uniqueStoreIdsFromCart();
+    if (ids.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _storesById.clear();
+      });
+      return;
+    }
+
+    try {
+      final response = await SecureHttpClient.post(
+        '${AppConfig.baseApi}/store/public/by-ids',
+        body: {'ids': ids},
+        timeout: const Duration(seconds: 15),
+        context: context,
+      );
+      if (!mounted || metaToken != _shiprocketMetaToken) return;
+
+      if (response.statusCode != 200) {
+        setState(() {
+          _storesById.clear();
+        });
+        return;
+      }
+
+      final decoded = json.decode(response.body);
+      if (decoded is! Map<String, dynamic>) return;
+      if (decoded['success'] != true) {
+        setState(() {
+          _storesById.clear();
+        });
+        return;
+      }
+
+      final rows = decoded['data'];
+      final next = <String, Map<String, dynamic>>{};
+      if (rows is List) {
+        for (final r in rows) {
+          if (r is Map) {
+            final m = Map<String, dynamic>.from(r);
+            final id = m['id'];
+            if (id != null) next[id.toString()] = m;
+          }
+        }
+      }
+
+      setState(() {
+        _storesById
+          ..clear()
+          ..addAll(next);
+      });
+    } catch (_) {
+      if (!mounted || metaToken != _shiprocketMetaToken) return;
+      setState(() {
+        _storesById.clear();
+      });
+    }
+  }
+
+  Future<void> _refreshShiprocketEstimates(int metaToken) async {
+    final delivery = _deliveryPincodeForEta().trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(delivery)) {
+      if (!mounted) return;
+      setState(() {
+        _shiprocketEtaByStoreId.clear();
+        _shiprocketEtaLoading = false;
+      });
+      return;
+    }
+
+    final storeIds = _uniqueStoreIdsFromCart();
+    if (storeIds.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _shiprocketEtaByStoreId.clear();
+        _shiprocketEtaLoading = false;
+      });
+      return;
+    }
+
+    if (!mounted || metaToken != _shiprocketMetaToken) return;
+    setState(() {
+      _shiprocketEtaLoading = true;
+    });
+
+    final next = <String, String>{};
+    final cod = _codFlagForShiprocket();
+
+    await Future.wait(storeIds.map((sid) async {
+      final key = sid.toString();
+      final storeRow = _storesById[key];
+      if (storeRow == null) {
+        next[key] = 'Checking store...';
+        return;
+      }
+
+      final partner = (storeRow['deliveryPartner'] ?? '').toString().toLowerCase();
+      if (partner != 'shiprocket') {
+        next[key] = 'Local delivery';
+        return;
+      }
+
+      final pickup = _pickupPincodeForStoreRow(storeRow);
+      if (pickup.isEmpty) {
+        next[key] = 'Pickup pincode missing in shop address';
+        return;
+      }
+
+      try {
+        final qs = Uri(queryParameters: {
+          'pickup_postcode': pickup,
+          'delivery_postcode': delivery,
+          'cod': cod.toString(),
+          'weight': '0.5',
+        }).query;
+
+        final response = await SecureHttpClient.get(
+          '${AppConfig.baseApi}/shiprocket/courier/serviceability?$qs',
+          timeout: const Duration(seconds: 15),
+          context: context,
+        );
+
+        if (!mounted || metaToken != _shiprocketMetaToken) return;
+
+        if (response.statusCode != 200) {
+          next[key] = 'Not available';
+          return;
+        }
+
+        final decoded = json.decode(response.body);
+        if (decoded is! Map<String, dynamic>) {
+          next[key] = 'Not available';
+          return;
+        }
+        if (decoded['success'] != true) {
+          next[key] = 'Not available';
+          return;
+        }
+
+        final out = decoded['data'];
+        next[key] = _formatEtaFromShiprocketPayload(out);
+      } catch (_) {
+        next[key] = 'Not available';
+      }
+    }));
+
+    if (!mounted) return;
+
+    // If a newer refresh started while we were in-flight, don't stomp loading/UI state.
+    if (metaToken != _shiprocketMetaToken) return;
+
+    setState(() {
+      _shiprocketEtaByStoreId
+        ..clear()
+        ..addAll(next);
+      _shiprocketEtaLoading = false;
+    });
+  }
+
+  Future<void> _refreshShiprocketMeta() async {
+    final token = ++_shiprocketMetaToken;
+    await _loadStoresForCart(token);
+    if (!mounted || token != _shiprocketMetaToken) return;
+    await _refreshShiprocketEstimates(token);
   }
 
  
@@ -188,6 +473,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
     setState(() { _isLoading = false; });
+    if (mounted && _cartItems.isNotEmpty) {
+      _scheduleShiprocketRefresh();
+    }
   }
   
   Future<void> _fetchAddresses() async {
@@ -200,6 +488,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           _populateAddressFields(_selectedAddress!);
         }
       });
+      if (mounted) {
+        _scheduleShiprocketRefresh();
+      }
     } catch (e) {
       print('Error fetching addresses: $e');
       showErrorMessage(context, 'Failed to load addresses.');
@@ -214,6 +505,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     _addressLine2Controller.text = address.area;
     _cityController.text = address.city;
     _postalCodeController.text = address.states;
+    _pincodeController.text = address.pincode ?? '';
   }
 
   Future<void> _addAddress() async {
@@ -253,6 +545,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       states: _postalCodeController.text.trim(),
       area: _addressLine2Controller.text.trim(),
       shipping: _addressLine1Controller.text.trim(),
+      pincode: _pincodeController.text.trim(),
       orderId: _userId,
       custId: _userId,
     );
@@ -293,6 +586,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       states: _postalCodeController.text.trim(),
       area: _addressLine2Controller.text.trim(),
       shipping: _addressLine1Controller.text.trim(),
+      pincode: _pincodeController.text.trim(),
       orderId: _userId,
       custId: _userId,
     );
@@ -394,6 +688,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       _addressErrors['states'] = 'State must be at least 2 characters';
       isValid = false;
     }
+
+    // Pincode validation (required for delivery estimates)
+    final pin = _pincodeController.text.trim();
+    if (pin.isEmpty) {
+      _addressErrors['pincode'] = 'Pincode is required';
+      isValid = false;
+    } else if (!RegExp(r'^\d{6}$').hasMatch(pin)) {
+      _addressErrors['pincode'] = 'Pincode must be 6 digits';
+      isValid = false;
+    }
     
     // Area validation
     if (_addressLine2Controller.text.trim().isEmpty) {
@@ -461,12 +765,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       }
     }
     
-    // Payment method validation
-    if (_selectedPaymentOption == null) {
-      showErrorMessage(context, 'Please select a payment method.');
-      return;
-    }
-    
     // Check for date if payment option 4 is selected
     if (_selectedPaymentOption == 4 && _selectedDeliveryDate == null) {
       showErrorMessage(context, 'Please select a delivery date.');
@@ -480,7 +778,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       
       try {
         final productResponse = await SecureHttpClient.get(
-          'https://nicknameinfo.net/api/product/getProductById/$productId',
+          '${AppConfig.baseApi}/product/getProductById/$productId',
           timeout: const Duration(seconds: 10),
           context: context,
         );
@@ -525,6 +823,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         "states": _selectedAddress!.states,
         "area": _selectedAddress!.area,
         "shipping": _selectedAddress!.shipping,
+        "pincode": _selectedAddress!.pincode,
         "custId": _selectedAddress!.custId,
         "orderId": _selectedAddress!.orderId,
       };
@@ -542,11 +841,17 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     };
 
     // 2. Check payment method
-    // Based on your new UI: 1 = Online, 2/3/4 = Offline
+    // 1 = Online (Razorpay full amount)
+    // 2 = Pre Order (Razorpay 50% now)
+    // 3 = COD (offline)
+    // 4 = Future delivery (Razorpay full amount)
     if (_selectedPaymentOption == 1 || _selectedPaymentOption == 2 || _selectedPaymentOption == 4) {
       // --- ONLINE PAYMENT FLOW (Razorpay) ---
       try {
-        final paymentResult = await CheckoutApiHelper.createRazorpayOrder(grandTotal, _userId);
+        final double amountToPayNow =
+            _selectedPaymentOption == 2 ? (grandTotal * 0.5) : grandTotal;
+        final paymentResult =
+            await CheckoutApiHelper.createRazorpayOrder(amountToPayNow, _userId);
 
         if (paymentResult['success'] == true && paymentResult['data'] != null) {
           final paymentData = paymentResult['data'];
@@ -560,7 +865,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             'currency': paymentData['currency'],
             'order_id': paymentData['id'],
             'name': 'Nickname Infotech',
-            'description': 'For Subscriptions',
+            'description': _selectedPaymentOption == 2
+                ? 'Pre Order (50% advance)'
+                : (_selectedPaymentOption == 4 ? 'Future delivery (paid)' : 'For Subscriptions'),
             'theme': {'color': '#49a84c'}
           };
           
@@ -616,7 +923,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Future<void> _updateProductUnitSize(int productId, int quantity, {String? size}) async {
     try {
       final productResponse = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/product/getProductById/$productId',
+        '${AppConfig.baseApi}/product/getProductById/$productId',
         timeout: const Duration(seconds: 15),
         context: context,
       );
@@ -690,7 +997,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 };
 
                 final response = await SecureHttpClient.post(
-                  'https://nicknameinfo.net/api/product/update',
+                  '${AppConfig.baseApi}/product/update',
                   body: updateData,
                   timeout: const Duration(seconds: 15),
                   context: context,
@@ -730,7 +1037,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         };
 
         final response = await SecureHttpClient.post(
-          'https://nicknameinfo.net/api/product/update',
+          '${AppConfig.baseApi}/product/update',
           body: updateData,
           timeout: const Duration(seconds: 15),
           context: context,
@@ -761,6 +1068,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       final double itemPrice = (item['price'] is num) ? (item['price'] as num).toDouble() : (double.tryParse(item['price']?.toString() ?? '0.0') ?? 0.0);
       final int itemQty = (item['qty'] is num) ? (item['qty'] as num).toInt() : (int.tryParse(item['qty']?.toString() ?? '0') ?? 0);
       final int productId = (item['productId'] is num) ? (item['productId'] as num).toInt() : (int.tryParse(item['productId']?.toString() ?? '0') ?? 0);
+      final dynamic itemStoreId = item['storeId'] ?? item['store_id'] ?? baseApiParams['storeId'];
 
 
       final itemApiParams = {
@@ -768,6 +1076,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         "grandTotal": itemPrice * itemQty,
         "productIds": item['productId'],
         "qty": item['qty'],
+        "storeId": itemStoreId,
         "orderType": (item["isBooking"] == true) ? "Service" : "Product"
       };
       
@@ -842,6 +1151,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   Widget build(BuildContext context) {
     // Wrap with Stack to show loading overlay
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FB),
       appBar: AppBar(
         elevation: 0,
         flexibleSpace: Container(
@@ -866,10 +1176,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
+      bottomNavigationBar: _buildCheckoutBottomBar(),
       body: Stack(
         children: [
           SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -878,8 +1189,6 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 _buildOrderSummarySection(),
                 const SizedBox(height: 20),
                 _buildPaymentOptionsSection(),
-                const SizedBox(height: 20),
-                _buildActionButtons(),
               ],
             ),
           ),
@@ -895,6 +1204,89 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCheckoutBottomBar() {
+    final total = _cartTotal();
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.10),
+              blurRadius: 18,
+              offset: const Offset(0, -6),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Total',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '₹${total.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(builder: (context) => const HomeScreen()),
+                    );
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    side: BorderSide(color: primaryColor.withOpacity(0.25)),
+                  ),
+                  child: const Text('Back'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _handlePlaceOrder,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryColor,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Text(
+                  'Confirm Order',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -953,6 +1345,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                         _populateAddressFields(value);
                       }
                     });
+                    _scheduleShiprocketRefresh();
                   },
                 );
               }).toList()
@@ -1008,6 +1401,16 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               label: 'States',
               icon: Icons.map_outlined,
               fieldKey: 'states',
+            ),
+            const SizedBox(height: 12),
+            _buildModernTextField(
+              controller: _pincodeController,
+              label: 'Pincode',
+              icon: Icons.local_post_office_outlined,
+              fieldKey: 'pincode',
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              onValueChanged: (_) => _scheduleShiprocketRefresh(),
             ),
             const SizedBox(height: 20),
             // Show login message if user is not logged in
@@ -1085,6 +1488,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     String? fieldKey,
     TextInputType? keyboardType,
     int? maxLength,
+    ValueChanged<String>? onValueChanged,
   }) {
     final hasError = fieldKey != null && _addressErrors.containsKey(fieldKey);
     
@@ -1121,9 +1525,217 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               _addressErrors.remove(fieldKey);
               setState(() {});
             }
+            onValueChanged?.call(value);
           },
         ),
       ],
+    );
+  }
+
+  Widget _buildShiprocketDeliverySection() {
+    final storeIds = _uniqueStoreIdsFromCart();
+    if (storeIds.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final delivery = _deliveryPincodeForEta().trim();
+    final hasValidDeliveryPin = RegExp(r'^\d{6}$').hasMatch(delivery);
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            primaryColor.withOpacity(0.10),
+            Colors.white,
+          ],
+        ),
+        border: Border.all(color: primaryColor.withOpacity(0.18)),
+        boxShadow: [
+          BoxShadow(
+            color: primaryColor.withOpacity(0.10),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: primaryColor.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(Icons.local_shipping_outlined, color: primaryColor, size: 20),
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Delivery estimates (by store)',
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+                  ),
+                ),
+                if (_shiprocketEtaLoading)
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: primaryColor),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(color: primaryColor.withOpacity(0.18)),
+                    ),
+                    child: Text(
+                      'ETA',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: primaryColor,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.85),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.black.withOpacity(0.06)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.pin_drop_outlined, size: 16, color: Colors.grey[700]),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      !hasValidDeliveryPin
+                          ? 'Enter a valid 6-digit delivery pincode to see Shiprocket ETAs.'
+                          : 'Delivery pincode: $delivery',
+                      style: TextStyle(fontSize: 12, color: Colors.grey[800], fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...storeIds.map((sid) {
+              final key = sid.toString();
+              final storeRow = _storesById[key];
+              final name = (storeRow?['storename'] ?? 'Store #$sid').toString();
+              final partner = (storeRow?['deliveryPartner'] ?? '').toString().toLowerCase();
+              final eta = _shiprocketEtaByStoreId[key];
+
+              String line;
+              if (!hasValidDeliveryPin) {
+                line = '—';
+              } else if (storeRow == null) {
+                line = 'Checking store...';
+              } else if (partner != 'shiprocket') {
+                line = 'Local delivery';
+              } else if (eta == null || eta.isEmpty) {
+                line = _shiprocketEtaLoading ? 'Checking...' : '—';
+              } else {
+                line = eta;
+              }
+
+              final isLocal = storeRow != null && partner != 'shiprocket';
+              final isShiprocket = storeRow != null && partner == 'shiprocket';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.black.withOpacity(0.06)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      margin: const EdgeInsets.only(top: 4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isShiprocket
+                            ? primaryColor
+                            : (isLocal ? Colors.orange[700] : Colors.grey[500]),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: (isShiprocket ? primaryColor : (isLocal ? Colors.orange : Colors.grey))
+                                      .withOpacity(0.12),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Text(
+                                  isShiprocket ? 'Shiprocket' : (isLocal ? 'Local' : 'Pending'),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w800,
+                                    color: isShiprocket ? primaryColor : (isLocal ? Colors.orange[800] : Colors.grey[800]),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  line,
+                                  textAlign: TextAlign.right,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  softWrap: true,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.grey[900],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1232,6 +1844,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
               }).toList()
             else
               const Text('Your cart is empty.'),
+            if (_cartItems.isNotEmpty) _buildShiprocketDeliverySection(),
             const SizedBox(height: 5),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1326,6 +1939,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 setState(() {
                   _selectedPaymentOption = value!;
                 });
+                _scheduleShiprocketRefresh();
               },
             ),
             RadioListTile<int>(
@@ -1336,8 +1950,67 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 setState(() {
                   _selectedPaymentOption = value!;
                 });
+                _scheduleShiprocketRefresh();
               },
             ),
+            if (_selectedPaymentOption == 2) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: primaryColor.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: primaryColor.withOpacity(0.18)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: primaryColor.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.info_outline, color: primaryColor, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final total = _cartTotal();
+                          final payNow = total * 0.5;
+                          final remaining = total - payNow;
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Pre Order: Pay 50% now',
+                                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Pay now: ₹${payNow.toStringAsFixed(2)}  •  Remaining: ₹${remaining.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[900],
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Your order will be confirmed after the advance payment. Remaining amount can be collected later.',
+                                style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
 
             // RadioListTile<int>(
             //   title: const Text('Cash on Delivery'),
@@ -1347,6 +2020,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             //     setState(() {
             //       _selectedPaymentOption = value!;
             //     });
+            //     _scheduleShiprocketRefresh();
             //   },
             // ),
             RadioListTile<int>(
@@ -1357,8 +2031,60 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 setState(() {
                   _selectedPaymentOption = value!;
                 });
+                _scheduleShiprocketRefresh();
               },
             ),
+            if (_selectedPaymentOption == 4) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.blue.withOpacity(0.18)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.14),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Icon(Icons.event_available, color: Colors.blue, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Future delivery: Pay full amount now',
+                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Pay now: ₹${_cartTotal().toStringAsFixed(2)}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[900],
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Select a delivery date below and complete payment to confirm your order.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[800]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             if (_selectedPaymentOption == 4)
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1419,7 +2145,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _fetchCartItems() async {
     final response = await SecureHttpClient.get(
-      'https://nicknameinfo.net/api/cart/list/$_userId',
+      '${AppConfig.baseApi}/cart/list/$_userId',
       context: context,
     );
     if (response.statusCode == 200) {
@@ -1432,6 +2158,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         setState(() {
           _cartItems = [];
         });
+      }
+      if (mounted) {
+        _scheduleShiprocketRefresh();
       }
     } else {
       throw Exception('Failed to load cart items');

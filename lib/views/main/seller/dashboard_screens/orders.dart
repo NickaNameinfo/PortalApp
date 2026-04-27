@@ -4,8 +4,11 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart' as intl;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../constants/colors.dart'; // Ensure this path is correct for your project
+import '../../../../constants/colors.dart';
+import '../../../../constants/app_config.dart';
 import '../../../../helpers/secure_http_client.dart';
+import '../../../../services/new_order_service.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
 
 class OrdersScreen extends StatefulWidget {
   static const routeName = '/orders';
@@ -21,11 +24,42 @@ class _OrdersScreenState extends State<OrdersScreen> {
   List<dynamic> _orders = [];
   bool _isLoading = true;
   double _totalAmount = 0.0;
+  static const String _lastOrderIdsKey = 'seller_last_order_ids';
 
   @override
   void initState() {
     super.initState();
     _loadUserId();
+    NewOrderService.onNewOrderForStore = _onNewOrderReceived;
+  }
+
+  @override
+  void dispose() {
+    if (NewOrderService.onNewOrderForStore == _onNewOrderReceived) {
+      NewOrderService.onNewOrderForStore = null;
+    }
+    super.dispose();
+  }
+
+  void _onNewOrderReceived() {
+    if (mounted && _storeId.isNotEmpty) _fetchOrders();
+  }
+
+  /// Shows in-app notification and plays sound when new orders are detected.
+  void _notifyNewOrders(int newCount) {
+    if (newCount <= 0 || !mounted) return;
+    NewOrderService.instance.playNotificationSound();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          newCount == 1 ? 'You have 1 new order!' : 'You have $newCount new orders!',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        backgroundColor: Colors.green,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _loadUserId() async {
@@ -52,7 +86,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
       });
       return;
     }
-    final url = Uri.parse('https://nicknameinfo.net/api/order/store/list/$_storeId'); 
+    final url = Uri.parse('${AppConfig.baseApi}/order/store/list/$_storeId'); 
     
     try {
       final response = await SecureHttpClient.get(
@@ -65,18 +99,31 @@ class _OrdersScreenState extends State<OrdersScreen> {
         
         if (jsonResponse['success'] == true) {
           final List<dynamic> data = jsonResponse['data'];
-          
-          double tempTotal = 0;
-          for (var item in data) {
-            double price = double.tryParse(item['grandtotal'].toString()) ?? 0.0;
-            tempTotal += price;
-          }
+          final prefs = await SharedPreferences.getInstance();
+          final List<int> currentIds = data.map<int>((o) => (o['id'] is int) ? o['id'] as int : int.tryParse(o['id'].toString()) ?? -1).where((id) => id >= 0).toList();
+          final Set<int> currentIdSet = currentIds.toSet();
 
-          setState(() {
-            _orders = data;
-            _totalAmount = tempTotal;
-            _isLoading = false;
-          });
+          // Load last known order IDs and detect new orders (only after we have a baseline)
+          final String? saved = prefs.getString(_lastOrderIdsKey);
+          Set<int> previousIdSet = {};
+          if (saved != null && saved.isNotEmpty) {
+            try {
+              final List<dynamic> decoded = json.decode(saved) as List<dynamic>? ?? [];
+              previousIdSet = decoded.map<int>((e) => e is int ? e : int.tryParse(e.toString()) ?? -1).where((id) => id >= 0).toSet();
+            } catch (_) {}
+          }
+          final int newCount = previousIdSet.isEmpty ? 0 : currentIdSet.difference(previousIdSet).length;
+
+          await prefs.setString(_lastOrderIdsKey, json.encode(currentIds));
+
+          if (mounted) {
+            setState(() {
+              _orders = data;
+              _totalAmount = data.fold<double>(0.0, (sum, item) => sum + (double.tryParse(item['grandtotal'].toString()) ?? 0.0));
+              _isLoading = false;
+            });
+            if (newCount > 0) _notifyNewOrders(newCount);
+          }
         } else {
           setState(() { _isLoading = false; });
         }
@@ -92,7 +139,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
   // --- 2. Update Order API ---
   Future<void> _updateOrderStatus(int orderId, String status, DateTime? date) async {
-    final url = Uri.parse('https://nicknameinfo.net/api/order/status/update');
+    final url = Uri.parse('${AppConfig.baseApi}/order/status/update');
     
     // Format date to YYYY-MM-DD
     String formattedDate = date != null 
@@ -314,52 +361,80 @@ class _OrdersScreenState extends State<OrdersScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        elevation: 0,
+        toolbarHeight: 48,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: brandHeaderGradient,
+          ),
+        ),
         title: const Text(
           'My Orders',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w500),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
         ),
         iconTheme: const IconThemeData(color: Colors.white),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: primaryColor))
-          : _orders.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.shopping_bag_outlined, size: 80, color: Colors.grey),
-                      SizedBox(height: 10),
-                      Text(
-                        'No orders to display',
-                        style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 18),
-                      )
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _orders.length,
-                  itemBuilder: (context, index) {
-                    final item = _orders[index];
-                    final user = item['user'] ?? {};
-                    
-                    String formattedDate = 'N/A';
-                    if (item['createdAt'] != null) {
-                      try {
-                        formattedDate = intl.DateFormat.yMMMEd().format(DateTime.parse(item['createdAt']));
-                      } catch (_) {}
-                    }
+      body: Container(
+        decoration: gradientBackgroundDecoration,
+        child: RefreshIndicator(
+          onRefresh: () async {
+            if (_storeId.isNotEmpty) await _fetchOrders();
+          },
+          color: primaryColor,
+          child: _isLoading
+              ? const Center(child: CircularProgressIndicator(color: primaryColor))
+              : _orders.isEmpty
+                  ? ListView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      children: [
+                        const SizedBox(height: 80),
+                        const Icon(Icons.shopping_bag_outlined, size: 80, color: Colors.grey),
+                        const SizedBox(height: 10),
+                        Text(
+                          'No orders to display',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(color: primaryColor, fontWeight: FontWeight.bold, fontSize: 18),
+                        ),
+                      ],
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 110),
+                      itemCount: _orders.length,
+                      itemBuilder: (context, index) {
+                        final item = _orders[index];
+                        final user = item['user'] ?? {};
+                        
+                        String formattedDate = 'N/A';
+                        if (item['createdAt'] != null) {
+                          try {
+                            formattedDate = intl.DateFormat.yMMMEd().format(DateTime.parse(item['createdAt']));
+                          } catch (_) {}
+                        }
 
-                    Color statusColor = Colors.grey;
-                    String status = (item['status'] ?? 'pending').toString().toLowerCase();
-                    if (status == 'processing') statusColor = Colors.orange;
-                    else if (status == 'delivered') statusColor = Colors.green;
-                    else if (status == 'cancelled') statusColor = Colors.red;
+                        Color statusColor = Colors.grey;
+                        String status = (item['status'] ?? 'pending').toString().toLowerCase();
+                        if (status == 'processing') statusColor = Colors.orange;
+                        else if (status == 'delivered') statusColor = Colors.green;
+                        else if (status == 'cancelled') statusColor = Colors.red;
 
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      elevation: 2,
-                      child: ExpansionTile(
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            color: Colors.white.withOpacity(0.92),
+                            border: Border.all(color: Colors.black.withOpacity(0.06)),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.06),
+                                blurRadius: 14,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: ExpansionTile(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                        childrenPadding: const EdgeInsets.only(bottom: 10),
                         leading: CircleAvatar(
                           backgroundColor: Colors.grey[200],
                           backgroundImage: NetworkImage(_getProductImage(item)),
@@ -400,7 +475,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
                                 color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(999),
                                 border: Border.all(color: statusColor.withOpacity(0.5)),
                               ),
                               child: Text(
@@ -428,18 +503,23 @@ class _OrdersScreenState extends State<OrdersScreen> {
                             ),
                           )
                         ],
-                      ),
-                    );
-                  },
-                ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ),
       bottomSheet: _orders.isNotEmpty
           ? Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(15.0),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.95),
+                border: Border(top: BorderSide(color: Colors.black.withOpacity(0.08))),
+              ),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Grand Total:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 20)),
+                  const Text('Grand Total:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
                   Text('\₹${_totalAmount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 24, color: primaryColor)),
                 ],
               ),

@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart'; // <-- NEW: Import geolocator
+import '../../../constants/app_config.dart';
 import '../../../helpers/secure_http_client.dart';
 
 // ASSUMED: Your Utility Functions
@@ -22,6 +23,7 @@ import 'package:nickname_portal/components/gradient_background.dart';
 import '../../../components/customer_home_widgets.dart';
 // Import the extracted Provider class
 import '../../../providers/category_filter_data.dart';
+import 'package:nickname_portal/utils/visit_tracker.dart';
 
 
 class HomeScreen extends StatefulWidget {
@@ -33,8 +35,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<List<dynamic>> _categoriesFuture;
-  
-  Future<List<dynamic>>? _storesFuture;
+  final ScrollController _storesScrollController = ScrollController();
+  final List<dynamic> _stores = [];
+  bool _storesLoading = false;
+  bool _storesHasMore = true;
+  int _storesPage = 1;
+  int _storesTotalCount = 0;
+  String? _storesError;
   
   Set<int> _currentFilterIds = {};
   String? _currentSearchQuery;
@@ -61,12 +68,19 @@ class _HomeScreenState extends State<HomeScreen> {
     // Start fetching location immediately
     _determinePosition(); 
     
-    // Initial store fetch will use null location, which is fine, 
-    // it will be re-run after position is determined.
-    _storesFuture = _fetchStoreList(categoryIds: null, searchQuery: null, paymentMode: null);
+    // Initial store fetch will use null location; we re-run after location is determined.
+    _resetAndLoadStores();
     
     _searchController.addListener(() {
       setState(() {});
+    });
+
+    _storesScrollController.addListener(() {
+      if (!_storesHasMore || _storesLoading) return;
+      final pos = _storesScrollController.position;
+      if (pos.pixels >= pos.maxScrollExtent - 350) {
+        _loadMoreStores();
+      }
     });
   }
 
@@ -162,13 +176,9 @@ class _HomeScreenState extends State<HomeScreen> {
         setState(() {
           _position = position;
           _locationError = null;
-          // Re-fetch stores with the newly acquired location
-          _storesFuture = _fetchStoreList(
-            categoryIds: _currentFilterIds, 
-            searchQuery: _currentSearchQuery, 
-            paymentMode: _currentPaymentMode,
-          );
         });
+        // Re-fetch stores with the newly acquired location
+        _resetAndLoadStores();
       }
     } catch (e) {
       if (kDebugMode) {
@@ -186,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _searchController.dispose();
+    _storesScrollController.dispose();
     super.dispose();
   }
 
@@ -210,11 +221,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _currentPaymentMode = newPaymentMode; 
         
         // --- MODIFIED: Location is now retrieved via _currentLocationString getter ---
-        _storesFuture = _fetchStoreList(
-          categoryIds: _currentFilterIds, 
-          searchQuery: _currentSearchQuery,
-          paymentMode: _currentPaymentMode, 
-        );
+        _resetAndLoadStores();
         // ----------------------------------------------------------------------------
         
         setState(() {});
@@ -237,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<List<dynamic>> _fetchCategories() async {
     try {
       final response = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/category/getAllCategory',
+        '${AppConfig.baseApi}/category/getAllCategory',
         timeout: const Duration(seconds: 10),
         context: context,
       );
@@ -262,27 +269,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }
   
   // --- MODIFIED: Removed currentLocation parameter, now uses _currentLocationString getter ---
-  Future<List<dynamic>> _fetchStoreList({
+  Future<Map<String, dynamic>> _fetchStorePage({
     Set<int>? categoryIds, 
     String? searchQuery, 
     int? paymentMode,
+    required int page,
+    int limit = 20,
   }) async {
     String url;
     final location = _currentLocationString; // Get the latest location from state
 
     if (categoryIds != null && categoryIds.isNotEmpty) {
       final idString = categoryIds.join(','); 
-      url = 'https://nicknameinfo.net/api/store/filterByCategory?categoryIds=$idString&currentLocation=${Uri.encodeQueryComponent(location ?? '')}';
+      url = '${AppConfig.baseApi}/store/filterByCategory?categoryIds=$idString&currentLocation=${Uri.encodeQueryComponent(location ?? '')}&page=$page&limit=$limit';
     } else if (searchQuery != null && searchQuery.isNotEmpty) {
-      url = 'https://nicknameinfo.net/api/store/getAllStoresByFilters?search=${Uri.encodeQueryComponent(searchQuery)}&currentLocation=${Uri.encodeQueryComponent(location ?? '')}';
+      url = '${AppConfig.baseApi}/store/getAllStoresByFilters?search=${Uri.encodeQueryComponent(searchQuery)}&currentLocation=${Uri.encodeQueryComponent(location ?? '')}&page=$page&limit=$limit';
     } else if (paymentMode != null) {
-      url = 'https://nicknameinfo.net/api/store/getAllStoresByFilters?paymentModes=$paymentMode&currentLocation=${Uri.encodeQueryComponent(location ?? '')}';
+      url = '${AppConfig.baseApi}/store/getAllStoresByFilters?paymentModes=$paymentMode&currentLocation=${Uri.encodeQueryComponent(location ?? '')}&page=$page&limit=$limit';
     } else {
-      url = 'https://nicknameinfo.net/api/store/list';
+      url = '${AppConfig.baseApi}/store/list';
       
       // --- MODIFIED: Append location to the default list endpoint ---
       if (location != null && location.isNotEmpty) {
-        url = '$url?currentLocation=${Uri.encodeQueryComponent(location)}'; 
+        url = '$url?currentLocation=${Uri.encodeQueryComponent(location)}&page=$page&limit=$limit'; 
+      } else {
+        url = '$url?page=$page&limit=$limit';
       }
     }
 
@@ -300,7 +311,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         if (data['success'] == true) {
-          return data['data'] ?? [];
+          return data;
         } else {
           throw Exception('Failed to load stores: API error');
         }
@@ -311,6 +322,49 @@ class _HomeScreenState extends State<HomeScreen> {
       throw Exception('Request timeout. Please check your internet connection.');
     } on SocketException {
       throw Exception('No internet connection.');
+    }
+  }
+
+  void _resetAndLoadStores() {
+    _stores.clear();
+    _storesError = null;
+    _storesLoading = false;
+    _storesHasMore = true;
+    _storesPage = 1;
+    _storesTotalCount = 0;
+    if (mounted) setState(() {});
+    _loadMoreStores();
+  }
+
+  Future<void> _loadMoreStores() async {
+    if (_storesLoading || !_storesHasMore) return;
+    setState(() {
+      _storesLoading = true;
+      _storesError = null;
+    });
+    try {
+      final data = await _fetchStorePage(
+        categoryIds: _currentFilterIds,
+        searchQuery: _currentSearchQuery,
+        paymentMode: _currentPaymentMode,
+        page: _storesPage,
+        limit: 20,
+      );
+      final List<dynamic> newItems = List<dynamic>.from(data['data'] ?? const []);
+      final int total = (data['count'] is int) ? data['count'] as int : int.tryParse('${data['count']}') ?? 0;
+
+      setState(() {
+        _storesTotalCount = total;
+        _stores.addAll(newItems);
+        _storesPage += 1;
+        _storesHasMore = _stores.length < _storesTotalCount && newItems.isNotEmpty;
+        _storesLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _storesError = e.toString();
+        _storesLoading = false;
+      });
     }
   }
 
@@ -328,8 +382,8 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       setState(() {
         _currentSearchQuery = trimmedValue.isNotEmpty ? trimmedValue : null;
-        _storesFuture = _fetchStoreList(searchQuery: _currentSearchQuery);
       });
+      _resetAndLoadStores();
     }
   }
 
@@ -381,27 +435,39 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildContentCards() {
     return NavBarContainer(
-      child: FutureBuilder<List<dynamic>>(
-        future: _storesFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: CircularProgressIndicator(),
-            ));
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Padding(
-              padding: EdgeInsets.all(32.0),
-              child: Text('No stores available.'),
-            ));
+      child: Builder(
+        builder: (context) {
+          if (_storesError != null && _stores.isEmpty) {
+            return Center(child: Text('Error: $_storesError'));
+          }
+          if (_storesLoading && _stores.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
+          if (_stores.isEmpty) {
+            return const Center(
+              child: Padding(
+                padding: EdgeInsets.all(32.0),
+                child: Text('No stores available.'),
+              ),
+            );
           }
 
-          final List<dynamic> storeList = snapshot.data!;
-
-          return ListView(
-            children: storeList.map((store) {
+          return ListView.builder(
+            controller: _storesScrollController,
+            itemCount: _stores.length + (_storesHasMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index >= _stores.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
+              final store = _stores[index];
               final openTime = store['openTime'] ?? 'N/A';
               final closeTime = store['closeTime'] ?? 'N/A';
               final openCloseTime = (openTime != 'N/A' && closeTime != 'N/A')
@@ -410,13 +476,11 @@ class _HomeScreenState extends State<HomeScreen> {
               final website = store['website'] as String?;
               final phone = store['phone'] as String?;
               final storeaddress = store['storeaddress'] as String?;
-              
-              // --- FIX: Ensure distance is a String ---
+
               final rawDistance = store['distance'];
               final distanceString = (rawDistance is double || rawDistance is int)
-                  ? rawDistance.toStringAsFixed(1) // Format to one decimal place
+                  ? rawDistance.toStringAsFixed(1)
                   : 'N/A';
-              // --------------------------------------
 
               return Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10.0),
@@ -425,16 +489,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   logoUrl: store['storeImage'] ?? 'https://via.placeholder.com/150',
                   products: store['totalProducts'] ?? 0,
                   openTime: openCloseTime,
-                  rating: 4.3, // Static rating
+                  rating: 4.3,
                   website: website,
                   phone: phone,
                   storeaddress: storeaddress,
                   storeId: store['id'],
                   location: store['location'] ?? 'N/A',
-                  distance: distanceString, // <-- Use the corrected string
+                  distance: distanceString,
                 ),
               );
-            }).toList(),
+            },
           );
         },
       ),
@@ -471,6 +535,7 @@ class _HomeScreenState extends State<HomeScreen> {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
+            VisitTracker.recordStoreVisit(storeId);
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => StoreDetails(storeId: storeId),

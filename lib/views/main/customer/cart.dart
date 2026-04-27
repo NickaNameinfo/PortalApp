@@ -10,6 +10,7 @@ import 'package:nickname_portal/constants/colors.dart';
 import 'package:nickname_portal/components/loading.dart';
 import 'package:nickname_portal/components/gradient_background.dart';
 import 'package:nickname_portal/helpers/cart_api_helper.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 import 'package:nickname_portal/helpers/secure_http_client.dart';
 import 'package:nickname_portal/helpers/error_handler.dart';
 import 'package:nickname_portal/views/main/customer/new_product_details_screen.dart';
@@ -81,7 +82,7 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _removeFromCart(int productId, String productName) async {
     try {
       final response = await SecureHttpClient.delete(
-        'https://nicknameinfo.net/api/cart/delete/$_userId/$productId',
+        '${AppConfig.baseApi}/cart/delete/$_userId/$productId',
         timeout: const Duration(seconds: 15),
         context: context,
       );
@@ -134,7 +135,7 @@ class _CartScreenState extends State<CartScreen> {
     print('Fetching cart items for userId: $_userId');
     try {
       final response = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/cart/list/$_userId',
+        '${AppConfig.baseApi}/cart/list/$_userId',
         timeout: const Duration(seconds: 15),
         context: context,
       );
@@ -198,7 +199,7 @@ class _CartScreenState extends State<CartScreen> {
     // Implement API call to clear cart
     try {
       final response = await SecureHttpClient.delete(
-        'https://nicknameinfo.net/api/cart/clear/$_userId',
+        '${AppConfig.baseApi}/cart/clear/$_userId',
         timeout: const Duration(seconds: 15),
         context: context,
       );

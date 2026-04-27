@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/app_config.dart';
 import 'secure_http_client.dart';
 import 'error_handler.dart';
 
@@ -12,6 +13,7 @@ class Address {
   final String states;
   final String area;
   final String shipping;
+  final String? pincode;
   final String orderId;
   final String custId;
 
@@ -24,6 +26,7 @@ class Address {
     required this.states,
     required this.area,
     required this.shipping,
+    this.pincode,
     required this.orderId,
     required this.custId,
   });
@@ -38,6 +41,7 @@ class Address {
       states: json['states'],
       area: json['area'],
       shipping: json['shipping'],
+      pincode: json['pincode']?.toString(),
       orderId: json['orderId'].toString(),
       custId: json['custId'].toString(),
     );
@@ -53,6 +57,7 @@ class Address {
       'states': states,
       'area': area,
       'shipping': shipping,
+      'pincode': pincode,
       'orderId': orderId,
       'custId': custId,
     };
@@ -62,7 +67,7 @@ class Address {
 class AddressService {
   Future<List<Address>> fetchAddresses(String userId) async {
     final response = await SecureHttpClient.get(
-      'https://nicknameinfo.net/api/address/list/$userId',
+      '${AppConfig.baseApi}/address/list/$userId',
     );
 
     if (response.statusCode == 200) {
@@ -75,7 +80,7 @@ class AddressService {
 
   Future<Address> createAddress(Address address) async {
     final response = await SecureHttpClient.post(
-      'https://nicknameinfo.net/api/address/create',
+      '${AppConfig.baseApi}/address/create',
       body: address.toJson(),
     );
 
@@ -88,7 +93,7 @@ class AddressService {
 
   Future<Address> updateAddress(Address address) async {
     final response = await SecureHttpClient.post(
-      'https://nicknameinfo.net/api/address/update/${address.id}',
+      '${AppConfig.baseApi}/address/update/${address.id}',
       body: address.toJson(),
     );
 

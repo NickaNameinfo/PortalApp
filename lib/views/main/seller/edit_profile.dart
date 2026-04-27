@@ -99,7 +99,7 @@ class _EditProfileState extends State<EditProfile> {
                   )
                 : const SizedBox.shrink()
             : const SizedBox.shrink(),
-        hintText: hint,
+        hintText: hint.trim().isEmpty ? null : hint,
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(20),
           borderSide: const BorderSide(
@@ -350,7 +350,7 @@ class _EditProfileState extends State<EditProfile> {
                                   children: [
                                     kTextField(
                                       _emailController,
-                                      _emailController.text,
+                                      '',
                                       'Email Address',
                                       Field.email,
                                       false,
@@ -358,7 +358,7 @@ class _EditProfileState extends State<EditProfile> {
                                     const SizedBox(height: 15),
                                     kTextField(
                                       _fullnameController,
-                                      _fullnameController.text,
+                                      '',
                                       'Fullname',
                                       Field.fullname,
                                       false,
@@ -366,7 +366,7 @@ class _EditProfileState extends State<EditProfile> {
                                     const SizedBox(height: 15),
                                     kTextField(
                                       _phoneController,
-                                      _phoneController.text,
+                                      '',
                                       'Phone Number',
                                       Field.phone,
                                       false,
@@ -374,7 +374,7 @@ class _EditProfileState extends State<EditProfile> {
                                     const SizedBox(height: 15),
                                     kTextField(
                                       _addressController,
-                                      _addressController.text,
+                                      '',
                                       'Delivery Address',
                                       Field.address,
                                       false,
@@ -414,7 +414,7 @@ class _EditProfileState extends State<EditProfile> {
                           changePassword || widget.editPasswordOnly
                               ? kTextField(
                                   _passwordController,
-                                  '********',
+                                  '',
                                   'Password',
                                   Field.password,
                                   obscure,

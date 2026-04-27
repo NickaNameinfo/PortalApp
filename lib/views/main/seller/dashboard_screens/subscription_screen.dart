@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nickname_portal/models/subscription_model.dart';
 import 'package:nickname_portal/components/subscription_card.dart';
+import 'package:nickname_portal/constants/app_config.dart';
 import 'package:nickname_portal/helpers/secure_http_client.dart';
 import 'dart:convert';
+import 'package:nickname_portal/constants/colors.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
 
 // AppColors class for consistent styling
 class AppColors {
@@ -168,7 +171,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     }
   }
 
-  /// Fetches user subscriptions from the API endpoint: https://nicknameinfo.net/api/auth/user/{userId}
+  /// Fetches user subscriptions from the API endpoint: auth/user/{userId}
   /// 
   /// API Response Structure:
   /// {
@@ -205,7 +208,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       }
 
       // Fetch user data with subscriptions from api/auth/user/{userId}
-      final url = 'https://nicknameinfo.net/api/auth/user/$userId';
+      final url = '${AppConfig.baseApi}/auth/user/$userId';
       final response = await SecureHttpClient.get(url);
       
       if (response.statusCode == 200) {
@@ -223,7 +226,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               (sub) => sub['subscriptionType'] == 'Plan1' && sub['status'] == '1',
             ).toList();
             if (plan1List.isNotEmpty) {
-              subscriptionMap['Plan1'] = SubscriptionPlan.fromJson(plan1List.first);
+              subscriptionMap['Plan1'] = SubscriptionPlan.mergedFromList(plan1List);
             }
             
             // Find Plan2 subscription (Customize)
@@ -231,7 +234,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               (sub) => sub['subscriptionType'] == 'Plan2' && sub['status'] == '1',
             ).toList();
             if (plan2List.isNotEmpty) {
-              subscriptionMap['Plan2'] = SubscriptionPlan.fromJson(plan2List.first);
+              subscriptionMap['Plan2'] = SubscriptionPlan.mergedFromList(plan2List);
             }
             
             // Find Plan3 subscription (Booking)
@@ -239,7 +242,7 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               (sub) => sub['subscriptionType'] == 'Plan3' && sub['status'] == '1',
             ).toList();
             if (plan3List.isNotEmpty) {
-              subscriptionMap['Plan3'] = SubscriptionPlan.fromJson(plan3List.first);
+              subscriptionMap['Plan3'] = SubscriptionPlan.mergedFromList(plan3List);
             }
           }
           
@@ -287,15 +290,86 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Subscriptions')),
-      body: Padding(
-        padding: const EdgeInsets.all(8.0),
+      appBar: AppBar(
+        elevation: 0,
+        toolbarHeight: 48,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: brandHeaderGradient,
+          ),
+        ),
+        title: const Text(
+          'Subscriptions',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w900,
+            fontSize: 18,
+          ),
+        ),
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Container(
+        decoration: gradientBackgroundDecoration,
         child: ListView(
-          children: subscriptionData.map((subscription) {
-            final currentPlan = _subscriptions[subscription.key];
-            
-            return _buildSubscriptionCategory(subscription, currentPlan);
-          }).toList(),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.92),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(color: Colors.black.withOpacity(0.06)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.06),
+                    blurRadius: 14,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          primaryColor.withOpacity(0.18),
+                          successColor.withOpacity(0.14),
+                          accentColor.withOpacity(0.16),
+                        ],
+                      ),
+                    ),
+                    child: const Icon(Icons.workspace_premium, color: primaryColor),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _isLoadingSubscriptions
+                          ? "Checking your current subscriptions…"
+                          : "Choose a plan to enable features for your store.",
+                      style: TextStyle(
+                        color: Colors.black.withOpacity(0.72),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        height: 1.2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...subscriptionData.map((subscription) {
+              final currentPlan = _subscriptions[subscription.key];
+              return _buildSubscriptionCategory(subscription, currentPlan);
+            }).toList(),
+          ],
         ),
       ),
     );
@@ -316,10 +390,10 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
               ? const Chip(label: Text('Coming soon'), backgroundColor: AppColors.error, labelStyle: TextStyle(color: AppColors.white))
               : null,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(18),
             side: const BorderSide(color: AppColors.borderColor),
           ),
-          tileColor: AppColors.cardBackground,
+          tileColor: Colors.white.withOpacity(0.92),
         ),
       );
     }
@@ -327,12 +401,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     return Padding(
       padding: const EdgeInsets.only(top: 8.0),
       child: ExpansionTile(
-        title: Text(subscription.name),
-        collapsedBackgroundColor: AppColors.cardBackground,
-        backgroundColor: AppColors.cardBackground,
+        title: Text(
+          subscription.name,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            color: Colors.black87,
+          ),
+        ),
+        collapsedBackgroundColor: Colors.white.withOpacity(0.92),
+        backgroundColor: Colors.white.withOpacity(0.92),
         childrenPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.borderColor)),
-        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: AppColors.borderColor)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: Colors.black.withOpacity(0.06))),
+        collapsedShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22), side: BorderSide(color: Colors.black.withOpacity(0.06))),
         
         children: [
           if (_isLoadingSubscriptions)

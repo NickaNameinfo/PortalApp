@@ -1,10 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/app_config.dart';
 import 'secure_http_client.dart';
 
 Future<http.Response> fetchCartItems(String userId) async {
   return await SecureHttpClient.get(
-    'https://nicknameinfo.net/api/cart/list/$userId',
+    '${AppConfig.baseApi}/cart/list/$userId',
   );
 }
 
@@ -23,8 +24,8 @@ Future<Map<String, dynamic>> updateCart({
   final double total = price * newQuantity;
 
   final String url = isAdd
-      ? 'https://nicknameinfo.net/api/cart/create'
-      : 'https://nicknameinfo.net/api/cart/update/$userId/$productId';
+      ? '${AppConfig.baseApi}/cart/create'
+      : '${AppConfig.baseApi}/cart/update/$userId/$productId';
 
   // Build the request body
   final Map<String, dynamic> requestBody = {

@@ -1,16 +1,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/app_config.dart';
 import 'secure_http_client.dart';
 import 'error_handler.dart';
 
 class BillingService {
-  static const String baseUrl = 'https://nicknameinfo.net/api';
-
   // Add new bill
   static Future<Map<String, dynamic>> addBill(Map<String, dynamic> billData) async {
     try {
       final response = await SecureHttpClient.post(
-        '$baseUrl/billing/add',
+        '${AppConfig.baseApi}/billing/add',
         body: billData,
         timeout: const Duration(seconds: 15),
       );
@@ -29,7 +28,7 @@ class BillingService {
   static Future<List<dynamic>> getAllBills(String storeId) async {
     try {
       final response = await SecureHttpClient.get(
-        '$baseUrl/billing/getByStoreId/${storeId}',
+        '${AppConfig.baseApi}/billing/getByStoreId/${storeId}',
         timeout: const Duration(seconds: 15),
       );
 
@@ -48,7 +47,7 @@ class BillingService {
   static Future<Map<String, dynamic>> getBillById(int id) async {
     try {
       final response = await SecureHttpClient.get(
-        '$baseUrl/billing/getById/$id',
+        '${AppConfig.baseApi}/billing/getById/$id',
         timeout: const Duration(seconds: 15),
       );
 
@@ -67,7 +66,7 @@ class BillingService {
   static Future<Map<String, dynamic>> updateBill(Map<String, dynamic> billData) async {
     try {
       final response = await SecureHttpClient.post(
-        '$baseUrl/billing/update',
+        '${AppConfig.baseApi}/billing/update',
         body: billData,
         timeout: const Duration(seconds: 15),
       );

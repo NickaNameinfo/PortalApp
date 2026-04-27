@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../components/loading.dart';
+import '../../../../constants/app_config.dart';
 import '../../../../constants/colors.dart';
+import 'package:nickname_portal/components/gradient_background.dart';
 import '../../../../helpers/product_api_service.dart';
 import '../../product/details.dart';
 import 'edit_product.dart';
@@ -20,6 +22,29 @@ class ManageProductsScreen extends StatefulWidget {
 class _ManageProductsScreenState extends State<ManageProductsScreen> {
   String? _supplierId;
   Future<List<dynamic>>? _productsFuture;
+
+  String _firstPhotoFromProductPhotos(dynamic productPhotos) {
+    try {
+      if (productPhotos is List && productPhotos.isNotEmpty) {
+        final first = productPhotos.first;
+        if (first is Map) {
+          final v = first['imgUrl'] ?? first['url'] ?? first['imageUrl'];
+          return v?.toString().trim() ?? '';
+        }
+        if (first is String) return first.trim();
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  String _resolveProductPhotoUrl(String raw) {
+    final s = raw.trim();
+    if (s.isEmpty) return "";
+    final uri = Uri.tryParse(s);
+    if (uri != null && uri.hasScheme) return s; // already absolute (http/https)
+    final filename = s.split("/").where((p) => p.isNotEmpty).toList().last;
+    return "${AppConfig.baseApi}/uploads/$filename";
+  }
 
   @override
   void initState() {
@@ -58,12 +83,18 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
     );
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: primaryColor,
+        elevation: 0,
+        toolbarHeight: 48,
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: brandHeaderGradient,
+          ),
+        ),
         title: const Text(
           'Manage Products',
           style: TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w900,
           ),
         ),
         actions: [
@@ -84,157 +115,194 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: Container(
+        decoration: gradientBackgroundDecoration,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 10.0,
-            vertical: 5,
-          ),
-          child: SizedBox(
-            height: MediaQuery.of(context).size.height / 1.2,
-            child: _productsFuture == null
-                ? const Center(child: Text('No supplier ID found'))
-                : FutureBuilder<List<dynamic>>(
-                    future: _productsFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(
-                          child: Loading(
-                            color: primaryColor,
-                            kSize: 30,
-                          ),
-                        );
-                      }
-                      if (snapshot.hasError) {
-                        return Center(
-                          child: Text('An error occurred: ${snapshot.error}'),
-                        );
-                      }
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Image.asset(
-                                'assets/images/sad.png',
-                                width: 150,
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+          child: _productsFuture == null
+              ? const Center(child: Text('No supplier ID found'))
+              : FutureBuilder<List<dynamic>>(
+                  future: _productsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Loading(
+                          color: primaryColor,
+                          kSize: 30,
+                        ),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text('An error occurred: ${snapshot.error}'),
+                      );
+                    }
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Image.asset(
+                              'assets/images/sad.png',
+                              width: 150,
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'No products yet',
+                              style: TextStyle(
+                                color: primaryColor,
+                                fontWeight: FontWeight.w800,
                               ),
-                              const SizedBox(height: 10),
-                              const Text(
-                                'No data available!',
-                                style: TextStyle(
-                                  color: primaryColor,
-                                ),
-                              )
-                            ],
-                          ),
-                        );
-                      }
+                            )
+                          ],
+                        ),
+                      );
+                    }
 
-                      return ListView.builder(
-                        itemCount: snapshot.data!.length,
-                        itemBuilder: (context, index) {
-                          var item = snapshot.data![index];
-                          return GestureDetector(
-                            onTap: () {
-                              if (item['product'] != null) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => DetailsScreen(product: item['product']),
-                                  ),
-                                );
-                              }
-                            },
-                            child: Dismissible(
-                              onDismissed: (direction) => removeProduct(item['id'].toString()),
-                              direction: DismissDirection.endToStart,
-                              background: Container(
-                                height: 115,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(10),
-                                  color: Colors.red,
+                    return ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 110),
+                      itemCount: snapshot.data!.length,
+                      itemBuilder: (context, index) {
+                        var item = snapshot.data![index];
+                        final product = item['product'] as Map<String, dynamic>?;
+                        final photo = product?['photo']?.toString() ?? '';
+                        final fallbackPhoto = _firstPhotoFromProductPhotos(product?['productphotos']);
+                        final name = product?['name']?.toString() ?? 'Unnamed Product';
+                        final price = product?['price']?.toString() ?? '0';
+                        final photoUrl = _resolveProductPhotoUrl(photo.isNotEmpty ? photo : fallbackPhoto);
+                        return GestureDetector(
+                          onTap: () {
+                            if (product != null) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => DetailsScreen(product: product),
                                 ),
-                                alignment: Alignment.centerRight,
-                                padding: const EdgeInsets.only(right: 20),
-                                child: const Icon(
-                                  Icons.delete_forever,
-                                  color: Colors.white,
-                                  size: 40,
-                                ),
+                              );
+                            }
+                          },
+                          child: Dismissible(
+                            onDismissed: (direction) => removeProduct(item['id'].toString()),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              height: 92,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(22),
+                                color: Colors.red,
                               ),
-                              confirmDismiss: (direction) => showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text('Remove ${item['product']?['name']?.toString() ?? 'Product'}'),
-                                  content: Text(
-                                    'Are you sure you want to remove ${item['product']?['name']?.toString() ?? 'this product'} from your products?',
-                                  ),
-                                  actions: [
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: primaryColor,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(true),
-                                      child: const Text(
-                                        'Yes',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                    ElevatedButton(
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: primaryColor,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                      ),
-                                      onPressed: () =>
-                                          Navigator.of(context).pop(false),
-                                      child: const Text(
-                                        'Cancel',
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 18),
+                              child: const Icon(
+                                Icons.delete_forever,
+                                color: Colors.white,
+                                size: 34,
                               ),
-                              key: ValueKey(item['id']),
-                              child: Card(
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.only(
-                                    left: 10,
-                                    right: 10,
-                                    top: 5,
-                                  ),
-                                  leading: CircleAvatar(
-                                    backgroundColor: primaryColor,
-                                    radius: 35,
-                                    backgroundImage: item['product']?['photo'] != null && item['product']['photo'].toString().isNotEmpty
-                                        ? NetworkImage(item['product']['photo'].toString())
-                                        : null,
-                                    child: item['product']?['photo'] == null || item['product']['photo'].toString().isEmpty
-                                        ? const Icon(Icons.image, color: Colors.white)
-                                        : null,
-                                  ),
-                                  title: Text(
-                                    item['product']?['name']?.toString() ?? 'Unnamed Product',
-                                    style: const TextStyle(
-                                      fontSize: 16,
+                            ),
+                            confirmDismiss: (direction) => showDialog(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: Text('Remove $name'),
+                                content: Text(
+                                  'Are you sure you want to remove $name from your products?',
+                                ),
+                                actions: [
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: primaryColor,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    onPressed: () => Navigator.of(context).pop(true),
+                                    child: const Text(
+                                      'Yes',
+                                      style: TextStyle(color: Colors.white),
                                     ),
                                   ),
-                                  subtitle: Text('RS: ${item['product']?['price']?.toString() ?? '0'}'),
-                                  trailing: IconButton(
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.grey.shade300,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(14),
+                                      ),
+                                    ),
+                                    onPressed: () => Navigator.of(context).pop(false),
+                                    child: const Text(
+                                      'Cancel',
+                                      style: TextStyle(color: Colors.black87),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            key: ValueKey(item['id']),
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(22),
+                                color: Colors.white.withOpacity(0.92),
+                                border: Border.all(
+                                  color: Colors.black.withOpacity(0.06),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.06),
+                                    blurRadius: 14,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      width: 56,
+                                      height: 56,
+                                      color: primaryColor.withOpacity(0.10),
+                                      child: photoUrl.isNotEmpty
+                                          ? Image.network(
+                                              photoUrl,
+                                              fit: BoxFit.cover,
+                                              errorBuilder: (context, error, stackTrace) =>
+                                                  const Icon(Icons.broken_image, color: primaryColor),
+                                            )
+                                          : const Icon(Icons.image, color: primaryColor),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          name,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontSize: 14.5,
+                                            fontWeight: FontWeight.w900,
+                                            color: Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          'RS: $price',
+                                          style: TextStyle(
+                                            fontSize: 12.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: Colors.black.withOpacity(0.55),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
                                     onPressed: () => Navigator.of(context).push(
                                       MaterialPageRoute(
-                                        builder: (context) => EditProduct(productData: item['product']),
+                                        builder: (context) => EditProduct(productData: product),
                                       ),
                                     ),
                                     icon: const Icon(
@@ -242,15 +310,15 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
                                       color: primaryColor,
                                     ),
                                   ),
-                                ),
+                                ],
                               ),
                             ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-          ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
         ),
       ),
       floatingActionButton: Column(
@@ -271,6 +339,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
               });
             },
             backgroundColor: primaryColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             child: const Icon(Icons.add, color: Colors.white),
           ),
           const SizedBox(height: 16),
@@ -285,6 +354,7 @@ class _ManageProductsScreenState extends State<ManageProductsScreen> {
               );
             },
             backgroundColor: primaryColor,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
             child: const Icon(Icons.category, color: Colors.white),
           ),
         ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../../../constants/colors.dart';
+import '../../../../constants/app_config.dart';
 import '../../../../components/loading.dart';
 import 'edit_product.dart';
 import '../../../../helpers/secure_http_client.dart';
@@ -30,7 +31,7 @@ class _ScanBarcodeScreenState extends State<ScanBarcodeScreen> {
 
     try {
       final response = await SecureHttpClient.get(
-        'https://nicknameinfo.net/api/product/getProductById/$productId',
+        '${AppConfig.baseApi}/product/getProductById/$productId',
         timeout: const Duration(seconds: 15),
         context: context,
       );
